@@ -2,10 +2,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-RUN npm install -g next@latest
+RUN npm config set fetch-timeout 60000 && \
+    npm config set fetch-retries 5 && \
+    npm install -g next@latest
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci --verbose
 
 COPY . .
 

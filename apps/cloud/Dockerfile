@@ -2,7 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir \
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir --retries 5 --default-timeout=60 \
     fastapi==0.104.1 \
     uvicorn==0.24.0 \
     sqlalchemy==2.0.23 \

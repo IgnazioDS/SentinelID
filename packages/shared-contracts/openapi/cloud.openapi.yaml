@@ -1,11 +1,77 @@
 openapi: 3.0.0
 info:
   title: SentinelID Cloud API
-  version: 0.1.0
+  version: 0.3.0
+  description: Cloud telemetry ingest and admin endpoints
+
 paths:
+  /health:
+    get:
+      summary: Health Check
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
   /v1/ingest/events:
     post:
-      summary: Ingest Telemetry Events
+      summary: Ingest Signed Telemetry Events
+      operationId: ingestEvents
+      tags:
+        - Ingest
       responses:
         '202':
-          description: Accepted
+          description: Batch accepted
+        '401':
+          description: Invalid signature
+        '500':
+          description: Server error
+
+  /v1/admin/events:
+    get:
+      summary: Retrieve Telemetry Events
+      operationId: getEvents
+      tags:
+        - Admin
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: device_id
+          in: query
+          schema:
+            type: string
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [allow, deny, error]
+      responses:
+        '200':
+          description: Events list
+
+  /v1/admin/stats:
+    get:
+      summary: Cloud Service Statistics
+      operationId: getStats
+      tags:
+        - Admin
+      responses:
+        '200':
+          description: Service statistics

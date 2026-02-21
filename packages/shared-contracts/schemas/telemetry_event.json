@@ -1,12 +1,76 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "TelemetryEvent",
+  "description": "Sanitized telemetry event for cloud ingest (no images, embeddings, or face metadata)",
   "type": "object",
   "properties": {
     "event_id": {
       "type": "string",
-      "format": "uuid"
+      "format": "uuid",
+      "description": "Unique event identifier"
+    },
+    "device_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Device identifier (derived from public key)"
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "Unix timestamp of event"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": ["auth_started", "auth_finished"],
+      "description": "Type of authentication event"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["allow", "deny", "error"],
+      "description": "Authentication decision"
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Structured reason codes for decision"
+    },
+    "liveness_passed": {
+      "type": "boolean",
+      "description": "Whether liveness verification passed"
+    },
+    "similarity_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Optional similarity score (no PII)"
+    },
+    "risk_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Optional risk assessment score"
+    },
+    "session_duration_seconds": {
+      "type": "integer",
+      "description": "Duration of authentication session"
+    },
+    "audit_event_hash": {
+      "type": "string",
+      "description": "Hash of corresponding audit event (for integrity linkage)"
+    },
+    "signature": {
+      "type": "string",
+      "description": "Hex-encoded ED25519 signature of event payload"
     }
   },
-  "required": ["event_id"]
+  "required": [
+    "event_id",
+    "device_id",
+    "timestamp",
+    "event_type",
+    "outcome",
+    "reason_codes",
+    "signature"
+  ]
 }

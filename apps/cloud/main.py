@@ -21,7 +21,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from models import init_db
-from api import ingest_router, admin_router
+from api.ingest_router import router as ingest_router_router
+from api.admin_router import router as admin_router_router
 
 
 @asynccontextmanager
@@ -43,8 +44,8 @@ app = FastAPI(
 )
 
 # Include routers
-app.include_router(ingest_router.router, prefix="/v1")
-app.include_router(admin_router.router, prefix="/v1")
+app.include_router(ingest_router_router, prefix="/v1")
+app.include_router(admin_router_router, prefix="/v1")
 
 
 @app.get("/health", tags=["Health"])

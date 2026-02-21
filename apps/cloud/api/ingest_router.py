@@ -9,8 +9,15 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from ..models import get_db, Device, TelemetryEvent
-from .signature_verifier import SignatureVerifier
+# Use absolute imports for compatibility with uvicorn
+import sys
+import os
+api_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(api_dir)
+sys.path.insert(0, parent_dir)
+
+from models import get_db, Device, TelemetryEvent
+from api.signature_verifier import SignatureVerifier
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Ingest"])

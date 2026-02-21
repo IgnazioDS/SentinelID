@@ -14,8 +14,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Database initialization
-from .models import init_db
-from .api import ingest_router, admin_router
+try:
+    # When running as module (python -m)
+    from models import init_db
+    from api import ingest_router, admin_router
+except ImportError:
+    # When running from parent directory
+    from .models import init_db
+    from .api import ingest_router, admin_router
 
 
 @asynccontextmanager

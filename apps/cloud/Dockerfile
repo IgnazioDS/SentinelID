@@ -14,4 +14,4 @@ RUN pip install --upgrade pip setuptools wheel && \
 
 COPY . .
 
-CMD ["python", "-m", "main"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -29,11 +29,6 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres/sentinelid
-      # - OTHER_CLOUD_ENV_VARS
-    develop:
-      watch:
-        - action: sync
-          path: ./apps/cloud
 
   admin:
     build:
@@ -43,10 +38,6 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-    develop:
-      watch:
-        - action: sync
-          path: ./apps/admin
 
 volumes:
   sentinelid_postgres_data:

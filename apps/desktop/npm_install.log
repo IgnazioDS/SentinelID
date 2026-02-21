@@ -1,0 +1,178 @@
+npm verbose cli /opt/homebrew/Cellar/node/23.11.0/bin/node /opt/homebrew/bin/npm
+npm info using npm@10.9.2
+npm info using node@v23.11.0
+npm verbose title npm install
+npm verbose argv "install" "--loglevel" "verbose"
+npm verbose logfile logs-max:10 dir:/Users/ignaziodesantis/.npm/_logs/2026-02-21T09_05_29_708Z-
+npm verbose logfile /Users/ignaziodesantis/.npm/_logs/2026-02-21T09_05_29_708Z-debug-0.log
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-win32-x64-msvc 6ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-darwin-x64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-linux-x64-gnu 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-linux-arm64-gnu 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-linux-arm64-musl 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-linux-arm-gnueabihf 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-linux-x64-musl 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-win32-ia32-msvc 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@tauri-apps%2fcli-win32-arm64-msvc 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2faix-ppc64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fandroid-arm 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fandroid-arm64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fandroid-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fdarwin-arm64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fdarwin-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2ffreebsd-arm64 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2ffreebsd-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-arm 4ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-arm64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-ia32 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-loong64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-mips64el 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-ppc64 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-riscv64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-s390x 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2flinux-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fnetbsd-x64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fopenbsd-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fsunos-x64 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fwin32-arm64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fwin32-ia32 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@esbuild%2fwin32-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-android-arm64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-win32-arm64-msvc 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-freebsd-arm64 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-arm64-gnu 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-arm64-musl 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-android-arm-eabi 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-arm-gnueabihf 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-arm-musleabihf 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-win32-ia32-msvc 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-loong64-gnu 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-loong64-musl 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-riscv64-gnu 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-riscv64-musl 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-ppc64-gnu 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-ppc64-musl 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-s390x-gnu 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-darwin-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-win32-x64-gnu 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-win32-x64-msvc 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-freebsd-x64 3ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-x64-gnu 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-linux-x64-musl 2ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-openbsd-x64 1ms (cache hit)
+npm http cache https://registry.npmjs.org/@rollup%2frollup-openharmony-arm64 1ms (cache hit)
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-win32-x64-msvc
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-win32-ia32-msvc
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-win32-arm64-msvc
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-linux-x64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-linux-x64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-linux-arm64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-linux-arm64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-linux-arm-gnueabihf
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/@tauri-apps/cli/node_modules/@tauri-apps/cli-darwin-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-win32-x64-msvc
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-win32-x64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-win32-ia32-msvc
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-win32-arm64-msvc
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-openharmony-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-openbsd-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-x64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-x64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-s390x-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-riscv64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-riscv64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-ppc64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-ppc64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-loong64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-loong64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-arm64-musl
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-arm64-gnu
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-arm-musleabihf
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-linux-arm-gnueabihf
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-freebsd-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-freebsd-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-darwin-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-android-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/rollup/node_modules/@rollup/rollup-android-arm-eabi
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/win32-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/win32-ia32
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/win32-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/sunos-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/openbsd-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/netbsd-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-s390x
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-riscv64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-ppc64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-mips64el
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-loong64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-ia32
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/linux-arm
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/freebsd-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/freebsd-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/darwin-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/android-x64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/android-arm64
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/android-arm
+npm verbose reify failed optional dependency /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/aix-ppc64
+npm http cache @esbuild/darwin-arm64@https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.21.5.tgz 0ms (cache hit)
+npm http cache https://registry.npmjs.org/vite 22ms (cache hit)
+npm http cache https://registry.npmjs.org/esbuild 31ms (cache hit)
+npm http cache https://registry.npmjs.org/esbuild/-/esbuild-0.21.5.tgz 11ms (cache hit)
+npm http cache https://registry.npmjs.org/vite/-/vite-5.4.21.tgz 15ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/loose-envify 663ms (cache miss)
+npm http cache https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz 3ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/nanoid 766ms (cache revalidated)
+npm http cache https://registry.npmjs.org/nanoid/-/nanoid-3.3.11.tgz 6ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/jsesc 789ms (cache miss)
+npm http cache https://registry.npmjs.org/jsesc/-/jsesc-3.1.0.tgz 3ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/update-browserslist-db 881ms (cache miss)
+npm http fetch GET 200 https://registry.npmjs.org/json5 882ms (cache miss)
+npm http cache https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.2.3.tgz 4ms (cache hit)
+npm http cache https://registry.npmjs.org/json5/-/json5-2.2.3.tgz 5ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/semver 1076ms (cache miss)
+npm http cache https://registry.npmjs.org/semver/-/semver-6.3.1.tgz 3ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/semver 1175ms (cache miss)
+npm http cache https://registry.npmjs.org/semver/-/semver-6.3.1.tgz 2ms (cache hit)
+npm http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 1348ms
+npm http cache https://registry.npmjs.org/vite 6ms (cache hit)
+npm http cache https://registry.npmjs.org/@vitejs%2fplugin-react 2ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/baseline-browser-mapping 1436ms (cache miss)
+npm http cache https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.10.0.tgz 3ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/semver 1794ms (cache miss)
+npm http cache https://registry.npmjs.org/semver/-/semver-7.7.4.tgz 4ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/browserslist 1898ms (cache miss)
+npm http cache https://registry.npmjs.org/browserslist/-/browserslist-4.28.1.tgz 3ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/@tauri-apps%2fcli 2229ms (cache miss)
+npm http cache https://registry.npmjs.org/@tauri-apps/cli/-/cli-1.6.3.tgz 4ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/@babel%2fparser 4623ms (cache miss)
+npm http cache https://registry.npmjs.org/@babel/parser/-/parser-7.29.0.tgz 8ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/rollup 9429ms (cache miss)
+npm http cache https://registry.npmjs.org/rollup/-/rollup-4.58.0.tgz 12ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/typescript 34500ms (cache updated)
+npm http cache https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz 38ms (cache hit)
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/darwin-arm64/package.json'
+npm warn tar TAR_ENTRY_ERROR ENOENT: no such file or directory, open '/Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild/node_modules/@esbuild/darwin-arm64/README.md'
+npm http fetch GET 200 https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.21.5.tgz 70490ms (cache miss)
+npm info run esbuild@0.21.5 postinstall node_modules/esbuild node install.js
+npm info run esbuild@0.21.5 postinstall { code: 'ENOENT', signal: undefined }
+npm verbose stack Error: spawn sh ENOENT
+npm verbose stack     at ChildProcess._handle.onexit (node:internal/child_process:286:19)
+npm verbose stack     at onErrorNT (node:internal/child_process:484:16)
+npm verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+npm verbose pkgid esbuild@0.21.5
+npm error code ENOENT
+npm error syscall spawn sh
+npm error path /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop/node_modules/esbuild
+npm error errno -2
+npm error enoent spawn sh ENOENT
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+npm verbose cwd /Users/ignaziodesantis/Desktop/Development/SentinelID/apps/desktop
+npm verbose os Darwin 25.4.0
+npm verbose node v23.11.0
+npm verbose npm  v10.9.2
+npm verbose exit -2
+npm verbose code -2
+npm error A complete log of this run can be found in: /Users/ignaziodesantis/.npm/_logs/2026-02-21T09_05_29_708Z-debug-0.log

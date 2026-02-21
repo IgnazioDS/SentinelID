@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "sentinelid-edge"
+version = "0.1.0"
+description = "SentinelID Edge Service for Face Authentication"
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+pydantic = "^2.5.0"
+pydantic-settings = "^2.1.0"
+opencv-python = "^4.13.0"
+# Insightface is a key dependency. It may require specific system libraries.
+# For now, we specify the package, but a real setup might need a more controlled environment (like Docker).
+insightface = "^0.7.3"
+numpy = "^2.4.2" # compatibility with insightface
+SQLAlchemy = "^2.0.25"
+alembic = "^1.13.1"
+python-multipart = "^0.0.7" # for file uploads
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.4.0"
+httpx = "^0.25.0"
+black = "^23.12.0"
+ruff = "^0.1.9"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

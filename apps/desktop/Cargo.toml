@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "src-tauri"
+]
+
+[package]
+name = "sentinelid-desktop-workspace"
+version = "0.1.0"
+edition = "2021"

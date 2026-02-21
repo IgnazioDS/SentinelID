@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: sentinelid_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sentinelid
+    ports:
+      - "5432:5432"
+    volumes:
+      - sentinelid_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d sentinelid"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  cloud:
+    build:
+      context: ./apps/cloud
+    container_name: sentinelid_cloud
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://admin:password@postgres/sentinelid
+      # - OTHER_CLOUD_ENV_VARS
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/cloud
+
+  admin:
+    build:
+      context: ./apps/admin
+    container_name: sentinelid_admin
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    develop:
+      watch:
+        - action: sync
+          path: ./apps/admin
+
+volumes:
+  sentinelid_postgres_data:

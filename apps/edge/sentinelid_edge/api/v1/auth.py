@@ -4,11 +4,16 @@ Authentication endpoints with liveness verification.
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional, List
+import time
 from ...services.liveness.challenges import SessionStore, ChallengeGenerator
 from ...services.liveness.evaluator import LivenessEvaluator
 from ...services.vision.detector import FaceDetector
 from ...domain.policy import PolicyEngine
 from ...domain.reasons import ReasonCode, get_reason_messages
+from ...services.storage.repo_audit import AuditRepository, AuditEvent
+from ...services.telemetry.event import TelemetryEvent, TelemetryMapper
+from ...services.telemetry.exporter import TelemetryExporter
+from ...core.config import settings
 
 router = APIRouter()
 
@@ -18,6 +23,12 @@ _challenge_generator = ChallengeGenerator(challenge_timeout_seconds=10)
 _liveness_evaluator = LivenessEvaluator()
 _face_detector = FaceDetector()
 _policy_engine = PolicyEngine()
+_audit_repo = AuditRepository()
+
+# Telemetry exporter (if enabled)
+_telemetry_exporter: Optional[TelemetryExporter] = None
+if settings.TELEMETRY_ENABLED and settings.CLOUD_INGEST_URL:
+    _telemetry_exporter = TelemetryExporter(settings.CLOUD_INGEST_URL)
 
 
 # Request/Response models
@@ -183,6 +194,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
         - liveness_passed: Whether liveness verification passed
         - similarity_score: Optional similarity to enrolled template (future use)
     """
+    session_start_time = None
     try:
         # Get session
         session = _session_store.get_session(request.session_id)
@@ -191,6 +203,9 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Session not found or expired",
             )
+
+        # Track session start time for duration calculation
+        session_start_time = session.created_at if hasattr(session, 'created_at') else int(time.time())
 
         # Evaluate session with policy engine
         auth_decision = _policy_engine.evaluate(session)
@@ -203,6 +218,34 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
         session.similarity_score = auth_decision.similarity_score
 
         _session_store.save_session(session)
+
+        # Emit audit event (mandatory)
+        audit_event = AuditEvent(
+            event_id="",  # Will be generated
+            timestamp=int(time.time()),
+            event_type="auth_finished",
+            outcome=auth_decision.decision,
+            reason_codes=auth_decision.reason_codes,
+            similarity_score=auth_decision.similarity_score,
+            liveness_passed=auth_decision.liveness_passed,
+            session_id=request.session_id,
+        )
+        audit_hash = _audit_repo.write_event(audit_event)
+
+        # Emit telemetry event (if enabled)
+        if _telemetry_exporter:
+            try:
+                telemetry_event = TelemetryMapper.from_audit_event(
+                    audit_event,
+                    device_id=_telemetry_exporter.signer.get_device_id(),
+                    session_start_time=session_start_time
+                )
+                telemetry_event.audit_event_hash = audit_hash
+                _telemetry_exporter.add_event(telemetry_event)
+            except Exception as e:
+                # Log telemetry error but don't fail auth
+                import logging
+                logging.error(f"Telemetry emission failed: {str(e)}")
 
         return FinishAuthResponse(
             decision=auth_decision.decision,

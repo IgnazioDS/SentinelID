@@ -14,14 +14,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Database initialization
-try:
-    # When running as module (python -m)
-    from models import init_db
-    from api import ingest_router, admin_router
-except ImportError:
-    # When running from parent directory
-    from .models import init_db
-    from .api import ingest_router, admin_router
+# Use absolute imports to work with uvicorn
+import sys
+import os
+# Add current directory to path to enable absolute imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from models import init_db
+from api import ingest_router, admin_router
 
 
 @asynccontextmanager

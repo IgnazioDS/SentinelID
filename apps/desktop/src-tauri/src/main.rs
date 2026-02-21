@@ -20,7 +20,7 @@ struct EdgeState {
 }
 
 #[tauri::command]
-async fn start_edge() -> Result<EdgeInfo, String> {
+async fn start_edge(state: tauri::State<'_, Mutex<EdgeState>>) -> Result<EdgeInfo, String> {
     // Select a random free port between 8000-9000
     let mut rng = rand::thread_rng();
     let port = rng.gen_range(8000..9000);
@@ -30,7 +30,7 @@ async fn start_edge() -> Result<EdgeInfo, String> {
 
     // Start edge process (in dev mode, it's in apps/edge)
     #[cfg(debug_assertions)]
-    let edge_cmd = {
+    let mut edge_cmd = {
         // Dev mode: run edge from source using uvicorn
         // Assuming we're running from project root or have proper paths
         let mut cmd = Command::new("python");
@@ -48,12 +48,12 @@ async fn start_edge() -> Result<EdgeInfo, String> {
     };
 
     #[cfg(not(debug_assertions))]
-    let edge_cmd = {
+    let mut edge_cmd = {
         // Production: would use bundled binary (TODO: bundle edge binary)
         panic!("Production edge bundling not yet implemented")
     };
 
-    let _child = edge_cmd
+    let child = edge_cmd
         .spawn()
         .map_err(|e| format!("Failed to start edge process: {}", e))?;
 
@@ -73,6 +73,14 @@ async fn start_edge() -> Result<EdgeInfo, String> {
                     base_url: base_url.clone(),
                     token: token.clone(),
                 };
+
+                // Store edge process and info in state
+                {
+                    let mut app_state = state.lock().map_err(|e| e.to_string())?;
+                    app_state.edge_process = Some(child);
+                    app_state.edge_info = Some(edge_info.clone());
+                }
+
                 return Ok(edge_info);
             }
             _ => {

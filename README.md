@@ -1,9 +1,5 @@
 # SentinelID
 
-SentinelID is a passkey-style authentication system that replaces passwords with a liveness-gated face login, delivered as a Tauri desktop app paired with a hybrid remote admin dashboard.
-
-# SentinelID
-
 SentinelID is a passkey-style authentication system that replaces passwords with a **liveness-gated face login**, delivered as a **Tauri desktop app** paired with a **hybrid remote admin dashboard**.
 
 - **Desktop (Tauri + React):** camera UI, enrollment/login UX, starts/stops the local Edge service.

@@ -1,14 +1,32 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+import { invoke } from '@tauri-apps/api/tauri';
+
+interface EdgeInfo {
+  base_url: string;
+  token: string;
+}
+
+let edgeInfo: EdgeInfo | null = null;
+
+async function getEdgeInfo(): Promise<EdgeInfo> {
+  if (!edgeInfo) {
+    edgeInfo = await invoke<EdgeInfo>('get_edge_info');
+  }
+  return edgeInfo;
+}
 
 async function enrollFrame(frame: string): Promise<any> {
   console.log('apiClient: enrollFrame called with base64 string');
 
   try {
-    console.log(`apiClient: Sending POST request to ${API_BASE_URL}/enroll/frame`);
-    const response = await fetch(`${API_BASE_URL}/enroll/frame`, {
+    const edge = await getEdgeInfo();
+    const url = `${edge.base_url}/enroll/frame`;
+
+    console.log(`apiClient: Sending POST request to ${url}`);
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${edge.token}`,
       },
       body: JSON.stringify({ frame: frame }),
     });

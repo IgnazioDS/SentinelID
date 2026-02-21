@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::process::{Command, Child};
 use std::sync::Mutex;
 use uuid::Uuid;
-use rand::Rng;
 use std::time::Duration;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -22,8 +21,8 @@ struct EdgeState {
 #[tauri::command]
 async fn start_edge(state: tauri::State<'_, Mutex<EdgeState>>) -> Result<EdgeInfo, String> {
     // Select a random free port between 8000-9000
-    let mut rng = rand::thread_rng();
-    let port = rng.gen_range(8000..9000);
+    // Use rand::random instead of thread_rng to avoid Send issues across await
+    let port: u16 = rand::random::<u16>() % 1000 + 8000;
 
     // Generate a random token (UUID)
     let token = Uuid::new_v4().to_string();

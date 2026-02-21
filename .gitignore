@@ -26,3 +26,4 @@ venv/
 # IDE
 .vscode/
 .idea/
+apps/edge/.sentinelid/audit.db

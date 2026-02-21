@@ -13,7 +13,7 @@
     "allowlist": {
       "all": false,
       "http": {
-        "scope": ["http://localhost:8000/*"]
+        "scope": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
       }
     },
     "bundle": {

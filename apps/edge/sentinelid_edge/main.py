@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sentinelid_edge.api.router import api_router
 from sentinelid_edge.core.config import settings
@@ -39,7 +40,12 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         try:
             await verify_bearer_token(request)
         except HTTPException as exc:
-            return exc
+            # Convert HTTPException to proper JSONResponse
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
 
         return await call_next(request)
 

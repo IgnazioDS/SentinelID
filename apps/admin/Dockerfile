@@ -7,7 +7,7 @@ RUN npm config set fetch-timeout 60000 && \
     npm install -g next@latest
 
 COPY package*.json ./
-RUN npm ci --verbose
+RUN npm install
 
 COPY . .
 

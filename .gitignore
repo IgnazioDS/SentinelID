@@ -26,4 +26,46 @@ venv/
 # IDE
 .vscode/
 .idea/
-apps/edge/.sentinelid/audit.db
+
+# Build Artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+dist/
+build/
+*.egg-info/
+
+# Database & Temporary Files
+*.db
+*.sqlite
+*.sqlite3
+apps/edge/.sentinelid/
+logs/
+*.log
+tmp/
+temp/
+
+# Package Manager Artifacts
+yarn.lock
+package-lock.json (for admin app only - may want to track)
+
+# Test Artifacts
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+
+# Docker
+.dockerignore
+
+# OS Temporary Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.tmp

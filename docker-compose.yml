@@ -29,6 +29,12 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres/sentinelid
+      - ADMIN_API_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   admin:
     build:
@@ -36,8 +42,17 @@ services:
     container_name: sentinelid_admin
     ports:
       - "3000:3000"
+    depends_on:
+      cloud:
+        condition: service_healthy
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_ADMIN_TOKEN=${NEXT_PUBLIC_ADMIN_TOKEN:-dev-admin-token}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   sentinelid_postgres_data:

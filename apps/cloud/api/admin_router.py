@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Use absolute imports for compatibility with uvicorn
 import sys
@@ -15,7 +15,8 @@ api_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(api_dir)
 sys.path.insert(0, parent_dir)
 
-from models import get_db, TelemetryEvent
+from models import get_db, TelemetryEvent, Device
+from admin_auth import verify_admin_token
 
 router = APIRouter(tags=["Admin"])
 
@@ -47,12 +48,45 @@ class EventsResponse(BaseModel):
     total: int
 
 
+class DeviceResponse(BaseModel):
+    """Device response."""
+
+    device_id: str
+    registered_at: datetime
+    last_seen: datetime
+    is_active: bool
+    event_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class DevicesResponse(BaseModel):
+    """Response for devices query."""
+
+    devices: List[DeviceResponse]
+    total: int
+
+
+class StatsResponse(BaseModel):
+    """Statistics response."""
+
+    total_devices: int
+    active_devices: int
+    total_events: int
+    allow_count: int
+    deny_count: int
+    error_count: int
+    liveness_failure_rate: float = 0.0
+
+
 @router.get("/admin/events", response_model=EventsResponse)
 async def get_events(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     device_id: Optional[str] = Query(None),
     outcome: Optional[str] = Query(None),
+    admin_token: str = Depends(verify_admin_token),
     db: Session = Depends(get_db)
 ) -> EventsResponse:
     """
@@ -103,16 +137,17 @@ async def get_events(
     return EventsResponse(events=event_responses, total=total)
 
 
-@router.get("/admin/stats")
-async def get_stats(db: Session = Depends(get_db)):
+@router.get("/admin/stats", response_model=StatsResponse)
+async def get_stats(
+    admin_token: str = Depends(verify_admin_token),
+    db: Session = Depends(get_db)
+) -> StatsResponse:
     """
     Get cloud service statistics.
 
     Returns:
         Statistics about devices and events
     """
-    from ..models import Device
-
     total_devices = db.query(Device).count()
     active_devices = db.query(Device).filter(Device.is_active == True).count()
     total_events = db.query(TelemetryEvent).count()
@@ -121,11 +156,52 @@ async def get_stats(db: Session = Depends(get_db)):
     deny_count = db.query(TelemetryEvent).filter(TelemetryEvent.outcome == "deny").count()
     error_count = db.query(TelemetryEvent).filter(TelemetryEvent.outcome == "error").count()
 
-    return {
-        "total_devices": total_devices,
-        "active_devices": active_devices,
-        "total_events": total_events,
-        "allow_count": allow_count,
-        "deny_count": deny_count,
-        "error_count": error_count,
-    }
+    # Calculate liveness failure rate
+    liveness_failed = db.query(TelemetryEvent).filter(TelemetryEvent.liveness_passed == False).count()
+    liveness_failure_rate = (liveness_failed / total_events * 100) if total_events > 0 else 0.0
+
+    return StatsResponse(
+        total_devices=total_devices,
+        active_devices=active_devices,
+        total_events=total_events,
+        allow_count=allow_count,
+        deny_count=deny_count,
+        error_count=error_count,
+        liveness_failure_rate=liveness_failure_rate,
+    )
+
+
+@router.get("/admin/devices", response_model=DevicesResponse)
+async def get_devices(
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    admin_token: str = Depends(verify_admin_token),
+    db: Session = Depends(get_db)
+) -> DevicesResponse:
+    """
+    Retrieve registered devices.
+
+    Query Parameters:
+    - limit: Number of devices to return (max 1000)
+    - offset: Number of devices to skip
+
+    Returns:
+        List of devices with metadata
+    """
+    query = db.query(Device)
+    total = query.count()
+
+    devices = query.order_by(Device.last_seen.desc()).offset(offset).limit(limit).all()
+
+    device_responses = []
+    for device in devices:
+        event_count = db.query(TelemetryEvent).filter(TelemetryEvent.device_id == device.device_id).count()
+        device_responses.append(DeviceResponse(
+            device_id=device.device_id,
+            registered_at=device.registered_at,
+            last_seen=device.last_seen,
+            is_active=device.is_active,
+            event_count=event_count,
+        ))
+
+    return DevicesResponse(devices=device_responses, total=total)

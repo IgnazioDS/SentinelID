@@ -6,6 +6,7 @@ use std::process::{Command, Child};
 use std::sync::Mutex;
 use uuid::Uuid;
 use std::time::Duration;
+use std::path::PathBuf;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct EdgeInfo {
@@ -48,8 +49,19 @@ async fn start_edge(state: tauri::State<'_, Mutex<EdgeState>>) -> Result<EdgeInf
 
     #[cfg(not(debug_assertions))]
     let mut edge_cmd = {
-        // Production: would use bundled binary (TODO: bundle edge binary)
-        panic!("Production edge bundling not yet implemented")
+        // Production: use bundled Python venv with run_edge.sh launcher
+        let app = tauri::AppHandle::app(tauri::api::app::get_app_handle().unwrap());
+        let resource_path = app.path_resolver()
+            .resolve_resource("resources/edge/run_edge.sh")
+            .expect("Failed to resolve edge launcher resource");
+
+        let mut cmd = Command::new(resource_path);
+        cmd.arg(port.to_string())
+            .arg("127.0.0.1")
+            .arg(&token)
+            .env("EDGE_AUTH_TOKEN", &token)
+            .env("EDGE_ENV", "production");
+        cmd
     };
 
     let child = edge_cmd

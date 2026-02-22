@@ -7,21 +7,29 @@
   },
   "package": {
     "productName": "SentinelID",
-    "version": "0.1.0"
+    "version": "0.5.0"
   },
   "tauri": {
     "allowlist": {
       "all": false,
       "shell": {
-        "open": true
+        "open": true,
+        "execute": true,
+        "sidecar": true
       },
       "http": {
         "scope": ["http://localhost/*", "http://127.0.0.1/*"]
       }
     },
     "bundle": {
-      "active": false,
-      "identifier": "com.sentinelid.dev"
+      "active": true,
+      "identifier": "com.sentinelid.desktop",
+      "resources": [
+        {
+          "path": "resources/edge",
+          "target": "resources/edge"
+        }
+      ]
     },
     "security": {
       "csp": null

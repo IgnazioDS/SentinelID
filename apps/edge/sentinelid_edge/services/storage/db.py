@@ -33,10 +33,11 @@ class Database:
         return self.connection
 
     def init_schema(self):
-        """Initialize database schema (audit log table)."""
+        """Initialize database schema (audit log and outbox tables)."""
         conn = self.connect()
         cursor = conn.cursor()
 
+        # Audit events table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS audit_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +54,31 @@ class Database:
                 hash TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
+        """)
+
+        # Telemetry outbox table for reliable event delivery
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS outbox_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                payload_json TEXT NOT NULL,
+                attempts INTEGER DEFAULT 0,
+                next_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'SENT', 'DLQ')),
+                last_error TEXT,
+                last_error_at DATETIME
+            )
+        """)
+
+        # Create indices for efficient queries
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_outbox_status_next_attempt
+            ON outbox_events(status, next_attempt_at)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_outbox_created_at
+            ON outbox_events(created_at)
         """)
 
         conn.commit()

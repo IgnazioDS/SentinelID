@@ -132,10 +132,10 @@ Edge Service Tests:
 │   ├── PASSED: Event writing
 │   ├── PASSED: Hash chain integrity
 │   ├── PASSED: Chain verification
-│   ├── FAILED: Event retrieval (database state issue)
-│   ├── FAILED: Data integrity (test design issue)
+│   ├── PASSED: Event retrieval (fixed database isolation)
+│   ├── PASSED: Data integrity (fixed duplicate event_id issue)
 │   └── PASSED: Hash linkage
-│   Result: 5/7 PASSED ✅
+│   Result: 7/7 PASSED ✅
 │
 └── Telemetry (9 tests)
     ├── PASSED: No raw data in events
@@ -149,7 +149,7 @@ Edge Service Tests:
     └── PASSED: Device ID consistency
     Result: 9/9 PASSED ✅
 
-Total: 14/16 PASSED (87.5%)
+Total: 16/16 PASSED (100%)
 ```
 
 ### Integration Test ✅
@@ -372,14 +372,14 @@ cd /Users/ignaziodesantis/Desktop/Development/SentinelID
 
 | Metric | Target | Achieved | Status |
 |--------|--------|----------|--------|
-| Unit Tests Pass Rate | >80% | 87.5% (14/16) | ✅ |
-| Core Services | 3 (Edge/Cloud/DB) | 3/3 | ✅ |
-| Auth Flow Working | Yes | Yes | ✅ |
-| Hash-Chain Integrity | Working | Working | ✅ |
-| Telemetry Sanitization | 100% | 100% | ✅ |
-| Docker Builds | Reliable | Reliable | ✅ |
-| Code Coverage | Good | Good | ✅ |
-| Documentation | Complete | Complete | ✅ |
+| Unit Tests Pass Rate | >80% | 100% (16/16) | COMPLETE |
+| Core Services | 3 (Edge/Cloud/DB) | 3/3 | COMPLETE |
+| Auth Flow Working | Yes | Yes | COMPLETE |
+| Hash-Chain Integrity | Working | Working | COMPLETE |
+| Telemetry Sanitization | 100% | 100% | COMPLETE |
+| Docker Builds | Reliable | Reliable | COMPLETE |
+| Code Coverage | Good | Good | COMPLETE |
+| Documentation | Complete | Complete | COMPLETE |
 
 ---
 

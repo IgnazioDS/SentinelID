@@ -41,6 +41,7 @@ class AuthSession:
     reason_codes: List[str] = field(default_factory=list)
     liveness_passed: bool = False
     similarity_score: Optional[float] = None
+    frame_count: int = 0  # incremented on each /auth/frame call
 
     def is_expired(self) -> bool:
         """Check if session has timed out."""

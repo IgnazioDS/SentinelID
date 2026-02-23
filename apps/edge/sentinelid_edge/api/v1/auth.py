@@ -1,6 +1,7 @@
 """
 Authentication endpoints with liveness verification.
 """
+import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional, List
@@ -14,6 +15,8 @@ from ...services.storage.repo_audit import AuditRepository, AuditEvent
 from ...services.telemetry.event import TelemetryEvent, TelemetryMapper
 from ...services.telemetry.exporter import TelemetryExporter
 from ...core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -131,6 +134,16 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
                 detail="Session already finished",
             )
 
+        # Enforce max frames per session
+        session.frame_count += 1
+        if session.frame_count > settings.MAX_FRAMES_PER_SESSION:
+            session.finished = True
+            _session_store.save_session(session)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Frame limit exceeded for this session",
+            )
+
         # Detect face and extract landmarks
         face_detected, landmarks, detection_metadata = _face_detector.detect_and_extract_landmarks(
             request.frame
@@ -243,9 +256,8 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                 telemetry_event.audit_event_hash = audit_hash
                 _telemetry_exporter.add_event(telemetry_event)
             except Exception as e:
-                # Log telemetry error but don't fail auth
-                import logging
-                logging.error(f"Telemetry emission failed: {str(e)}")
+                # Log telemetry error but don't fail auth; do not log event payload
+                logger.error("Telemetry emission failed (session=%s)", request.session_id)
 
         return FinishAuthResponse(
             decision=auth_decision.decision,

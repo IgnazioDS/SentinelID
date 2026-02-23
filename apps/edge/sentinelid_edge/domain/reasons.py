@@ -37,6 +37,17 @@ class ReasonCode(str, Enum):
     # Other errors
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
+    # Verification / enrollment lifecycle (v0.8)
+    NOT_ENROLLED = "NOT_ENROLLED"
+    SIMILARITY_BELOW_THRESHOLD = "SIMILARITY_BELOW_THRESHOLD"
+    NO_FACE = "NO_FACE"
+    MULTIPLE_FACES = "MULTIPLE_FACES"
+    LOW_QUALITY = "LOW_QUALITY"
+    POSE_TOO_LARGE = "POSE_TOO_LARGE"
+    TOO_DARK = "TOO_DARK"
+    TOO_BLURRY = "TOO_BLURRY"
+    ENROLL_INCOMPLETE = "ENROLL_INCOMPLETE"
+
     # Risk scoring (v0.7)
     RISK_HIGH = "RISK_HIGH"
     RISK_STEP_UP = "RISK_STEP_UP"
@@ -72,6 +83,15 @@ def get_reason_messages() -> dict:
         ReasonCode.SESSION_EXPIRED: "Session has expired",
         ReasonCode.SESSION_ALREADY_FINISHED: "Session has already been finished",
         ReasonCode.INTERNAL_ERROR: "Internal service error",
+        ReasonCode.NOT_ENROLLED: "No enrolled biometric template found",
+        ReasonCode.SIMILARITY_BELOW_THRESHOLD: "Face similarity is below verification threshold",
+        ReasonCode.NO_FACE: "No face was detected",
+        ReasonCode.MULTIPLE_FACES: "Multiple faces detected",
+        ReasonCode.LOW_QUALITY: "Face sample quality is insufficient",
+        ReasonCode.POSE_TOO_LARGE: "Face pose angle is outside the allowed limits",
+        ReasonCode.TOO_DARK: "Face sample is too dark",
+        ReasonCode.TOO_BLURRY: "Face sample is too blurry",
+        ReasonCode.ENROLL_INCOMPLETE: "Enrollment does not yet have enough good frames",
         # Risk / spoof
         ReasonCode.RISK_HIGH: "Risk score exceeds denial threshold",
         ReasonCode.RISK_STEP_UP: "Risk score requires additional verification",

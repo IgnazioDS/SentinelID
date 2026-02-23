@@ -1,9 +1,7 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './CameraView.css';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+type Mode = 'verify' | 'enroll';
 
 type AuthState =
   | 'idle'
@@ -11,6 +9,14 @@ type AuthState =
   | 'in_challenge'
   | 'step_up'
   | 'finishing'
+  | 'success'
+  | 'error';
+
+type EnrollState =
+  | 'idle'
+  | 'starting'
+  | 'capturing'
+  | 'committing'
   | 'success'
   | 'error';
 
@@ -22,16 +28,23 @@ interface AuthSession {
   decision?: string;
   reason_codes?: string[];
   risk_reasons?: string[];
+  quality_reason_codes?: string[];
   liveness_passed?: boolean;
+  similarity_score?: number;
   risk_score?: number;
   step_up?: boolean;
   step_up_challenges?: string[];
   in_step_up?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+interface EnrollSession {
+  session_id: string;
+  target_frames: number;
+  accepted_frames: number;
+  reason_codes: string[];
+  quality?: Record<string, unknown>;
+  template_id?: string;
+}
 
 function getEdgeBaseUrl(): string {
   return (window as any).__edgeInfo?.base_url ?? 'http://127.0.0.1:8000';
@@ -61,23 +74,23 @@ function getInstructionForChallenge(challenge?: string): string {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 const CameraView: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const [mode, setMode] = useState<Mode>('verify');
+
   const [authState, setAuthState] = useState<AuthState>('idle');
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [frameCount, setFrameCount] = useState(0);
-  // Demo mode: local-only toggle; shows risk score and reason codes.
-  // Does not store or transmit any additional data.
   const [demoMode, setDemoMode] = useState(false);
 
-  // Camera stream setup
+  const [enrollState, setEnrollState] = useState<EnrollState>('idle');
+  const [enrollSession, setEnrollSession] = useState<EnrollSession | null>(null);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
+  const [enrollLabel, setEnrollLabel] = useState('default');
+
   useEffect(() => {
     async function getCamera() {
       if (navigator.mediaDevices?.getUserMedia) {
@@ -89,37 +102,44 @@ const CameraView: React.FC = () => {
             videoRef.current.srcObject = stream;
           }
         } catch {
-          setError('Cannot access camera');
+          setAuthError('Cannot access camera');
+          setEnrollError('Cannot access camera');
         }
       }
     }
     getCamera();
     return () => {
       if (videoRef.current?.srcObject) {
-        (videoRef.current.srcObject as MediaStream)
-          .getTracks()
-          .forEach((t) => t.stop());
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
       }
       if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
     };
   }, []);
 
-  // -------------------------------------------------------------------------
-  // Frame capture loop
-  // -------------------------------------------------------------------------
+  const captureFrameData = useCallback((): string | null => {
+    if (!videoRef.current) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg');
+  }, []);
 
-  const captureAndSendFrame = useCallback(async () => {
-    if (!videoRef.current || !session) return;
+  const stopFrameCapture = () => {
+    if (frameIntervalRef.current) {
+      clearInterval(frameIntervalRef.current);
+      frameIntervalRef.current = null;
+    }
+  };
+
+  const captureAndSendVerifyFrame = useCallback(async () => {
+    if (!session) return;
+    const frameData = captureFrameData();
+    if (!frameData) return;
 
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const frameData = canvas.toDataURL('image/jpeg');
-
       const res = await fetch(`${getEdgeBaseUrl()}/api/v1/auth/frame`, {
         method: 'POST',
         headers: edgeHeaders(),
@@ -128,9 +148,7 @@ const CameraView: React.FC = () => {
           frame: frameData,
         }),
       });
-
       if (!res.ok) throw new Error(`Frame error: ${res.statusText}`);
-
       const result = await res.json();
       setFrameCount((c) => c + 1);
       setSession((prev) =>
@@ -140,43 +158,33 @@ const CameraView: React.FC = () => {
               current_challenge: result.current_challenge,
               progress: result.progress,
               in_step_up: result.in_step_up,
+              quality_reason_codes: result.quality_reason_codes ?? [],
             }
           : null
       );
     } catch (err) {
-      setError(String(err));
+      setAuthError(String(err));
+      setAuthState('error');
+      stopFrameCapture();
     }
-  }, [session]);
+  }, [captureFrameData, session]);
 
   const startFrameCapture = useCallback(() => {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-    frameIntervalRef.current = setInterval(captureAndSendFrame, 125); // ~8 fps
-  }, [captureAndSendFrame]);
-
-  const stopFrameCapture = () => {
-    if (frameIntervalRef.current) {
-      clearInterval(frameIntervalRef.current);
-      frameIntervalRef.current = null;
-    }
-  };
-
-  // -------------------------------------------------------------------------
-  // Auth flow
-  // -------------------------------------------------------------------------
+    frameIntervalRef.current = setInterval(captureAndSendVerifyFrame, 125);
+  }, [captureAndSendVerifyFrame]);
 
   const startAuth = async () => {
     try {
       setAuthState('starting');
-      setError(null);
+      setAuthError(null);
       setFrameCount(0);
-
       const res = await fetch(`${getEdgeBaseUrl()}/api/v1/auth/start`, {
         method: 'POST',
         headers: edgeHeaders(),
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error(`Start failed: ${res.statusText}`);
-
       const data = await res.json();
       setSession({
         session_id: data.session_id,
@@ -186,7 +194,7 @@ const CameraView: React.FC = () => {
       setAuthState('in_challenge');
       startFrameCapture();
     } catch (err) {
-      setError(String(err));
+      setAuthError(String(err));
       setAuthState('error');
     }
   };
@@ -196,17 +204,14 @@ const CameraView: React.FC = () => {
       if (!session) return;
       setAuthState('finishing');
       stopFrameCapture();
-
       const res = await fetch(`${getEdgeBaseUrl()}/api/v1/auth/finish`, {
         method: 'POST',
         headers: edgeHeaders(),
         body: JSON.stringify({ session_id: session.session_id }),
       });
       if (!res.ok) throw new Error(`Finish failed: ${res.statusText}`);
-
       const data = await res.json();
 
-      // Step-up required: server issued additional challenges
       if (data.step_up && data.decision === 'step_up') {
         const firstStepUpChallenge = (data.step_up_challenges ?? [])[0];
         setSession((prev) =>
@@ -219,42 +224,148 @@ const CameraView: React.FC = () => {
                 risk_score: data.risk_score,
                 reason_codes: data.reason_codes,
                 risk_reasons: data.risk_reasons ?? [],
+                similarity_score: data.similarity_score,
+                quality_reason_codes: data.quality_reason_codes ?? [],
                 in_step_up: true,
               }
             : null
         );
         setAuthState('step_up');
-        // Resume frame capture for step-up challenge evaluation
         startFrameCapture();
         return;
       }
 
-      // Final decision (allow or deny)
       setSession((prev) => (prev ? { ...prev, ...data } : null));
       setAuthState(data.decision === 'allow' ? 'success' : 'error');
     } catch (err) {
-      setError(String(err));
+      setAuthError(String(err));
       setAuthState('error');
     }
   };
 
-  const reset = () => {
+  const resetAuth = () => {
     stopFrameCapture();
     setAuthState('idle');
     setSession(null);
-    setError(null);
+    setAuthError(null);
     setFrameCount(0);
   };
 
-  // -------------------------------------------------------------------------
-  // Render helpers
-  // -------------------------------------------------------------------------
+  const startEnrollment = async () => {
+    try {
+      setEnrollState('starting');
+      setEnrollError(null);
+      const res = await fetch(`${getEdgeBaseUrl()}/api/v1/enroll/start`, {
+        method: 'POST',
+        headers: edgeHeaders(),
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error(`Enroll start failed: ${res.statusText}`);
+      const data = await res.json();
+      setEnrollSession({
+        session_id: data.session_id,
+        target_frames: data.target_frames,
+        accepted_frames: 0,
+        reason_codes: [],
+      });
+      setEnrollState('capturing');
+    } catch (err) {
+      setEnrollError(String(err));
+      setEnrollState('error');
+    }
+  };
 
-  const renderDemoBadge = () => {
+  const captureEnrollFrame = async () => {
+    try {
+      if (!enrollSession) return;
+      const frameData = captureFrameData();
+      if (!frameData) throw new Error('Unable to capture frame');
+      const res = await fetch(`${getEdgeBaseUrl()}/api/v1/enroll/frame`, {
+        method: 'POST',
+        headers: edgeHeaders(),
+        body: JSON.stringify({
+          session_id: enrollSession.session_id,
+          frame: frameData,
+        }),
+      });
+      if (!res.ok) throw new Error(`Enroll frame failed: ${res.statusText}`);
+      const data = await res.json();
+      setEnrollSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              accepted_frames: data.accepted_frames,
+              target_frames: data.target_frames,
+              reason_codes: data.reason_codes ?? [],
+              quality: data.quality ?? {},
+            }
+          : null
+      );
+    } catch (err) {
+      setEnrollError(String(err));
+      setEnrollState('error');
+    }
+  };
+
+  const commitEnrollment = async () => {
+    try {
+      if (!enrollSession) return;
+      setEnrollState('committing');
+      const res = await fetch(`${getEdgeBaseUrl()}/api/v1/enroll/commit`, {
+        method: 'POST',
+        headers: edgeHeaders(),
+        body: JSON.stringify({
+          session_id: enrollSession.session_id,
+          label: enrollLabel || 'default',
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Enroll commit failed: ${body}`);
+      }
+      const data = await res.json();
+      setEnrollSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              template_id: data.template_id,
+              accepted_frames: data.accepted_frames,
+              target_frames: data.target_frames,
+              reason_codes: [],
+            }
+          : null
+      );
+      setEnrollState('success');
+    } catch (err) {
+      setEnrollError(String(err));
+      setEnrollState('error');
+    }
+  };
+
+  const resetEnrollment = async () => {
+    try {
+      if (enrollSession) {
+        await fetch(`${getEdgeBaseUrl()}/api/v1/enroll/reset`, {
+          method: 'POST',
+          headers: edgeHeaders(),
+          body: JSON.stringify({ session_id: enrollSession.session_id }),
+        });
+      }
+    } catch {
+      // ignore reset errors in UI cleanup
+    } finally {
+      setEnrollSession(null);
+      setEnrollState('idle');
+      setEnrollError(null);
+    }
+  };
+
+  const renderVerifyDemoBadge = () => {
     if (!demoMode || !session) return null;
     const parts: string[] = [];
-    if (session.risk_score !== undefined)
-      parts.push(`risk: ${session.risk_score.toFixed(3)}`);
+    if (session.risk_score !== undefined) parts.push(`risk: ${session.risk_score.toFixed(3)}`);
+    if (session.similarity_score !== undefined)
+      parts.push(`similarity: ${session.similarity_score.toFixed(3)}`);
     if (session.risk_reasons && session.risk_reasons.length > 0)
       parts.push(session.risk_reasons.join(', '));
     if (session.in_step_up) parts.push('step-up active');
@@ -266,152 +377,184 @@ const CameraView: React.FC = () => {
     );
   };
 
-  const renderContent = () => {
+  const renderVerifyContent = () => {
     switch (authState) {
       case 'idle':
         return (
           <div className="camera-controls">
-            <h2>Liveness Authentication</h2>
+            <h2>Verification</h2>
             <button onClick={startAuth} className="btn-primary">
-              Start Authentication
+              Start Verification
             </button>
           </div>
         );
-
       case 'starting':
         return (
           <div className="camera-status">
-            <p>Starting authentication session...</p>
+            <p>Starting verification session...</p>
           </div>
         );
-
       case 'in_challenge':
-        return (
-          <div className="camera-challenge">
-            <h3>Challenge: {session?.current_challenge?.toUpperCase()}</h3>
-            <p className="instruction">
-              {getInstructionForChallenge(session?.current_challenge)}
-            </p>
-            <p className="progress">Progress: {session?.progress}</p>
-            <p className="frame-count">Frames sent: {frameCount}</p>
-            {renderDemoBadge()}
-            <div className="button-group">
-              <button onClick={finishAuth} className="btn-secondary">
-                Finish Authentication
-              </button>
-            </div>
-          </div>
-        );
-
       case 'step_up':
         return (
-          <div className="camera-challenge step-up">
-            <h3>Additional Verification Required</h3>
-            <p className="step-up-notice">
-              Your session requires an extra verification step. Please complete
-              the challenge below.
-            </p>
-            <h4>Challenge: {session?.current_challenge?.toUpperCase()}</h4>
-            <p className="instruction">
-              {getInstructionForChallenge(session?.current_challenge)}
-            </p>
+          <div className="camera-challenge">
+            <h3>
+              {authState === 'step_up' ? 'Additional Verification Required' : `Challenge: ${session?.current_challenge?.toUpperCase()}`}
+            </h3>
+            <p className="instruction">{getInstructionForChallenge(session?.current_challenge)}</p>
             <p className="progress">Progress: {session?.progress}</p>
             <p className="frame-count">Frames sent: {frameCount}</p>
-            {renderDemoBadge()}
+            {session?.quality_reason_codes && session.quality_reason_codes.length > 0 && (
+              <p className="quality-warning">Quality: {session.quality_reason_codes.join(', ')}</p>
+            )}
+            {renderVerifyDemoBadge()}
             <div className="button-group">
               <button onClick={finishAuth} className="btn-secondary">
-                Complete Verification
+                {authState === 'step_up' ? 'Complete Step-up' : 'Finish Verification'}
               </button>
             </div>
           </div>
         );
-
       case 'finishing':
         return (
           <div className="camera-status">
-            <p>Processing results...</p>
+            <p>Processing verification result...</p>
           </div>
         );
-
       case 'success':
-        return (
-          <div className="camera-result success">
-            <h3>Authentication Successful</h3>
-            <p>Decision: {session?.decision}</p>
-            <p>Liveness Passed: {session?.liveness_passed ? 'Yes' : 'No'}</p>
-            {session?.reason_codes && (
-              <p>Reason: {session.reason_codes.join(', ')}</p>
-            )}
-            {demoMode && session?.risk_score !== undefined && (
-              <p className="demo-info">
-                Risk Score: {session.risk_score.toFixed(3)}
-              </p>
-            )}
-            {demoMode && session?.risk_reasons && session.risk_reasons.length > 0 && (
-              <p className="demo-info">
-                Risk Reasons: {session.risk_reasons.join(', ')}
-              </p>
-            )}
-            <button onClick={reset} className="btn-primary">
-              Try Again
-            </button>
-          </div>
-        );
-
       case 'error':
         return (
-          <div className="camera-result error">
-            <h3>Authentication Failed</h3>
-            <p>{error ?? 'Unknown error occurred'}</p>
-            {session?.reason_codes && (
-              <p>Reason: {session.reason_codes.join(', ')}</p>
+          <div className={`camera-result ${authState === 'success' ? 'success' : 'error'}`}>
+            <h3>{authState === 'success' ? 'Verification Successful' : 'Verification Failed'}</h3>
+            {authState === 'error' && <p>{authError ?? 'Unknown error occurred'}</p>}
+            <p>Decision: {session?.decision}</p>
+            <p>Liveness Passed: {session?.liveness_passed ? 'Yes' : 'No'}</p>
+            {session?.similarity_score !== undefined && (
+              <p>Similarity: {session.similarity_score.toFixed(3)}</p>
             )}
-            {demoMode && session?.risk_score !== undefined && (
-              <p className="demo-info">
-                Risk Score: {session.risk_score.toFixed(3)}
-              </p>
+            {session?.reason_codes && <p>Reasons: {session.reason_codes.join(', ')}</p>}
+            {session?.quality_reason_codes && session.quality_reason_codes.length > 0 && (
+              <p>Quality: {session.quality_reason_codes.join(', ')}</p>
             )}
-            {demoMode && session?.risk_reasons && session.risk_reasons.length > 0 && (
-              <p className="demo-info">
-                Risk Reasons: {session.risk_reasons.join(', ')}
-              </p>
-            )}
-            <button onClick={reset} className="btn-primary">
+            <button onClick={resetAuth} className="btn-primary">
               Try Again
             </button>
           </div>
         );
-
       default:
         return null;
     }
   };
 
-  // -------------------------------------------------------------------------
-  // Root render
-  // -------------------------------------------------------------------------
+  const renderEnrollContent = () => {
+    switch (enrollState) {
+      case 'idle':
+        return (
+          <div className="camera-controls">
+            <h2>Enrollment</h2>
+            <p>Capture high-quality samples. No raw frames are stored.</p>
+            <div className="field-row">
+              <label>Label</label>
+              <input value={enrollLabel} onChange={(e) => setEnrollLabel(e.target.value)} />
+            </div>
+            <button onClick={startEnrollment} className="btn-primary">
+              Start Enrollment
+            </button>
+          </div>
+        );
+      case 'starting':
+        return (
+          <div className="camera-status">
+            <p>Starting enrollment session...</p>
+          </div>
+        );
+      case 'capturing':
+        return (
+          <div className="camera-challenge">
+            <h3>Capture Enrollment Frames</h3>
+            <p className="progress">
+              Progress: {enrollSession?.accepted_frames ?? 0}/{enrollSession?.target_frames ?? 0}
+            </p>
+            {enrollSession?.reason_codes && enrollSession.reason_codes.length > 0 && (
+              <p className="quality-warning">Quality: {enrollSession.reason_codes.join(', ')}</p>
+            )}
+            <div className="button-group">
+              <button onClick={captureEnrollFrame} className="btn-secondary">
+                Capture Frame
+              </button>
+              <button
+                onClick={commitEnrollment}
+                className="btn-primary"
+                disabled={(enrollSession?.accepted_frames ?? 0) < (enrollSession?.target_frames ?? 0)}
+              >
+                Commit Enrollment
+              </button>
+              <button onClick={resetEnrollment} className="btn-secondary">
+                Reset
+              </button>
+            </div>
+          </div>
+        );
+      case 'committing':
+        return (
+          <div className="camera-status">
+            <p>Committing enrolled template...</p>
+          </div>
+        );
+      case 'success':
+        return (
+          <div className="camera-result success">
+            <h3>Enrollment Complete</h3>
+            <p>Template ID: {enrollSession?.template_id}</p>
+            <p>
+              Frames: {enrollSession?.accepted_frames}/{enrollSession?.target_frames}
+            </p>
+            <button onClick={resetEnrollment} className="btn-primary">
+              Enroll Again
+            </button>
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="camera-result error">
+            <h3>Enrollment Failed</h3>
+            <p>{enrollError ?? 'Unknown error occurred'}</p>
+            <button onClick={resetEnrollment} className="btn-primary">
+              Retry
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="camera-view">
-      <div className="demo-toggle">
-        <label>
-          <input
-            type="checkbox"
-            checked={demoMode}
-            onChange={(e) => setDemoMode(e.target.checked)}
-          />
-          {' '}Demo mode (local only)
-        </label>
+      <div className="mode-toggle">
+        <button
+          className={mode === 'verify' ? 'btn-primary' : 'btn-secondary'}
+          onClick={() => setMode('verify')}
+        >
+          Verification
+        </button>
+        <button
+          className={mode === 'enroll' ? 'btn-primary' : 'btn-secondary'}
+          onClick={() => setMode('enroll')}
+        >
+          Enrollment
+        </button>
       </div>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        width="640"
-        height="480"
-        className="camera-feed"
-      />
-      <div className="camera-overlay">{renderContent()}</div>
+      {mode === 'verify' && (
+        <div className="demo-toggle">
+          <label>
+            <input type="checkbox" checked={demoMode} onChange={(e) => setDemoMode(e.target.checked)} /> Demo mode
+            (local only)
+          </label>
+        </div>
+      )}
+      <video ref={videoRef} autoPlay playsInline width="640" height="480" className="camera-feed" />
+      <div className="camera-overlay">{mode === 'verify' ? renderVerifyContent() : renderEnrollContent()}</div>
     </div>
   );
 };

@@ -9,6 +9,14 @@
   margin: 0 auto;
 }
 
+.mode-toggle {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 640px;
+  justify-content: flex-start;
+}
+
 .demo-toggle {
   width: 100%;
   max-width: 640px;
@@ -146,6 +154,33 @@
   font-size: 14px;
 }
 
+.quality-warning {
+  margin: 10px 0;
+  font-size: 13px;
+  color: #8c6f00;
+}
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.field-row label {
+  font-size: 13px;
+  color: #555;
+  font-weight: 600;
+}
+
+.field-row input {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
 .button-group {
   display: flex;
   gap: 12px;
@@ -162,6 +197,11 @@ button {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-primary {

@@ -71,5 +71,18 @@ async def get_diagnostics(_: str = Depends(verify_bearer_token)) -> Dict[str, An
             "max_step_ups_per_session": settings.MAX_STEP_UPS_PER_SESSION,
             "score_counts": risk_counts,  # {"low": N, "medium": N, "high": N, "total": N}
         },
+        "verification": {
+            "similarity_threshold": settings.SIMILARITY_THRESHOLD,
+            "enroll_target_frames": settings.ENROLL_TARGET_FRAMES,
+            "quality_gates": {
+                "min_face_size_px": settings.MIN_FACE_SIZE_PX,
+                "min_blur_variance": settings.MIN_BLUR_VARIANCE,
+                "min_illumination_mean": settings.MIN_ILLUMINATION_MEAN,
+                "max_illumination_mean": settings.MAX_ILLUMINATION_MEAN,
+                "max_abs_yaw_deg": settings.MAX_ABS_YAW_DEG,
+                "max_abs_pitch_deg": settings.MAX_ABS_PITCH_DEG,
+                "max_abs_roll_deg": settings.MAX_ABS_ROLL_DEG,
+            },
+        },
         "status": "healthy",
     }

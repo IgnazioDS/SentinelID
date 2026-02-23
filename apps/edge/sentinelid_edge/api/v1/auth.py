@@ -14,6 +14,8 @@ import logging
 import time
 from typing import List, Optional
 
+import numpy as np
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -25,9 +27,12 @@ from ...services.antifraud.risk import get_risk_scorer
 from ...services.liveness.challenges import ChallengeGenerator, SessionStore
 from ...services.liveness.evaluator import LivenessEvaluator
 from ...services.storage.repo_audit import AuditEvent, AuditRepository
+from ...services.storage.repo_templates import TemplateRepository
 from ...services.telemetry.event import TelemetryEvent, TelemetryMapper
 from ...services.telemetry.exporter import TelemetryExporter
 from ...services.vision.detector import FaceDetector
+from ...services.vision.embedder import FaceEmbedder, cosine_similarity
+from ...services.vision.quality import FaceQualityGate
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +45,17 @@ _session_store = SessionStore(session_timeout_seconds=120)
 _challenge_generator = ChallengeGenerator(challenge_timeout_seconds=10)
 _liveness_evaluator = LivenessEvaluator()
 _face_detector = FaceDetector()
+_face_embedder = FaceEmbedder(_face_detector)
+_face_quality_gate = FaceQualityGate()
 _policy_engine = PolicyEngine(
+    similarity_threshold=settings.SIMILARITY_THRESHOLD,
     risk_threshold_r1=settings.RISK_THRESHOLD_R1,
     risk_threshold_r2=settings.RISK_THRESHOLD_R2,
     max_step_ups=settings.MAX_STEP_UPS_PER_SESSION,
+)
+_template_repo = TemplateRepository(
+    db_path=settings.DB_PATH,
+    keychain_dir=settings.KEYCHAIN_DIR,
 )
 _audit_repo = AuditRepository()
 
@@ -76,6 +88,7 @@ class AuthFrameResponse(BaseModel):
     progress: str
     detail: str
     in_step_up: bool = False
+    quality_reason_codes: List[str] = Field(default_factory=list)
 
 
 class FinishAuthRequest(BaseModel):
@@ -89,6 +102,7 @@ class FinishAuthResponse(BaseModel):
     similarity_score: Optional[float] = None
     risk_score: Optional[float] = None
     risk_reasons: List[str] = Field(default_factory=list)
+    quality_reason_codes: List[str] = Field(default_factory=list)
     # Step-up fields (populated when decision == "step_up")
     step_up: bool = False
     step_up_challenges: List[str] = Field(default_factory=list)
@@ -178,11 +192,12 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
             )
 
         # Face detection + landmarks
-        face_detected, landmarks, _meta = _face_detector.detect_and_extract_landmarks(
-            request.frame
-        )
+        faces, meta = _face_detector.detect_faces(request.frame)
+        image_bgr = meta.get("image_bgr")
+        landmarks = faces[0].landmarks if len(faces) == 1 else None
 
-        if not face_detected:
+        if len(faces) == 0:
+            session.latest_quality_reasons = [ReasonCode.NO_FACE]
             _session_store.save_session(session)
             return AuthFrameResponse(
                 session_id=session.session_id,
@@ -190,7 +205,38 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
                 progress=_progress_str(session),
                 detail="No face detected in frame",
                 in_step_up=session.in_step_up,
+                quality_reason_codes=[ReasonCode.NO_FACE.value],
             )
+
+        if len(faces) > 1:
+            session.latest_quality_reasons = [ReasonCode.MULTIPLE_FACES]
+            _session_store.save_session(session)
+            return AuthFrameResponse(
+                session_id=session.session_id,
+                current_challenge=_current_challenge_name(session),
+                progress=_progress_str(session),
+                detail="Multiple faces detected; expected exactly one face",
+                in_step_up=session.in_step_up,
+                quality_reason_codes=[ReasonCode.MULTIPLE_FACES.value],
+            )
+
+        # Quality gates for verification embedding capture.
+        quality_report = _face_quality_gate.evaluate(image_bgr, faces) if image_bgr is not None else None
+        if quality_report is not None and quality_report.passed:
+            embedding = _face_embedder.extract_embedding(
+                request.frame,
+                face=faces[0],
+                image_bgr=image_bgr,
+            )
+            if embedding is not None:
+                session.latest_embedding = np.asarray(embedding, dtype=np.float32)
+                session.latest_quality_reasons = []
+            else:
+                session.latest_quality_reasons = [ReasonCode.LOW_QUALITY]
+        elif quality_report is not None:
+            session.latest_quality_reasons = list(quality_report.reason_codes)
+        else:
+            session.latest_quality_reasons = [ReasonCode.LOW_QUALITY]
 
         # Accumulate landmark history for temporal heuristic (cap at 40 frames)
         if landmarks is not None:
@@ -247,6 +293,10 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
             progress=_progress_str(session),
             detail=detail_msg,
             in_step_up=session.in_step_up,
+            quality_reason_codes=[
+                code.value if hasattr(code, "value") else str(code)
+                for code in session.latest_quality_reasons
+            ],
         )
     except HTTPException:
         raise
@@ -285,10 +335,23 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
         # force_final=True on second finish call (step-up already consumed)
         force_final = session.in_step_up
 
+        latest_template = _template_repo.load_latest_template()
+        template_enrolled = latest_template is not None
+        similarity_score: Optional[float] = None
+        if template_enrolled and latest_template is not None and session.latest_embedding is not None:
+            similarity_score = cosine_similarity(
+                np.asarray(session.latest_embedding, dtype=np.float32),
+                np.asarray(latest_template.embedding, dtype=np.float32),
+            )
+        session.similarity_score = similarity_score
+
         auth_decision = _policy_engine.evaluate(
             session,
             risk_score=session.risk_score,
             risk_reasons=session.risk_reasons,
+            template_enrolled=template_enrolled,
+            similarity_score=similarity_score,
+            enforce_similarity=True,
             force_final=force_final,
         )
 
@@ -305,8 +368,13 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                 decision="step_up",
                 reason_codes=auth_decision.reason_codes,
                 liveness_passed=auth_decision.liveness_passed,
+                similarity_score=auth_decision.similarity_score,
                 risk_score=auth_decision.risk_score,
                 risk_reasons=auth_decision.risk_reasons,
+                quality_reason_codes=[
+                    code.value if hasattr(code, "value") else str(code)
+                    for code in session.latest_quality_reasons
+                ],
                 step_up=True,
                 step_up_challenges=step_up_names,
             )
@@ -322,6 +390,13 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             )
             if marker not in final_reason_codes:
                 final_reason_codes.append(marker)
+        if (
+            auth_decision.decision == "deny"
+            and ReasonCode.SIMILARITY_BELOW_THRESHOLD in final_reason_codes
+        ):
+            for code in session.latest_quality_reasons:
+                if code not in final_reason_codes:
+                    final_reason_codes.append(code)
 
         session.finished = True
         session.clear_step_up()
@@ -368,6 +443,10 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             similarity_score=auth_decision.similarity_score,
             risk_score=auth_decision.risk_score,
             risk_reasons=auth_decision.risk_reasons,
+            quality_reason_codes=[
+                code.value if hasattr(code, "value") else str(code)
+                for code in session.latest_quality_reasons
+            ],
         )
     except HTTPException:
         raise

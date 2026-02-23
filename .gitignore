@@ -58,6 +58,7 @@ package-lock.json (for admin app only - may want to track)
 htmlcov/
 .tox/
 .hypothesis/
+scripts/eval/out/*.json
 
 # Docker
 .dockerignore

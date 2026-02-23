@@ -15,7 +15,7 @@ import time
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...core.config import settings
 from ...domain.models import AuthSession
@@ -88,9 +88,10 @@ class FinishAuthResponse(BaseModel):
     liveness_passed: bool
     similarity_score: Optional[float] = None
     risk_score: Optional[float] = None
+    risk_reasons: List[str] = Field(default_factory=list)
     # Step-up fields (populated when decision == "step_up")
     step_up: bool = False
-    step_up_challenges: List[str] = []
+    step_up_challenges: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +295,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
         # --- Handle STEP_UP: issue additional challenges, keep session open ---
         if auth_decision.decision == "step_up":
             step_up_challenges = _challenge_generator.generate_challenges()
-            session.step_up_challenges = step_up_challenges
-            session.step_up_challenge_index = 0
-            session.step_up_count += 1
-            session.in_step_up = True
+            session.start_step_up(step_up_challenges)
             # Reset liveness evaluator for fresh step-up challenge evaluation
             _liveness_evaluator.reset_detectors()
             _session_store.save_session(session)
@@ -308,14 +306,27 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                 reason_codes=auth_decision.reason_codes,
                 liveness_passed=auth_decision.liveness_passed,
                 risk_score=auth_decision.risk_score,
+                risk_reasons=auth_decision.risk_reasons,
                 step_up=True,
                 step_up_challenges=step_up_names,
             )
 
         # --- Final decision (allow or deny): mark session finished ---
+        was_in_step_up = session.in_step_up
+        final_reason_codes = list(auth_decision.reason_codes)
+        if was_in_step_up:
+            marker = (
+                ReasonCode.STEP_UP_COMPLETED
+                if auth_decision.decision == "allow"
+                else ReasonCode.STEP_UP_FAILED
+            )
+            if marker not in final_reason_codes:
+                final_reason_codes.append(marker)
+
         session.finished = True
+        session.clear_step_up()
         session.decision = auth_decision.decision
-        session.reason_codes = auth_decision.reason_codes
+        session.reason_codes = final_reason_codes
         session.liveness_passed = auth_decision.liveness_passed
         session.similarity_score = auth_decision.similarity_score
 
@@ -327,7 +338,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             timestamp=int(time.time()),
             event_type="auth_finished",
             outcome=auth_decision.decision,
-            reason_codes=auth_decision.reason_codes,
+            reason_codes=final_reason_codes,
             similarity_score=auth_decision.similarity_score,
             risk_score=auth_decision.risk_score,
             liveness_passed=auth_decision.liveness_passed,
@@ -352,10 +363,11 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
 
         return FinishAuthResponse(
             decision=auth_decision.decision,
-            reason_codes=auth_decision.reason_codes,
+            reason_codes=final_reason_codes,
             liveness_passed=auth_decision.liveness_passed,
             similarity_score=auth_decision.similarity_score,
             risk_score=auth_decision.risk_score,
+            risk_reasons=auth_decision.risk_reasons,
         )
     except HTTPException:
         raise

@@ -9,7 +9,7 @@ Decision logic:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .models import AuthSession
@@ -32,6 +32,7 @@ class AuthDecision:
     liveness_passed: bool
     similarity_score: Optional[float] = None
     risk_score: Optional[float] = None
+    risk_reasons: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to JSON-serialisable dictionary."""
@@ -41,6 +42,7 @@ class AuthDecision:
             "liveness_passed": self.liveness_passed,
             "similarity_score": self.similarity_score,
             "risk_score": self.risk_score,
+            "risk_reasons": self.risk_reasons,
         }
 
 
@@ -113,6 +115,7 @@ class PolicyEngine:
                 reason_codes=[ReasonCode.SESSION_EXPIRED],
                 liveness_passed=False,
                 risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
             )
 
         # --- Session guard: already finished (idempotent re-read) ---
@@ -124,12 +127,14 @@ class PolicyEngine:
                     liveness_passed=session.liveness_passed,
                     similarity_score=session.similarity_score,
                     risk_score=effective_risk,
+                    risk_reasons=spoof_reasons,
                 )
             return AuthDecision(
                 decision="deny",
                 reason_codes=list(session.reason_codes),
                 liveness_passed=False,
                 risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
             )
 
         # --- Risk gate: deny immediately if risk >= R2 ---
@@ -139,24 +144,15 @@ class PolicyEngine:
                 reason_codes=[ReasonCode.RISK_HIGH] + spoof_reasons,
                 liveness_passed=session.liveness_passed,
                 risk_score=effective_risk,
-            )
-
-        # --- Risk gate: step-up if R1 <= risk < R2 and budget remaining ---
-        if (
-            not force_final
-            and effective_risk >= self.risk_threshold_r1
-            and session.step_up_count < self.max_step_ups
-        ):
-            return AuthDecision(
-                decision="step_up",
-                reason_codes=[ReasonCode.RISK_STEP_UP] + spoof_reasons,
-                liveness_passed=session.liveness_passed,
-                risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
             )
 
         # --- Liveness gate: all required challenges must be completed ---
         if session.in_step_up:
-            challenges_done = session.all_step_up_challenges_completed()
+            challenges_done = (
+                session.all_challenges_completed()
+                and session.all_step_up_challenges_completed()
+            )
         else:
             challenges_done = session.all_challenges_completed()
 
@@ -166,6 +162,7 @@ class PolicyEngine:
                 reason_codes=[ReasonCode.LIVENESS_FAILED],
                 liveness_passed=False,
                 risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
             )
 
         if self.require_liveness and not session.liveness_passed:
@@ -174,6 +171,25 @@ class PolicyEngine:
                 reason_codes=[ReasonCode.LIVENESS_FAILED],
                 liveness_passed=False,
                 risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
+            )
+
+        # --- Risk gate: step-up if R1 <= risk < R2 and budget remaining ---
+        if not force_final and effective_risk >= self.risk_threshold_r1:
+            if session.step_up_count < self.max_step_ups:
+                return AuthDecision(
+                    decision="step_up",
+                    reason_codes=[ReasonCode.RISK_STEP_UP] + spoof_reasons,
+                    liveness_passed=session.liveness_passed,
+                    risk_score=effective_risk,
+                    risk_reasons=spoof_reasons,
+                )
+            return AuthDecision(
+                decision="deny",
+                reason_codes=[ReasonCode.MAX_STEP_UPS_REACHED] + spoof_reasons,
+                liveness_passed=False,
+                risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
             )
 
         # --- All checks passed ---
@@ -183,4 +199,5 @@ class PolicyEngine:
             liveness_passed=True,
             similarity_score=session.similarity_score,
             risk_score=effective_risk,
+            risk_reasons=spoof_reasons,
         )

@@ -87,9 +87,14 @@ class LivenessEvaluator:
             True if all relevant challenges passed, False otherwise.
         """
         if session.in_step_up:
-            if not session.all_step_up_challenges_completed():
+            if not (
+                session.all_challenges_completed()
+                and session.all_step_up_challenges_completed()
+            ):
                 return False
-            all_passed = all(c.passed for c in session.step_up_challenges)
+            all_passed = all(c.passed for c in session.challenges) and all(
+                c.passed for c in session.step_up_challenges
+            )
         else:
             if not session.all_challenges_completed():
                 return False

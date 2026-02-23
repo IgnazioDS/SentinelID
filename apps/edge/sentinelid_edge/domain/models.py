@@ -136,3 +136,16 @@ class AuthSession:
         return bool(self.step_up_challenges) and all(
             c.completed for c in self.step_up_challenges
         )
+
+    def start_step_up(self, challenges: List[Challenge]) -> None:
+        """Enter step-up mode with a fresh set of challenges."""
+        self.step_up_challenges = challenges
+        self.step_up_challenge_index = 0
+        self.step_up_count += 1
+        self.in_step_up = True
+
+    def clear_step_up(self) -> None:
+        """Exit step-up mode after a final decision is produced."""
+        self.in_step_up = False
+        self.step_up_challenges = []
+        self.step_up_challenge_index = 0

@@ -24,11 +24,18 @@ class Database:
         """
         Get or create database connection.
 
+        check_same_thread=False is required because the connection is
+        created once and shared across async handler threads in FastAPI.
+        SQLite serialises writes internally; we rely on that plus explicit
+        BEGIN EXCLUSIVE transactions for rotation atomicity.
+
         Returns:
             SQLite connection
         """
         if self.connection is None:
-            self.connection = sqlite3.connect(str(self.db_path))
+            self.connection = sqlite3.connect(
+                str(self.db_path), check_same_thread=False
+            )
             self.connection.row_factory = sqlite3.Row
         return self.connection
 

@@ -11,6 +11,8 @@ Base URL (local dev): `http://127.0.0.1:8787`
 - `POST /api/v1/enroll/start`
 - `POST /api/v1/enroll/frame`
 - `POST /api/v1/enroll/commit`
+- `POST /api/v1/enroll/reset`
+- `POST /api/v1/enroll/calibrate`
 - `POST /api/v1/auth/start`
 - `POST /api/v1/auth/frame`
 - `POST /api/v1/auth/finish`

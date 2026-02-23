@@ -16,6 +16,8 @@ SentinelID evaluation focuses on:
 - Script: `scripts/eval/run_eval.sh`
 - Output: `scripts/eval/out/eval_<timestamp>.json`
 - Output is sanitized and excludes frames/embeddings.
+- Verification calibration script: `scripts/eval/run_verify_eval.sh`
+- Verification output: `scripts/eval/out/verify_eval_<timestamp>.json`
 
 ## Typical Local Run
 

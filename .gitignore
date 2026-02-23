@@ -40,6 +40,7 @@ build/
 
 # Database & Temporary Files
 *.db
+*.db-*
 *.sqlite
 *.sqlite3
 apps/edge/.sentinelid/
@@ -50,7 +51,7 @@ temp/
 
 # Package Manager Artifacts
 yarn.lock
-package-lock.json (for admin app only - may want to track)
+# package-lock.json is intentionally tracked in selected apps
 
 # Test Artifacts
 .coverage

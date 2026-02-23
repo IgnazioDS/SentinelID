@@ -124,6 +124,33 @@ class TemplateRepository:
             embedding=embedding,
         )
 
+    def load_latest_template(self) -> Optional[Template]:
+        """
+        Load the newest template by created_at and decrypt it.
+        """
+        conn = self.db.connect()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT template_id, label, encrypted_blob, created_at
+            FROM templates
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        master_key = self._key_provider.get_master_key()
+        raw_bytes = decrypt_embedding(master_key, row["template_id"], bytes(row["encrypted_blob"]))
+        embedding = _bytes_to_embedding(raw_bytes)
+        return Template(
+            template_id=row["template_id"],
+            label=row["label"],
+            created_at=row["created_at"],
+            embedding=embedding,
+        )
+
     def list_templates(self) -> List[Template]:
         """
         List all templates (metadata only, no decryption).

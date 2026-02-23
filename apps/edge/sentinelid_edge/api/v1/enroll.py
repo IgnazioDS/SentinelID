@@ -1,24 +1,48 @@
 """
-Enrollment endpoints.
+Enrollment endpoints for v0.8 verification pipeline.
 
-Enrollment stores an encrypted face embedding so subsequent auth sessions
-can verify identity against it.  The embedding is stored via TemplateRepository
-which encrypts it with AES-256-GCM before writing to SQLite.
+Flow:
+    POST /enroll/start   -> create enrollment session
+    POST /enroll/frame   -> validate quality + collect embedding
+    POST /enroll/commit  -> aggregate stable template and store encrypted blob
+    POST /enroll/reset   -> drop enrollment session
 """
-import base64
+from __future__ import annotations
+
 import logging
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
 
 from ...core.config import settings
+from ...domain.reasons import ReasonCode
+from ...services.enrollment.sessions import (
+    EnrollmentPipeline,
+    EnrollmentSessionStore,
+)
 from ...services.storage.repo_templates import TemplateRepository
+from ...services.vision.calibration import run_threshold_calibration
+from ...services.vision.detector import FaceDetector
+from ...services.vision.embedder import FaceEmbedder
+from ...services.vision.quality import FaceQualityGate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _template_repo: Optional[TemplateRepository] = None
+_enroll_store = EnrollmentSessionStore(timeout_seconds=settings.ENROLL_SESSION_TIMEOUT_SECONDS)
+_detector = FaceDetector()
+_embedder = FaceEmbedder(_detector)
+_quality_gate = FaceQualityGate()
+_pipeline = EnrollmentPipeline(detector=_detector, embedder=_embedder, quality_gate=_quality_gate)
+
+
+def _reason_values(codes: List[Any]) -> List[str]:
+    values = []
+    for code in codes:
+        values.append(code.value if hasattr(code, "value") else str(code))
+    return values
 
 
 def _get_template_repo() -> TemplateRepository:
@@ -31,64 +55,131 @@ def _get_template_repo() -> TemplateRepository:
     return _template_repo
 
 
+class StartEnrollRequest(BaseModel):
+    target_frames: int = Field(default=settings.ENROLL_TARGET_FRAMES, ge=1, le=64)
+
+
+class StartEnrollResponse(BaseModel):
+    session_id: str
+    target_frames: int
+
+
 class EnrollFrameRequest(BaseModel):
-    frame: str  # base64-encoded image
+    session_id: str
+    frame: str
 
 
-class EnrollCommitRequest(BaseModel):
+class EnrollFrameResponse(BaseModel):
+    session_id: str
+    accepted: bool
+    accepted_frames: int
+    target_frames: int
+    reason_codes: List[str] = Field(default_factory=list)
+    quality: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CommitEnrollRequest(BaseModel):
+    session_id: str
     label: str = "default"
 
 
-@router.post("/start")
-async def start_enrollment():
-    """Start a new enrollment session."""
-    return {"session_id": "new-enrollment-session"}
+class CommitEnrollResponse(BaseModel):
+    status: str
+    template_id: str
+    accepted_frames: int
+    target_frames: int
 
 
-@router.post("/frame")
-async def enroll_frame(request: EnrollFrameRequest):
-    """
-    Accept a base64-encoded frame for enrollment.
+class ResetEnrollRequest(BaseModel):
+    session_id: str
 
-    In a full implementation this would extract and accumulate an embedding.
-    The frame bytes are not stored; only the derived embedding will be
-    persisted (encrypted) at commit time.
-    """
-    try:
-        if "," in request.frame:
-            _, data = request.frame.split(",", 1)
-        else:
-            data = request.frame
-        image_data = base64.b64decode(data)
-        return {"status": "frame received", "size": len(image_data)}
-    except Exception as exc:
-        logger.warning("enroll_frame error: %s", type(exc).__name__)
+
+class ResetEnrollResponse(BaseModel):
+    status: str
+    session_id: str
+
+
+class CalibrateRequest(BaseModel):
+    genuine_dir: str
+    impostor_dir: str
+    target_far: float = Field(default=0.01, gt=0.0, le=1.0)
+
+
+class CalibrateResponse(BaseModel):
+    report: Dict[str, Any]
+
+
+@router.post("/start", response_model=StartEnrollResponse)
+async def start_enrollment(request: StartEnrollRequest) -> StartEnrollResponse:
+    session = _enroll_store.create_session(target_frames=request.target_frames)
+    return StartEnrollResponse(
+        session_id=session.session_id,
+        target_frames=session.target_frames,
+    )
+
+
+@router.post("/frame", response_model=EnrollFrameResponse)
+async def enroll_frame(request: EnrollFrameRequest) -> EnrollFrameResponse:
+    session = _enroll_store.get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment session not found")
+
+    result = _pipeline.process_frame(session, request.frame)
+    _enroll_store.save_session(session)
+    return EnrollFrameResponse(
+        session_id=session.session_id,
+        accepted=bool(result["accepted"]),
+        accepted_frames=int(result["accepted_frames"]),
+        target_frames=int(result["target_frames"]),
+        reason_codes=_reason_values(result["reason_codes"]),
+        quality=result["quality"],
+    )
+
+
+@router.post("/commit", response_model=CommitEnrollResponse)
+async def commit_enrollment(request: CommitEnrollRequest) -> CommitEnrollResponse:
+    session = _enroll_store.get_session(request.session_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment session not found")
+
+    if session.accepted_frames < session.target_frames:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid frame data",
+            detail={
+                "reason_codes": [ReasonCode.ENROLL_INCOMPLETE.value],
+                "accepted_frames": session.accepted_frames,
+                "target_frames": session.target_frames,
+            },
         )
 
+    repo = _get_template_repo()
+    template_id, _template = _pipeline.commit_template(session, request.label, repo)
+    _enroll_store.delete_session(session.session_id)
 
-@router.post("/commit")
-async def commit_enrollment(request: EnrollCommitRequest):
-    """
-    Commit enrollment by storing an encrypted template.
+    return CommitEnrollResponse(
+        status="enrollment_committed",
+        template_id=template_id,
+        accepted_frames=session.accepted_frames,
+        target_frames=session.target_frames,
+    )
 
-    In a full implementation the embedding extracted from frames would be
-    stored here.  This stub stores a placeholder and returns the template_id.
-    """
-    import numpy as np
-    # Placeholder: in production this would be the embedding averaged from
-    # the enrollment frames collected in /enroll/frame calls.
-    placeholder_embedding = np.zeros(512, dtype=np.float32)
+
+@router.post("/reset", response_model=ResetEnrollResponse)
+async def reset_enrollment(request: ResetEnrollRequest) -> ResetEnrollResponse:
+    _enroll_store.delete_session(request.session_id)
+    return ResetEnrollResponse(status="reset", session_id=request.session_id)
+
+
+@router.post("/calibrate", response_model=CalibrateResponse)
+async def calibrate_threshold(request: CalibrateRequest) -> CalibrateResponse:
     try:
-        repo = _get_template_repo()
-        template_id = repo.store_template(request.label, placeholder_embedding)
-        logger.info("Enrollment committed: label=%s template_id=%s", request.label, template_id)
-        return {"status": "enrollment committed", "template_id": template_id}
-    except Exception as exc:
-        logger.error("Enrollment commit failed: %s", type(exc).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Enrollment commit failed",
+        report = run_threshold_calibration(
+            genuine_dir=request.genuine_dir,
+            impostor_dir=request.impostor_dir,
+            target_far=request.target_far,
         )
+        return CalibrateResponse(report=report)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))

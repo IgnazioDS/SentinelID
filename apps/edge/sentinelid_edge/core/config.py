@@ -32,6 +32,24 @@ class Settings(BaseSettings):
     # Step-up limits
     MAX_STEP_UPS_PER_SESSION: int = int(os.getenv("MAX_STEP_UPS_PER_SESSION", "1"))
 
+    # Verification threshold (v0.8)
+    SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.50"))
+
+    # Enrollment capture settings (v0.8)
+    ENROLL_TARGET_FRAMES: int = int(os.getenv("ENROLL_TARGET_FRAMES", "8"))
+    ENROLL_SESSION_TIMEOUT_SECONDS: int = int(
+        os.getenv("ENROLL_SESSION_TIMEOUT_SECONDS", "180")
+    )
+
+    # Quality gates (v0.8)
+    MIN_FACE_SIZE_PX: int = int(os.getenv("MIN_FACE_SIZE_PX", "80"))
+    MIN_BLUR_VARIANCE: float = float(os.getenv("MIN_BLUR_VARIANCE", "60.0"))
+    MIN_ILLUMINATION_MEAN: float = float(os.getenv("MIN_ILLUMINATION_MEAN", "40.0"))
+    MAX_ILLUMINATION_MEAN: float = float(os.getenv("MAX_ILLUMINATION_MEAN", "225.0"))
+    MAX_ABS_YAW_DEG: float = float(os.getenv("MAX_ABS_YAW_DEG", "25.0"))
+    MAX_ABS_PITCH_DEG: float = float(os.getenv("MAX_ABS_PITCH_DEG", "25.0"))
+    MAX_ABS_ROLL_DEG: float = float(os.getenv("MAX_ABS_ROLL_DEG", "25.0"))
+
     # Number of recent risk scores kept in memory for diagnostics
     RISK_SCORE_WINDOW_SIZE: int = int(os.getenv("RISK_SCORE_WINDOW_SIZE", "100"))
 

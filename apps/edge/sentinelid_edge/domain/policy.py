@@ -1,11 +1,13 @@
 """
-Authentication policy engine with risk-based step-up support.
+Authentication policy engine with similarity + liveness + risk step-up.
 
 Decision logic:
-    risk < R1                          -> allow (if liveness passed)
-    R1 <= risk < R2, step-ups left     -> step_up
-    risk >= R2                         -> deny  (RISK_HIGH)
+    no enrolled template               -> deny  (NOT_ENROLLED)
     liveness not passed                -> deny  (LIVENESS_FAILED)
+    similarity below threshold         -> deny  (SIMILARITY_BELOW_THRESHOLD)
+    risk >= R2                         -> deny  (RISK_HIGH)
+    R1 <= risk < R2, step-ups left     -> step_up
+    otherwise                          -> allow
 """
 from __future__ import annotations
 
@@ -55,7 +57,7 @@ class PolicyEngine:
     require_liveness:
         Enforce that all liveness challenges must be passed.
     similarity_threshold:
-        Minimum cosine similarity for template matching (future use).
+        Minimum cosine similarity for face verification.
     risk_threshold_r1:
         Lower risk threshold.  risk >= R1 triggers step-up (if step-ups remain).
     risk_threshold_r2:
@@ -83,6 +85,9 @@ class PolicyEngine:
         session: AuthSession,
         risk_score: Optional[float] = None,
         risk_reasons: Optional[List[str]] = None,
+        template_enrolled: bool = True,
+        similarity_score: Optional[float] = None,
+        enforce_similarity: bool = False,
         force_final: bool = False,
     ) -> AuthDecision:
         """
@@ -97,6 +102,12 @@ class PolicyEngine:
             Defaults to 0.0 when not provided.
         risk_reasons:
             Reason codes emitted by heuristics (SPOOF_SUSPECT_* codes).
+        template_enrolled:
+            Whether a biometric template is available for matching.
+        similarity_score:
+            Cosine similarity between current probe and enrolled template.
+        enforce_similarity:
+            When True, apply template + similarity precedence checks.
         force_final:
             When True, never return "step_up" regardless of risk score.
             Used for the second /finish call after step-up challenges complete.
@@ -137,12 +148,13 @@ class PolicyEngine:
                 risk_reasons=spoof_reasons,
             )
 
-        # --- Risk gate: deny immediately if risk >= R2 ---
-        if effective_risk >= self.risk_threshold_r2:
+        # --- Verification guard: must have enrolled template ---
+        if enforce_similarity and not template_enrolled:
             return AuthDecision(
                 decision="deny",
-                reason_codes=[ReasonCode.RISK_HIGH] + spoof_reasons,
+                reason_codes=[ReasonCode.NOT_ENROLLED],
                 liveness_passed=session.liveness_passed,
+                similarity_score=similarity_score,
                 risk_score=effective_risk,
                 risk_reasons=spoof_reasons,
             )
@@ -161,6 +173,7 @@ class PolicyEngine:
                 decision="deny",
                 reason_codes=[ReasonCode.LIVENESS_FAILED],
                 liveness_passed=False,
+                similarity_score=similarity_score,
                 risk_score=effective_risk,
                 risk_reasons=spoof_reasons,
             )
@@ -170,6 +183,29 @@ class PolicyEngine:
                 decision="deny",
                 reason_codes=[ReasonCode.LIVENESS_FAILED],
                 liveness_passed=False,
+                similarity_score=similarity_score,
+                risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
+            )
+
+        # --- Similarity gate: verification must pass before risk policy ---
+        if enforce_similarity and (similarity_score is None or similarity_score < self.similarity_threshold):
+            return AuthDecision(
+                decision="deny",
+                reason_codes=[ReasonCode.SIMILARITY_BELOW_THRESHOLD],
+                liveness_passed=session.liveness_passed,
+                similarity_score=similarity_score,
+                risk_score=effective_risk,
+                risk_reasons=spoof_reasons,
+            )
+
+        # --- Risk gate: deny immediately if risk >= R2 ---
+        if effective_risk >= self.risk_threshold_r2:
+            return AuthDecision(
+                decision="deny",
+                reason_codes=[ReasonCode.RISK_HIGH] + spoof_reasons,
+                liveness_passed=session.liveness_passed,
+                similarity_score=similarity_score,
                 risk_score=effective_risk,
                 risk_reasons=spoof_reasons,
             )
@@ -181,6 +217,7 @@ class PolicyEngine:
                     decision="step_up",
                     reason_codes=[ReasonCode.RISK_STEP_UP] + spoof_reasons,
                     liveness_passed=session.liveness_passed,
+                    similarity_score=similarity_score,
                     risk_score=effective_risk,
                     risk_reasons=spoof_reasons,
                 )
@@ -188,6 +225,7 @@ class PolicyEngine:
                 decision="deny",
                 reason_codes=[ReasonCode.MAX_STEP_UPS_REACHED] + spoof_reasons,
                 liveness_passed=False,
+                similarity_score=similarity_score,
                 risk_score=effective_risk,
                 risk_reasons=spoof_reasons,
             )
@@ -197,7 +235,7 @@ class PolicyEngine:
             decision="allow",
             reason_codes=[ReasonCode.LIVENESS_PASSED],
             liveness_passed=True,
-            similarity_score=session.similarity_score,
+            similarity_score=similarity_score,
             risk_score=effective_risk,
             risk_reasons=spoof_reasons,
         )

@@ -65,6 +65,8 @@ class AuthSession:
     liveness_passed: bool = False
     similarity_score: Optional[float] = None
     frame_count: int = 0  # incremented on each /auth/frame call
+    latest_embedding: Optional[Any] = None
+    latest_quality_reasons: List[str] = field(default_factory=list)
 
     # --- v0.7: risk scoring ---
     risk_score: float = 0.0

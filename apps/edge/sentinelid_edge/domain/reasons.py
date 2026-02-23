@@ -37,6 +37,19 @@ class ReasonCode(str, Enum):
     # Other errors
     INTERNAL_ERROR = "INTERNAL_ERROR"
 
+    # Risk scoring (v0.7)
+    RISK_HIGH = "RISK_HIGH"
+    RISK_STEP_UP = "RISK_STEP_UP"
+    SPOOF_SUSPECT_SCREEN = "SPOOF_SUSPECT_SCREEN"
+    SPOOF_SUSPECT_TEMPORAL = "SPOOF_SUSPECT_TEMPORAL"
+    SPOOF_SUSPECT_BOUNDARY = "SPOOF_SUSPECT_BOUNDARY"
+
+    # Step-up flow (v0.7)
+    STEP_UP_REQUIRED = "STEP_UP_REQUIRED"
+    STEP_UP_COMPLETED = "STEP_UP_COMPLETED"
+    STEP_UP_FAILED = "STEP_UP_FAILED"
+    MAX_STEP_UPS_REACHED = "MAX_STEP_UPS_REACHED"
+
 
 def get_reason_messages() -> dict:
     """Return human-readable messages for reason codes."""
@@ -59,4 +72,15 @@ def get_reason_messages() -> dict:
         ReasonCode.SESSION_EXPIRED: "Session has expired",
         ReasonCode.SESSION_ALREADY_FINISHED: "Session has already been finished",
         ReasonCode.INTERNAL_ERROR: "Internal service error",
+        # Risk / spoof
+        ReasonCode.RISK_HIGH: "Risk score exceeds denial threshold",
+        ReasonCode.RISK_STEP_UP: "Risk score requires additional verification",
+        ReasonCode.SPOOF_SUSPECT_SCREEN: "Screen replay artefacts detected",
+        ReasonCode.SPOOF_SUSPECT_TEMPORAL: "Abnormal temporal motion pattern detected",
+        ReasonCode.SPOOF_SUSPECT_BOUNDARY: "Unnatural face boundary sharpness detected",
+        # Step-up
+        ReasonCode.STEP_UP_REQUIRED: "Step-up verification required",
+        ReasonCode.STEP_UP_COMPLETED: "Step-up verification completed",
+        ReasonCode.STEP_UP_FAILED: "Step-up verification failed",
+        ReasonCode.MAX_STEP_UPS_REACHED: "Maximum step-up attempts reached",
     }

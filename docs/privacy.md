@@ -1,5 +1,7 @@
 # Privacy
 
+For setup and operational commands, use `RUNBOOK.md`.
+
 ## Implemented (v0.6)
 
 ### Data Minimisation

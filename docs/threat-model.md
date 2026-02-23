@@ -1,5 +1,7 @@
 # Threat Model
 
+For setup and operational commands, use `RUNBOOK.md`.
+
 ## Implemented Mitigations (v0.6)
 
 ### T1: Database Theft

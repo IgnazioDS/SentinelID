@@ -1,5 +1,7 @@
 # Key Management
 
+For setup and operational commands, use `RUNBOOK.md`.
+
 This document describes the cryptographic key hierarchy used by SentinelID Edge,
 the rotation procedure, and the identity-deletion semantics.
 
@@ -121,7 +123,7 @@ Access is restricted to localhost (127.0.0.1 / ::1).
 ### Manual Rotation (CLI)
 
 ```bash
-curl -s -X POST http://127.0.0.1:8765/api/v1/admin/rotate-key \
+curl -s -X POST http://127.0.0.1:8787/api/v1/admin/rotate-key \
   -H "Authorization: Bearer $(cat .sentinelid/edge_token)" | jq .
 ```
 

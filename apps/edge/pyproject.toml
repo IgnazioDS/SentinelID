@@ -18,6 +18,7 @@ numpy = "^2.4.2" # compatibility with insightface
 SQLAlchemy = "^2.0.25"
 alembic = "^1.13.1"
 python-multipart = "^0.0.7" # for file uploads
+keyring = "^24.0.0" # OS keychain access for master key storage
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4.0"

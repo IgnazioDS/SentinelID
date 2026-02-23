@@ -1,11 +1,17 @@
 """
 Telemetry event ingest endpoint for edge devices.
+
+Privacy enforcement:
+  The ingest model is strict: it only accepts the fields defined below.
+  Any attempt to submit raw frames, embeddings, landmarks, or face
+  metadata will be rejected by Pydantic's model validator because those
+  fields are not declared (extra = "forbid" on all models).
 """
 import json
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -22,9 +28,22 @@ from api.signature_verifier import SignatureVerifier
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Ingest"])
 
+# Fields that must never appear in telemetry
+_FORBIDDEN_FIELDS = frozenset({
+    "frame", "frames", "image", "embedding", "embeddings",
+    "landmark", "landmarks", "face_data", "raw_face",
+    "face_metadata", "face_image", "face_crop",
+})
+
 
 class TelemetryEventRequest(BaseModel):
-    """Telemetry event in ingest request."""
+    """
+    Telemetry event in ingest request.
+
+    Extra fields are forbidden: the model rejects any payload that
+    includes frames, embeddings, landmarks, or raw face metadata.
+    """
+    model_config = ConfigDict(extra="forbid")
 
     event_id: str
     device_id: str
@@ -39,9 +58,30 @@ class TelemetryEventRequest(BaseModel):
     audit_event_hash: Optional[str] = None
     signature: str
 
+    @field_validator("event_type")
+    @classmethod
+    def validate_event_type(cls, v: str) -> str:
+        allowed = {"auth_started", "auth_finished", "enroll_started", "enroll_finished"}
+        if v not in allowed:
+            raise ValueError(f"event_type must be one of {sorted(allowed)}")
+        return v
+
+    @field_validator("outcome")
+    @classmethod
+    def validate_outcome(cls, v: str) -> str:
+        allowed = {"allow", "deny", "error"}
+        if v not in allowed:
+            raise ValueError(f"outcome must be one of {sorted(allowed)}")
+        return v
+
 
 class IngestRequest(BaseModel):
-    """Telemetry batch ingest request."""
+    """
+    Telemetry batch ingest request.
+
+    Extra fields are forbidden at the batch level as well.
+    """
+    model_config = ConfigDict(extra="forbid")
 
     batch_id: str
     device_id: str

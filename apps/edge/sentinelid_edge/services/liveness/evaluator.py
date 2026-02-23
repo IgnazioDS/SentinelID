@@ -25,6 +25,7 @@ class LivenessEvaluator:
         session: AuthSession,
         frame_data: str,  # base64-encoded image
         landmarks: Optional[np.ndarray] = None,
+        use_step_up: bool = False,
     ) -> Tuple[bool, str]:
         """
         Process a frame for the current challenge in a session.
@@ -33,11 +34,16 @@ class LivenessEvaluator:
             session: The authentication session
             frame_data: Base64-encoded frame image (may be decoded in future)
             landmarks: Facial landmarks as Nx2 array (if available from detector)
+            use_step_up: When True, process against step-up challenges instead
+                         of primary challenges.
 
         Returns:
             (challenge_completed, detail_message)
         """
-        current_challenge = session.get_current_challenge()
+        if use_step_up:
+            current_challenge = session.get_current_step_up_challenge()
+        else:
+            current_challenge = session.get_current_challenge()
 
         if not current_challenge:
             return False, "No active challenge"
@@ -74,14 +80,20 @@ class LivenessEvaluator:
         """
         Determine if all challenges were passed.
 
-        Returns:
-            True if all challenges passed, False otherwise.
-        """
-        if not session.all_challenges_completed():
-            return False
+        When session.in_step_up is True, evaluates step-up challenges;
+        otherwise evaluates primary challenges.
 
-        # Check if all challenges passed
-        all_passed = all(challenge.passed for challenge in session.challenges)
+        Returns:
+            True if all relevant challenges passed, False otherwise.
+        """
+        if session.in_step_up:
+            if not session.all_step_up_challenges_completed():
+                return False
+            all_passed = all(c.passed for c in session.step_up_challenges)
+        else:
+            if not session.all_challenges_completed():
+                return False
+            all_passed = all(c.passed for c in session.challenges)
 
         if all_passed:
             session.liveness_passed = True

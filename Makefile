@@ -13,8 +13,9 @@ help:
 	@echo "  make clean             - Clean build artifacts"
 	@echo ""
 	@echo "Documentation:"
-	@echo "  see docs/PACKAGING.md   - Desktop packaging guide"
-	@echo "  see docs/RECOVERY.md    - Telemetry recovery guide"
+	@echo "  see RUNBOOK.md          - Setup, run, and test commands"
+	@echo "  see docs/PACKAGING.md   - Desktop packaging details"
+	@echo "  see docs/RECOVERY.md    - Telemetry recovery details"
 
 ## Desktop Packaging
 

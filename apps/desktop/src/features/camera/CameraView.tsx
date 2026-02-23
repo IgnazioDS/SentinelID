@@ -21,6 +21,7 @@ interface AuthSession {
   progress?: string;
   decision?: string;
   reason_codes?: string[];
+  risk_reasons?: string[];
   liveness_passed?: boolean;
   risk_score?: number;
   step_up?: boolean;
@@ -217,6 +218,7 @@ const CameraView: React.FC = () => {
                 current_challenge: firstStepUpChallenge,
                 risk_score: data.risk_score,
                 reason_codes: data.reason_codes,
+                risk_reasons: data.risk_reasons ?? [],
                 in_step_up: true,
               }
             : null
@@ -253,8 +255,8 @@ const CameraView: React.FC = () => {
     const parts: string[] = [];
     if (session.risk_score !== undefined)
       parts.push(`risk: ${session.risk_score.toFixed(3)}`);
-    if (session.reason_codes && session.reason_codes.length > 0)
-      parts.push(session.reason_codes.join(', '));
+    if (session.risk_reasons && session.risk_reasons.length > 0)
+      parts.push(session.risk_reasons.join(', '));
     if (session.in_step_up) parts.push('step-up active');
     if (parts.length === 0) return null;
     return (
@@ -345,6 +347,11 @@ const CameraView: React.FC = () => {
                 Risk Score: {session.risk_score.toFixed(3)}
               </p>
             )}
+            {demoMode && session?.risk_reasons && session.risk_reasons.length > 0 && (
+              <p className="demo-info">
+                Risk Reasons: {session.risk_reasons.join(', ')}
+              </p>
+            )}
             <button onClick={reset} className="btn-primary">
               Try Again
             </button>
@@ -362,6 +369,11 @@ const CameraView: React.FC = () => {
             {demoMode && session?.risk_score !== undefined && (
               <p className="demo-info">
                 Risk Score: {session.risk_score.toFixed(3)}
+              </p>
+            )}
+            {demoMode && session?.risk_reasons && session.risk_reasons.length > 0 && (
+              <p className="demo-info">
+                Risk Reasons: {session.risk_reasons.join(', ')}
               </p>
             )}
             <button onClick={reset} className="btn-primary">

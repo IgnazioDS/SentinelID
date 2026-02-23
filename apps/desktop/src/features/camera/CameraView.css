@@ -9,6 +9,29 @@
   margin: 0 auto;
 }
 
+.demo-toggle {
+  width: 100%;
+  max-width: 640px;
+  text-align: left;
+  font-size: 13px;
+  color: #444;
+}
+
+.demo-badge {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 236, 179, 0.65);
+  border: 1px solid rgba(217, 137, 0, 0.25);
+  font-size: 12px;
+  color: #5f4300;
+}
+
+.demo-info {
+  font-size: 12px;
+  color: #444;
+}
+
 .camera-feed {
   border: 2px solid #ccc;
   border-radius: 8px;

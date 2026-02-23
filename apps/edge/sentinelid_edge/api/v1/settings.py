@@ -151,6 +151,7 @@ def _rotate_device_keypair():
     import os
 
     keychain_dir = Path(settings.KEYCHAIN_DIR)
+    keychain_dir.mkdir(parents=True, exist_ok=True)
     keys_file = keychain_dir / "device_keys.json"
     device_id_file = keychain_dir / "device_id.json"
 

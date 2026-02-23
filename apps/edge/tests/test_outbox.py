@@ -80,7 +80,7 @@ class TestOutboxRepository:
         assert len(events) == 0  # Not due yet
 
         # Verify attempt count increased
-        all_events = repo.outbox.db.connect().cursor().execute(
+        all_events = repo.db.connect().cursor().execute(
             "SELECT attempts FROM outbox_events WHERE id = ?", (event_id,)
         ).fetchall()
         assert all_events[0][0] == 1

@@ -70,3 +70,13 @@ class DeviceBinding:
         """
         private_key = self.keychain.get_private_key()
         return CryptoProvider.sign(private_key, data)
+
+
+class DeviceKeychain(DeviceBinding):
+    """
+    Backward-compatible wrapper used by diagnostics and admin endpoints.
+    """
+
+    def get_public_key_fingerprint(self) -> str:
+        """Return a stable SHA-256 fingerprint of the device public key."""
+        return CryptoProvider.hash_sha256(self.get_public_key().encode())

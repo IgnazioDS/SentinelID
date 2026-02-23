@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     MAX_FRAMES_PER_SESSION: int = int(os.getenv("MAX_FRAMES_PER_SESSION", "200"))
     MAX_SESSION_LIFETIME_SECONDS: int = int(os.getenv("MAX_SESSION_LIFETIME_SECONDS", "120"))
 
+    # Risk scoring thresholds (v0.7)
+    # risk < R1: allow (if liveness passed)
+    # R1 <= risk < R2: step-up required
+    # risk >= R2: deny
+    RISK_THRESHOLD_R1: float = float(os.getenv("RISK_THRESHOLD_R1", "0.45"))
+    RISK_THRESHOLD_R2: float = float(os.getenv("RISK_THRESHOLD_R2", "0.75"))
+
+    # Step-up limits
+    MAX_STEP_UPS_PER_SESSION: int = int(os.getenv("MAX_STEP_UPS_PER_SESSION", "1"))
+
+    # Number of recent risk scores kept in memory for diagnostics
+    RISK_SCORE_WINDOW_SIZE: int = int(os.getenv("RISK_SCORE_WINDOW_SIZE", "100"))
+
     class Config:
         case_sensitive = True
 

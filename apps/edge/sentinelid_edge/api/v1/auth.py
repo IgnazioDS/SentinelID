@@ -22,14 +22,16 @@ from pydantic import BaseModel, Field
 from ...core.config import settings
 from ...domain.models import AuthSession
 from ...domain.policy import PolicyEngine
-from ...domain.reasons import ReasonCode, get_reason_messages
+from ...domain.reasons import ReasonCode
 from ...services.antifraud.risk import get_risk_scorer
 from ...services.liveness.challenges import ChallengeGenerator, SessionStore
 from ...services.liveness.evaluator import LivenessEvaluator
+from ...services.observability.perf import get_perf_registry
+from ...services.processing.frame_control import get_frame_controller
 from ...services.storage.repo_audit import AuditEvent, AuditRepository
 from ...services.storage.repo_templates import TemplateRepository
-from ...services.telemetry.event import TelemetryEvent, TelemetryMapper
-from ...services.telemetry.exporter import TelemetryExporter
+from ...services.telemetry.runtime import get_telemetry_runtime
+from ...services.telemetry.event import TelemetryMapper
 from ...services.vision.detector import FaceDetector
 from ...services.vision.embedder import FaceEmbedder, cosine_similarity
 from ...services.vision.quality import FaceQualityGate
@@ -41,12 +43,14 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Global singleton instances
 # ---------------------------------------------------------------------------
-_session_store = SessionStore(session_timeout_seconds=120)
+_session_store = SessionStore(session_timeout_seconds=settings.MAX_SESSION_LIFETIME_SECONDS)
 _challenge_generator = ChallengeGenerator(challenge_timeout_seconds=10)
 _liveness_evaluator = LivenessEvaluator()
 _face_detector = FaceDetector()
 _face_embedder = FaceEmbedder(_face_detector)
 _face_quality_gate = FaceQualityGate()
+_perf = get_perf_registry()
+_frame_controller = get_frame_controller()
 _policy_engine = PolicyEngine(
     similarity_threshold=settings.SIMILARITY_THRESHOLD,
     risk_threshold_r1=settings.RISK_THRESHOLD_R1,
@@ -58,10 +62,6 @@ _template_repo = TemplateRepository(
     keychain_dir=settings.KEYCHAIN_DIR,
 )
 _audit_repo = AuditRepository()
-
-_telemetry_exporter: Optional[TelemetryExporter] = None
-if settings.TELEMETRY_ENABLED and settings.CLOUD_INGEST_URL:
-    _telemetry_exporter = TelemetryExporter(settings.CLOUD_INGEST_URL)
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +167,8 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
     - Routes challenge evaluation to the primary or step-up challenge set
       depending on session.in_step_up.
     """
+    processed_frame = False
+    session_id = request.session_id
     try:
         session = _session_store.get_session(request.session_id)
         if not session:
@@ -191,14 +193,40 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
                 detail="Frame limit exceeded for this session",
             )
 
-        # Face detection + landmarks
-        faces, meta = _face_detector.detect_faces(request.frame)
-        image_bgr = meta.get("image_bgr")
+        # Adaptive processing gate: cap FPS and drop when processing is backed up.
+        acquired, drop_reason = _frame_controller.try_acquire(session.session_id)
+        if not acquired:
+            _session_store.save_session(session)
+            drop_detail = (
+                "Frame dropped due processing backlog"
+                if drop_reason == "queue_backed_up"
+                else f"Frame dropped due rate cap ({settings.FRAME_PROCESSING_MAX_FPS:.1f} fps)"
+            )
+            return AuthFrameResponse(
+                session_id=session.session_id,
+                current_challenge=_current_challenge_name(session),
+                progress=_progress_str(session),
+                detail=drop_detail,
+                in_step_up=session.in_step_up,
+                quality_reason_codes=[],
+            )
+
+        with _perf.stage("frame.decode"):
+            image_bgr = _face_detector.decode_frame_to_bgr(request.frame)
+
+        with _perf.stage("frame.detect_landmarks"):
+            if image_bgr is None:
+                faces = []
+                meta = {"num_faces": 0, "reason_codes": [ReasonCode.NO_FACE], "detector_backend": "decode_error"}
+            else:
+                faces, meta = _face_detector.detect_faces_from_bgr(image_bgr)
+
         landmarks = faces[0].landmarks if len(faces) == 1 else None
 
         if len(faces) == 0:
             session.latest_quality_reasons = [ReasonCode.NO_FACE]
             _session_store.save_session(session)
+            processed_frame = True
             return AuthFrameResponse(
                 session_id=session.session_id,
                 current_challenge=_current_challenge_name(session),
@@ -211,6 +239,7 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
         if len(faces) > 1:
             session.latest_quality_reasons = [ReasonCode.MULTIPLE_FACES]
             _session_store.save_session(session)
+            processed_frame = True
             return AuthFrameResponse(
                 session_id=session.session_id,
                 current_challenge=_current_challenge_name(session),
@@ -223,11 +252,12 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
         # Quality gates for verification embedding capture.
         quality_report = _face_quality_gate.evaluate(image_bgr, faces) if image_bgr is not None else None
         if quality_report is not None and quality_report.passed:
-            embedding = _face_embedder.extract_embedding(
-                request.frame,
-                face=faces[0],
-                image_bgr=image_bgr,
-            )
+            with _perf.stage("frame.embed"):
+                embedding = _face_embedder.extract_embedding(
+                    request.frame,
+                    face=faces[0],
+                    image_bgr=image_bgr,
+                )
             if embedding is not None:
                 session.latest_embedding = np.asarray(embedding, dtype=np.float32)
                 session.latest_quality_reasons = []
@@ -246,11 +276,12 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
 
         # Risk scoring: run on every frame; keep session max
         scorer = get_risk_scorer()
-        risk_result = scorer.score_frame(
-            frame_data=request.frame,
-            landmarks=landmarks,
-            landmark_history=session.landmark_history,
-        )
+        with _perf.stage("frame.risk"):
+            risk_result = scorer.score_frame(
+                frame_data=request.frame,
+                landmarks=landmarks,
+                landmark_history=session.landmark_history,
+            )
         if risk_result.risk_score > session.risk_score:
             session.risk_score = risk_result.risk_score
             # Merge reason codes (deduped)
@@ -259,33 +290,36 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
                     session.risk_reasons.append(reason)
 
         # Challenge processing: primary or step-up
-        if session.in_step_up:
-            challenge_completed, detail_msg = _liveness_evaluator.process_frame(
-                session,
-                request.frame,
-                landmarks,
-                use_step_up=True,
-            )
-            if challenge_completed:
-                if session.has_next_step_up_challenge():
-                    session.move_to_next_step_up_challenge()
-                    _liveness_evaluator.reset_detectors()
-                    detail_msg += " Moving to next step-up challenge..."
-                else:
-                    _liveness_evaluator.evaluate_session_result(session)
-        else:
-            challenge_completed, detail_msg = _liveness_evaluator.process_frame(
-                session, request.frame, landmarks
-            )
-            if challenge_completed:
-                if session.has_next_challenge():
-                    session.move_to_next_challenge()
-                    _liveness_evaluator.reset_detectors()
-                    detail_msg += " Moving to next challenge..."
-                else:
-                    _liveness_evaluator.evaluate_session_result(session)
+        with _perf.stage("frame.liveness"):
+            if session.in_step_up:
+                challenge_completed, detail_msg = _liveness_evaluator.process_frame(
+                    session,
+                    request.frame,
+                    landmarks,
+                    use_step_up=True,
+                )
+                if challenge_completed:
+                    if session.has_next_step_up_challenge():
+                        session.move_to_next_step_up_challenge()
+                        _liveness_evaluator.reset_detectors()
+                        detail_msg += " Moving to next step-up challenge..."
+                    else:
+                        _liveness_evaluator.evaluate_session_result(session)
+            else:
+                challenge_completed, detail_msg = _liveness_evaluator.process_frame(
+                    session, request.frame, landmarks
+                )
+                if challenge_completed:
+                    if session.has_next_challenge():
+                        session.move_to_next_challenge()
+                        _liveness_evaluator.reset_detectors()
+                        detail_msg += " Moving to next challenge..."
+                    else:
+                        _liveness_evaluator.evaluate_session_result(session)
 
-        _session_store.save_session(session)
+        with _perf.stage("frame.storage"):
+            _session_store.save_session(session)
+        processed_frame = True
 
         return AuthFrameResponse(
             session_id=session.session_id,
@@ -305,6 +339,8 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Frame processing error: {exc}",
         )
+    finally:
+        _frame_controller.release(session_id, processed=processed_frame)
 
 
 @router.post("/finish", response_model=FinishAuthResponse)
@@ -345,15 +381,16 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             )
         session.similarity_score = similarity_score
 
-        auth_decision = _policy_engine.evaluate(
-            session,
-            risk_score=session.risk_score,
-            risk_reasons=session.risk_reasons,
-            template_enrolled=template_enrolled,
-            similarity_score=similarity_score,
-            enforce_similarity=True,
-            force_final=force_final,
-        )
+        with _perf.stage("finish.policy"):
+            auth_decision = _policy_engine.evaluate(
+                session,
+                risk_score=session.risk_score,
+                risk_reasons=session.risk_reasons,
+                template_enrolled=template_enrolled,
+                similarity_score=similarity_score,
+                enforce_similarity=True,
+                force_final=force_final,
+            )
 
         # --- Handle STEP_UP: issue additional challenges, keep session open ---
         if auth_decision.decision == "step_up":
@@ -361,7 +398,8 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             session.start_step_up(step_up_challenges)
             # Reset liveness evaluator for fresh step-up challenge evaluation
             _liveness_evaluator.reset_detectors()
-            _session_store.save_session(session)
+            with _perf.stage("finish.storage"):
+                _session_store.save_session(session)
 
             step_up_names = [c.challenge_type.value for c in step_up_challenges]
             return FinishAuthResponse(
@@ -405,7 +443,8 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
         session.liveness_passed = auth_decision.liveness_passed
         session.similarity_score = auth_decision.similarity_score
 
-        _session_store.save_session(session)
+        with _perf.stage("finish.storage"):
+            _session_store.save_session(session)
 
         # Audit event (mandatory, append-only)
         audit_event = AuditEvent(
@@ -419,18 +458,21 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             liveness_passed=auth_decision.liveness_passed,
             session_id=request.session_id,
         )
-        audit_hash = _audit_repo.write_event(audit_event)
+        with _perf.stage("finish.storage.audit"):
+            audit_hash = _audit_repo.write_event(audit_event)
 
         # Telemetry (optional, never fails auth)
-        if _telemetry_exporter:
+        telemetry_runtime = get_telemetry_runtime()
+        if telemetry_runtime:
             try:
                 telemetry_event = TelemetryMapper.from_audit_event(
                     audit_event,
-                    device_id=_telemetry_exporter.signer.get_device_id(),
+                    device_id=telemetry_runtime.exporter.signer.get_device_id(),
                     session_start_time=session_start_time,
                 )
                 telemetry_event.audit_event_hash = audit_hash
-                _telemetry_exporter.add_event(telemetry_event)
+                with _perf.stage("finish.exporter.queue"):
+                    telemetry_runtime.record_event(telemetry_event)
             except Exception:
                 logger.error(
                     "Telemetry emission failed (session=%s)", request.session_id

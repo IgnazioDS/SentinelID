@@ -10,7 +10,6 @@ Features:
 - Restart-safe: resumes from outbox on startup
 """
 import json
-import asyncio
 import logging
 from typing import List, Optional
 from datetime import datetime
@@ -39,7 +38,8 @@ class TelemetryExporter:
         max_retries: int = 5,
         initial_backoff_seconds: float = 1.0,
         keychain_dir: str = ".sentinelid/keys",
-        db_path: str = ".sentinelid/audit.db"
+        db_path: str = ".sentinelid/audit.db",
+        http_timeout_seconds: float = 10.0,
     ):
         """
         Initialize telemetry exporter.
@@ -58,6 +58,7 @@ class TelemetryExporter:
         self.initial_backoff_seconds = initial_backoff_seconds
         self.signer = TelemetrySigner(keychain_dir)
         self.outbox = OutboxRepository(db_path)
+        self.http_timeout_seconds = max(1.0, float(http_timeout_seconds))
         self.last_export_attempt_time: Optional[datetime] = None
         self.last_export_error: Optional[str] = None
 
@@ -185,7 +186,7 @@ class TelemetryExporter:
             True if HTTP 2xx response, False otherwise
         """
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=self.http_timeout_seconds) as client:
                 response = await client.post(
                     self.cloud_ingest_url,
                     json=event.payload,

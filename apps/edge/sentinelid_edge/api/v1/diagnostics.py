@@ -10,8 +10,11 @@ from typing import Dict, Any
 from sentinelid_edge.core.auth import verify_bearer_token
 from sentinelid_edge.core.config import settings
 from sentinelid_edge.services.antifraud.risk import get_risk_metrics
+from sentinelid_edge.services.observability.perf import get_perf_registry
+from sentinelid_edge.services.processing.frame_control import get_frame_controller
 from sentinelid_edge.services.security.device_binding import DeviceKeychain
 from sentinelid_edge.services.storage.repo_outbox import OutboxRepository
+from sentinelid_edge.services.telemetry.runtime import get_telemetry_runtime
 
 router = APIRouter()
 
@@ -52,6 +55,26 @@ async def get_diagnostics(_: str = Depends(verify_bearer_token)) -> Dict[str, An
     risk_metrics = get_risk_metrics()
     risk_counts = risk_metrics.aggregated_counts()
 
+    telemetry_runtime = get_telemetry_runtime()
+    telemetry_stats = (
+        telemetry_runtime.stats()
+        if telemetry_runtime is not None
+        else {
+            "enabled": False,
+            "queue": {"max_size": 0, "current_size": 0, "wake_signals": 0, "dropped_signals": 0},
+            "loop": {
+                "started_at": None,
+                "iterations": 0,
+                "export_errors": 0,
+                "last_loop_error": None,
+                "last_export_success_at": None,
+            },
+            "outbox": outbox_stats,
+            "last_export_attempt_time": None,
+            "last_export_error": None,
+        }
+    )
+
     return {
         "device_id": device_id,
         "device_key_fingerprint": keychain.get_public_key_fingerprint()[:16],
@@ -60,10 +83,7 @@ async def get_diagnostics(_: str = Depends(verify_bearer_token)) -> Dict[str, An
             "dlq_count": outbox_stats["dlq_count"],
             "sent_count": outbox_stats["sent_count"],
         },
-        "telemetry": {
-            "last_export_attempt_time": None,
-            "last_export_error": None,
-        },
+        "telemetry": telemetry_stats,
         "dlq_preview": dlq_preview,
         "risk": {
             "threshold_r1": settings.RISK_THRESHOLD_R1,
@@ -84,5 +104,7 @@ async def get_diagnostics(_: str = Depends(verify_bearer_token)) -> Dict[str, An
                 "max_abs_roll_deg": settings.MAX_ABS_ROLL_DEG,
             },
         },
+        "frame_processing": get_frame_controller().snapshot(),
+        "performance": get_perf_registry().snapshot(),
         "status": "healthy",
     }

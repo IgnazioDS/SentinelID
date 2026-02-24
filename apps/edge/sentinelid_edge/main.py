@@ -1,5 +1,7 @@
 import hashlib
 import logging
+from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,12 +13,52 @@ from sentinelid_edge.core.config import settings
 from sentinelid_edge.core.auth import verify_bearer_token
 from sentinelid_edge.core.request_context import set_request_id, generate_request_id
 from sentinelid_edge.services.security.rate_limit import get_rate_limiter
+from sentinelid_edge.services.telemetry.exporter import TelemetryExporter
+from sentinelid_edge.services.telemetry.runtime import (
+    TelemetryRuntime,
+    set_telemetry_runtime,
+)
 
 logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    telemetry_runtime = None
+    if settings.TELEMETRY_ENABLED and settings.CLOUD_INGEST_URL:
+        exporter = TelemetryExporter(
+            cloud_ingest_url=settings.CLOUD_INGEST_URL,
+            batch_size=settings.TELEMETRY_BATCH_SIZE,
+            max_retries=settings.TELEMETRY_MAX_RETRIES,
+            keychain_dir=settings.KEYCHAIN_DIR,
+            db_path=settings.DB_PATH,
+            http_timeout_seconds=settings.TELEMETRY_HTTP_TIMEOUT_SECONDS,
+        )
+        telemetry_runtime = TelemetryRuntime(
+            exporter=exporter,
+            export_interval_seconds=settings.TELEMETRY_EXPORT_INTERVAL_SECONDS,
+            signal_queue_size=settings.TELEMETRY_SIGNAL_QUEUE_SIZE,
+        )
+        set_telemetry_runtime(telemetry_runtime)
+        await telemetry_runtime.start()
+        logger.info("Telemetry runtime started")
+    else:
+        set_telemetry_runtime(None)
+
+    try:
+        yield
+    finally:
+        if telemetry_runtime is not None:
+            try:
+                await telemetry_runtime.stop()
+                logger.info("Telemetry runtime stopped")
+            except Exception as exc:
+                logger.error("Telemetry runtime shutdown failed: %s", exc)
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan,
 )
 
 # Configure CORS based on environment
@@ -59,6 +101,24 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 
 
 # ---------------------------------------------------------------------------
+# Request timeout middleware
+# ---------------------------------------------------------------------------
+
+class RequestTimeoutMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await asyncio.wait_for(
+                call_next(request),
+                timeout=settings.REQUEST_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                content={"detail": "Request timed out"},
+            )
+
+
+# ---------------------------------------------------------------------------
 # Request ID middleware
 # ---------------------------------------------------------------------------
 
@@ -79,11 +139,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 _SKIP_AUTH_PATHS = {
     "/health",
+    f"{settings.API_V1_STR}/health",
+    f"{settings.API_V1_STR}/",
 }
-_SKIP_AUTH_PREFIXES = (
-    f"{settings.API_V1_STR}/",   # root v1 path (health)
-    f"{settings.API_V1_STR}/diagnostics",
-)
 
 
 def _client_key_from_request(request: Request) -> str:
@@ -108,7 +166,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         # Skip auth for unprotected paths
         if path in _SKIP_AUTH_PATHS:
             return await call_next(request)
-        if path == f"{settings.API_V1_STR}/" or path == f"{settings.API_V1_STR}/diagnostics":
+        if path == f"{settings.API_V1_STR}/diagnostics":
             return await call_next(request)
 
         # Rate limiting (before token verification to block brute force)
@@ -141,6 +199,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
 
 # Add middleware (innermost first in execution order with Starlette)
 app.add_middleware(RequestSizeLimitMiddleware)
+app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(BearerTokenMiddleware)
 

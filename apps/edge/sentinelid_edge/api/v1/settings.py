@@ -14,6 +14,7 @@ from ...services.storage.db import get_database
 from ...services.storage.repo_templates import TemplateRepository
 from ...services.security.device_binding import DeviceBinding
 from ...services.security.encryption import get_master_key_provider
+from ...services.telemetry.runtime import get_telemetry_runtime
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +48,49 @@ class DeleteIdentityResponse(BaseModel):
     deleted_at: int
 
 
+class TelemetrySettingsResponse(BaseModel):
+    telemetry_enabled: bool
+    runtime_available: bool
+
+
+class UpdateTelemetrySettingsRequest(BaseModel):
+    telemetry_enabled: bool
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
+
+@router.get("/settings/telemetry", response_model=TelemetrySettingsResponse)
+async def get_telemetry_settings() -> TelemetrySettingsResponse:
+    runtime = get_telemetry_runtime()
+    if runtime is None:
+        return TelemetrySettingsResponse(
+            telemetry_enabled=False,
+            runtime_available=False,
+        )
+    return TelemetrySettingsResponse(
+        telemetry_enabled=bool(runtime.enabled),
+        runtime_available=True,
+    )
+
+
+@router.post("/settings/telemetry", response_model=TelemetrySettingsResponse)
+async def update_telemetry_settings(
+    body: UpdateTelemetrySettingsRequest,
+) -> TelemetrySettingsResponse:
+    runtime = get_telemetry_runtime()
+    if runtime is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Telemetry runtime is not available",
+        )
+    runtime.set_enabled(body.telemetry_enabled)
+    return TelemetrySettingsResponse(
+        telemetry_enabled=bool(runtime.enabled),
+        runtime_available=True,
+    )
+
 
 @router.post("/settings/delete_identity", response_model=DeleteIdentityResponse)
 async def delete_identity(

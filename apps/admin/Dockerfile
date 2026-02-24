@@ -2,12 +2,10 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-RUN npm config set fetch-timeout 60000 && \
-    npm config set fetch-retries 5 && \
-    npm install -g next@latest
+ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci --no-audit --no-fund
 
 COPY . .
 

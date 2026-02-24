@@ -10,6 +10,15 @@ node_modules/
 dist/
 build/
 coverage/
+# Interrupted local admin installs can leave renamed dependency trees.
+apps/admin/node_modules_corrupt*/
+apps/admin/node_modules 2/
+apps/admin/next-env.d 2.ts
+apps/admin/package-lock 2.json
+apps/admin/tsconfig 2.json
+*.bak_timeout
+# Bundled desktop runtime virtualenv is reproducible and should stay local-only.
+apps/desktop/resources/edge/pyvenv/
 
 # Rust/Tauri
 target/
@@ -62,7 +71,7 @@ htmlcov/
 scripts/eval/out/*.json
 
 # Docker
-.dockerignore
+/.dockerignore
 
 # OS Temporary Files
 .DS_Store

@@ -1,0 +1,10 @@
+node_modules
+node_modules_corrupt*
+node_modules 2
+.next
+npm-debug.log*
+.git
+.gitignore
+*.bak_timeout
+* 2.*
+.DS_Store

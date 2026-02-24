@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminAPI, Event } from '@/lib/api';
+import { adminAPI, Event } from '../../lib/api';
 import Link from 'next/link';
 
 export default function EventsPage() {

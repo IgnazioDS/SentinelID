@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminAPI, Device } from '@/lib/api';
+import { adminAPI, Device } from '../../lib/api';
 import Link from 'next/link';
 
 export default function DevicesPage() {

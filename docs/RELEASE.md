@@ -1,69 +1,92 @@
-# Release Guide (v0.9)
+# Release Guide (v1.0.0)
 
-## 1) Build Desktop Bundle
+## Scope
 
-```bash
-./scripts/bundle_edge_venv.sh
-cd apps/desktop
-npm run tauri build
-cd ../..
-```
+This guide defines the reproducible release process for SentinelID.
 
-Or run the combined path:
+## Pre-Tag Checklist
+
+Run from repository root:
 
 ```bash
-./scripts/build_and_smoke_desktop.sh
+make test
+make build-desktop-web
+make check-desktop-rust
+make docker-build
+make smoke-edge
+make smoke-cloud
+make smoke-admin
+make smoke-desktop
+make smoke-bundling
+make perf-edge
 ```
 
-## 2) Run Smoke Tests
-
-Edge:
+One-command equivalent:
 
 ```bash
-EDGE_URL=http://127.0.0.1:8787 EDGE_TOKEN=devtoken ./scripts/smoke_test_edge.sh
+make release-check
 ```
 
-Cloud:
+## Packaging Validation
 
 ```bash
-CLOUD_URL=http://127.0.0.1:8000 ADMIN_TOKEN=${ADMIN_API_TOKEN} ./scripts/smoke_test_cloud.sh
+make bundle-edge
+make build-desktop
 ```
 
-Desktop launcher:
+## Version Bump Locations
 
-```bash
-./scripts/smoke_test_desktop.sh
-```
+When cutting a new release, review/update:
 
-## 3) Run Performance Benchmark
+- `CHANGELOG.md` (new version section)
+- `apps/desktop/src-tauri/tauri.conf.json` (`package.version`)
+- Any release references in docs (for example `RUNBOOK.md`, `README.md`)
 
-```bash
-python3 scripts/perf/bench_edge.py --base-url http://127.0.0.1:8787 --token devtoken --attempts 8 --frames 12
-```
+## Tagging Rules
 
-## 4) Run Test Suites
+- Pre-release tag format: `vX.Y.Z-rc.N`
+- Stable tag format: `vX.Y.Z`
+- Tag on the merge commit in `main` for stable releases.
 
-```bash
-cd apps/edge && poetry run pytest && cd ../..
-cd apps/cloud && pytest && cd ../..
-```
+## Release Cut Commands
 
-## 5) Tagging Checklist
-
-Example release commands:
+### 1) Prepare release branch
 
 ```bash
 git switch main
 git pull
-git tag -a v0.9.0 -m "SentinelID v0.9.0 release candidate"
-git push origin v0.9.0
-git show --no-patch --decorate v0.9.0
+git switch -c branch/feat/release-v1.0.0
 ```
 
-For pre-release tags:
+### 2) Push branch and pre-release tag
 
 ```bash
-git tag -a v0.9.0-alpha.1 -m "SentinelID v0.9.0-alpha.1"
-git push origin v0.9.0-alpha.1
+git push -u origin branch/feat/release-v1.0.0
+git tag -a v1.0.0-rc.1 -m "SentinelID v1.0.0 release candidate 1"
+git push origin v1.0.0-rc.1
 ```
 
+### 3) Merge to main (no squash)
+
+```bash
+git switch main
+git pull
+git merge --no-ff branch/feat/release-v1.0.0
+git push origin main
+```
+
+### 4) Create stable release tag
+
+```bash
+git tag -a v1.0.0 -m "SentinelID v1.0.0"
+git push origin v1.0.0
+git show --no-patch --decorate v1.0.0
+```
+
+## Artifacts
+
+Expected release artifacts:
+
+- Desktop bundle from `make build-desktop`
+- Cloud and admin images from `make docker-build`
+- Smoke and benchmark outputs from `scripts/eval/out/`

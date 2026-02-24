@@ -2,6 +2,32 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.0.0 (2026-02-25)
+
+### Added
+- CI pipelines under `.github/workflows/`:
+  - `edge-tests.yml`
+  - `cloud-tests.yml`
+  - `desktop-build.yml`
+  - `docker-build.yml`
+- Cloud test dependency manifest at `apps/cloud/requirements-dev.txt`.
+- Release preflight automation script: `scripts/release/checklist.sh`.
+- App Router root layout for admin UI: `apps/admin/app/layout.tsx`.
+
+### Changed
+- `RUNBOOK.md` is now the authoritative v1.0.0 command path and aligns with Makefile targets.
+- `Makefile` expanded with explicit test/build/docker/smoke/perf/release-check targets.
+- Admin pages now use stable relative imports for `lib/api`.
+- Admin API client uses `Headers` to avoid TypeScript build incompatibilities.
+- Admin dependencies now include a deterministic lockfile (`apps/admin/package-lock.json`).
+
+### Fixed
+- Next.js admin build failure caused by missing App Router root layout.
+- Docker admin build failure path caused by missing root layout during `next build`.
+
+### Release Process
+- Updated `docs/RELEASE.md` with v1.0.0 tagging rules (`v1.0.0-rc.N`, `v1.0.0`) and pre-tag checklist.
+
 ## v0.7.0 (2026-02-23)
 
 ### Added

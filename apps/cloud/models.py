@@ -2,7 +2,18 @@
 Database models for cloud telemetry storage.
 """
 import os
-from sqlalchemy import create_engine, Column, String, Integer, Float, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import (
+    create_engine,
+    Column,
+    String,
+    Integer,
+    Float,
+    Boolean,
+    DateTime,
+    Text,
+    ForeignKey,
+    Index,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -32,6 +43,10 @@ class Device(Base):
 
     telemetry_events = relationship("TelemetryEvent", back_populates="device")
 
+    __table_args__ = (
+        Index("ix_devices_last_seen_desc", "last_seen"),
+    )
+
 
 class TelemetryEvent(Base):
     """Ingested telemetry event from edge device."""
@@ -54,6 +69,14 @@ class TelemetryEvent(Base):
     ingested_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     device = relationship("Device", back_populates="telemetry_events")
+
+    __table_args__ = (
+        Index("ix_events_ingested_desc", "ingested_at"),
+        Index("ix_events_device_outcome", "device_id", "outcome"),
+        Index("ix_events_outcome_ingested", "outcome", "ingested_at"),
+        Index("ix_events_risk_score", "risk_score"),
+        Index("ix_events_session_duration", "session_duration_seconds"),
+    )
 
 
 def init_db():

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminAPI, Event, EventsResponse } from '@/lib/api';
+import { adminAPI, Event } from '@/lib/api';
 import Link from 'next/link';
 
 export default function EventsPage() {
@@ -11,7 +11,10 @@ export default function EventsPage() {
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [deviceFilterInput, setDeviceFilterInput] = useState('');
   const [deviceFilter, setDeviceFilter] = useState('');
+  const [outcomeFilterInput, setOutcomeFilterInput] = useState<string>('');
   const [outcomeFilter, setOutcomeFilter] = useState<string>('');
 
   useEffect(() => {
@@ -27,6 +30,7 @@ export default function EventsPage() {
         });
         setEvents(response.events);
         setTotal(response.total);
+        setHasNext(response.has_next);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load events');
       } finally {
@@ -42,9 +46,23 @@ export default function EventsPage() {
   };
 
   const handleNextPage = () => {
-    if (offset + limit < total) {
+    if (hasNext) {
       setOffset(offset + limit);
     }
+  };
+
+  const applyFilters = () => {
+    setDeviceFilter(deviceFilterInput.trim());
+    setOutcomeFilter(outcomeFilterInput);
+    setOffset(0);
+  };
+
+  const clearFilters = () => {
+    setDeviceFilterInput('');
+    setOutcomeFilterInput('');
+    setDeviceFilter('');
+    setOutcomeFilter('');
+    setOffset(0);
   };
 
   const currentPage = Math.floor(offset / limit) + 1;
@@ -75,20 +93,14 @@ export default function EventsPage() {
         <input
           type="text"
           placeholder="Filter by device ID..."
-          value={deviceFilter}
-          onChange={(e) => {
-            setDeviceFilter(e.target.value);
-            setOffset(0);
-          }}
+          value={deviceFilterInput}
+          onChange={(e) => setDeviceFilterInput(e.target.value)}
           style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
         />
 
         <select
-          value={outcomeFilter}
-          onChange={(e) => {
-            setOutcomeFilter(e.target.value);
-            setOffset(0);
-          }}
+          value={outcomeFilterInput}
+          onChange={(e) => setOutcomeFilterInput(e.target.value)}
           style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
         >
           <option value="">All Outcomes</option>
@@ -109,6 +121,19 @@ export default function EventsPage() {
           <option value={50}>50 per page</option>
           <option value={100}>100 per page</option>
         </select>
+
+        <button
+          onClick={applyFilters}
+          style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #007bff', backgroundColor: '#007bff', color: 'white' }}
+        >
+          Apply
+        </button>
+        <button
+          onClick={clearFilters}
+          style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #666', backgroundColor: '#fff', color: '#333' }}
+        >
+          Clear
+        </button>
       </div>
 
       {error && (
@@ -122,7 +147,7 @@ export default function EventsPage() {
       ) : (
         <>
           <div style={{ marginBottom: '10px' }}>
-            Total: {total} events (Page {currentPage}/{totalPages})
+            Total: {total} events (Page {currentPage}/{totalPages || 1})
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -149,6 +174,12 @@ export default function EventsPage() {
                   </th>
                   <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
                     Timestamp
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Risk
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Latency
                   </th>
                 </tr>
               </thead>
@@ -189,6 +220,14 @@ export default function EventsPage() {
                     <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
                       {new Date(event.timestamp * 1000).toLocaleString()}
                     </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {event.risk_score !== undefined && event.risk_score !== null ? event.risk_score.toFixed(3) : '-'}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {event.session_duration_seconds !== undefined && event.session_duration_seconds !== null
+                        ? `${(event.session_duration_seconds * 1000).toFixed(0)} ms`
+                        : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -215,14 +254,14 @@ export default function EventsPage() {
             </span>
             <button
               onClick={handleNextPage}
-              disabled={offset + limit >= total}
+              disabled={!hasNext}
               style={{
                 padding: '8px 16px',
-                backgroundColor: offset + limit >= total ? '#ccc' : '#007bff',
+                backgroundColor: !hasNext ? '#ccc' : '#007bff',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: offset + limit >= total ? 'default' : 'pointer',
+                cursor: !hasNext ? 'default' : 'pointer',
               }}
             >
               Next

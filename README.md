@@ -57,6 +57,7 @@ Typical flow:
 - Threat model: [`docs/threat-model.md`](docs/threat-model.md)
 - Evaluation: [`docs/evaluation.md`](docs/evaluation.md)
 - Packaging: [`docs/PACKAGING.md`](docs/PACKAGING.md)
+- Release: [`docs/RELEASE.md`](docs/RELEASE.md)
 - Recovery: [`docs/RECOVERY.md`](docs/RECOVERY.md)
 - Key management: [`docs/KEY_MANAGEMENT.md`](docs/KEY_MANAGEMENT.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)

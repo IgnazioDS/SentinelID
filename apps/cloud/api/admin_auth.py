@@ -1,12 +1,4 @@
-"""
-Admin authentication for cloud API endpoints.
-
-Security notes:
-- The token is compared with hmac.compare_digest to prevent timing attacks.
-- The token value is never logged; only a boolean result is recorded.
-- An invalid-token response includes no information about the expected token.
-"""
-import hashlib
+"""Admin authentication for cloud API endpoints."""
 import hmac
 import logging
 import os
@@ -29,7 +21,13 @@ async def verify_admin_token(x_admin_token: str = Header(None)) -> str:
     Raises:
         HTTPException: 401 if token is missing or invalid
     """
-    expected_token = os.environ.get("ADMIN_API_TOKEN", "dev-admin-token")
+    expected_token = os.environ.get("ADMIN_API_TOKEN")
+    if not expected_token:
+        logger.error("Admin API token is not configured")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin API token not configured",
+        )
 
     if not x_admin_token:
         logger.warning("Admin request rejected: missing X-Admin-Token header")
@@ -44,17 +42,11 @@ async def verify_admin_token(x_admin_token: str = Header(None)) -> str:
         expected_token.encode("utf-8"),
     )
     if not tokens_match:
-        # Log only that auth failed, not the token value
-        logger.warning("Admin request rejected: invalid token (hash=%s)", _token_hash(x_admin_token))
+        logger.warning("Admin request rejected: invalid token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid admin token",
         )
 
-    logger.debug("Admin request authorised (hash=%s)", _token_hash(x_admin_token))
+    logger.debug("Admin request authorised")
     return x_admin_token
-
-
-def _token_hash(token: str) -> str:
-    """Return a short hash of the token for log correlation without exposing the value."""
-    return hashlib.sha256(token.encode()).hexdigest()[:8]

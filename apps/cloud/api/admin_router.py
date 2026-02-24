@@ -2,11 +2,12 @@
 Admin endpoints for cloud service.
 """
 import json
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from sqlalchemy import func
+from datetime import datetime
 
 # Use absolute imports for compatibility with uvicorn
 import sys
@@ -16,7 +17,7 @@ parent_dir = os.path.dirname(api_dir)
 sys.path.insert(0, parent_dir)
 
 from models import get_db, TelemetryEvent, Device
-from admin_auth import verify_admin_token
+from api.admin_auth import verify_admin_token
 
 router = APIRouter(tags=["Admin"])
 
@@ -46,6 +47,9 @@ class EventsResponse(BaseModel):
 
     events: List[EventResponse]
     total: int
+    limit: int
+    offset: int
+    has_next: bool
 
 
 class DeviceResponse(BaseModel):
@@ -66,6 +70,9 @@ class DevicesResponse(BaseModel):
 
     devices: List[DeviceResponse]
     total: int
+    limit: int
+    offset: int
+    has_next: bool
 
 
 class StatsResponse(BaseModel):
@@ -78,6 +85,9 @@ class StatsResponse(BaseModel):
     deny_count: int
     error_count: int
     liveness_failure_rate: float = 0.0
+    latency_p50_ms: Optional[float] = None
+    latency_p95_ms: Optional[float] = None
+    risk_distribution: Dict[str, int]
 
 
 @router.get("/admin/events", response_model=EventsResponse)
@@ -113,12 +123,19 @@ async def get_events(
     # Get total count
     total = query.count()
 
-    # Get paginated results
-    events = query.order_by(TelemetryEvent.ingested_at.desc()).offset(offset).limit(limit).all()
+    # Get paginated results (+1 to derive has_next cheaply)
+    events = (
+        query.order_by(TelemetryEvent.ingested_at.desc())
+        .offset(offset)
+        .limit(limit + 1)
+        .all()
+    )
+    has_next = len(events) > limit
+    page_events = events[:limit]
 
     # Convert to response format
     event_responses = []
-    for event in events:
+    for event in page_events:
         event_responses.append(EventResponse(
             event_id=event.event_id,
             device_id=event.device_id,
@@ -134,7 +151,13 @@ async def get_events(
             ingested_at=event.ingested_at
         ))
 
-    return EventsResponse(events=event_responses, total=total)
+    return EventsResponse(
+        events=event_responses,
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_next=has_next,
+    )
 
 
 @router.get("/admin/stats", response_model=StatsResponse)
@@ -160,6 +183,34 @@ async def get_stats(
     liveness_failed = db.query(TelemetryEvent).filter(TelemetryEvent.liveness_passed == False).count()
     liveness_failure_rate = (liveness_failed / total_events * 100) if total_events > 0 else 0.0
 
+    # Latency percentiles (session_duration_seconds is stored in seconds)
+    latency_values = [
+        row[0]
+        for row in db.query(TelemetryEvent.session_duration_seconds)
+        .filter(TelemetryEvent.session_duration_seconds.isnot(None))
+        .all()
+    ]
+    latency_ms = sorted(float(v) * 1000.0 for v in latency_values if v is not None)
+
+    latency_p50_ms = _percentile(latency_ms, 50.0) if latency_ms else None
+    latency_p95_ms = _percentile(latency_ms, 95.0) if latency_ms else None
+
+    # Risk histogram for dashboarding.
+    risk_distribution = {"low": 0, "medium": 0, "high": 0}
+    risk_rows = (
+        db.query(TelemetryEvent.risk_score)
+        .filter(TelemetryEvent.risk_score.isnot(None))
+        .all()
+    )
+    for row in risk_rows:
+        score = float(row[0])
+        if score < 0.45:
+            risk_distribution["low"] += 1
+        elif score < 0.75:
+            risk_distribution["medium"] += 1
+        else:
+            risk_distribution["high"] += 1
+
     return StatsResponse(
         total_devices=total_devices,
         active_devices=active_devices,
@@ -168,6 +219,9 @@ async def get_stats(
         deny_count=deny_count,
         error_count=error_count,
         liveness_failure_rate=liveness_failure_rate,
+        latency_p50_ms=latency_p50_ms,
+        latency_p95_ms=latency_p95_ms,
+        risk_distribution=risk_distribution,
     )
 
 
@@ -191,11 +245,20 @@ async def get_devices(
     query = db.query(Device)
     total = query.count()
 
-    devices = query.order_by(Device.last_seen.desc()).offset(offset).limit(limit).all()
+    devices = query.order_by(Device.last_seen.desc()).offset(offset).limit(limit + 1).all()
+    has_next = len(devices) > limit
+    page_devices = devices[:limit]
+
+    counts = (
+        db.query(TelemetryEvent.device_id, func.count(TelemetryEvent.id))
+        .group_by(TelemetryEvent.device_id)
+        .all()
+    )
+    count_map = {device_id: int(count) for device_id, count in counts}
 
     device_responses = []
-    for device in devices:
-        event_count = db.query(TelemetryEvent).filter(TelemetryEvent.device_id == device.device_id).count()
+    for device in page_devices:
+        event_count = count_map.get(device.device_id, 0)
         device_responses.append(DeviceResponse(
             device_id=device.device_id,
             registered_at=device.registered_at,
@@ -204,4 +267,22 @@ async def get_devices(
             event_count=event_count,
         ))
 
-    return DevicesResponse(devices=device_responses, total=total)
+    return DevicesResponse(
+        devices=device_responses,
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_next=has_next,
+    )
+
+
+def _percentile(values: List[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    idx = (len(values) - 1) * (percentile / 100.0)
+    lo = int(idx)
+    hi = min(lo + 1, len(values) - 1)
+    if lo == hi:
+        return float(values[lo])
+    frac = idx - lo
+    return float(values[lo] * (1.0 - frac) + values[hi] * frac)

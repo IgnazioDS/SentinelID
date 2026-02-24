@@ -54,12 +54,19 @@ def client(tmp_env, monkeypatch):
     db_path, key_dir, _ = tmp_env
     # Patch settings before importing app
     import sentinelid_edge.core.config as cfg_mod
+    import sentinelid_edge.core.auth as auth_mod
     cfg_mod.settings.DB_PATH = db_path
     cfg_mod.settings.KEYCHAIN_DIR = key_dir
     cfg_mod.settings.EDGE_AUTH_TOKEN = "testtoken"
+    auth_mod.settings = cfg_mod.settings
 
-    from sentinelid_edge.main import app
-    return TestClient(app, headers={"Authorization": "Bearer testtoken"})
+    import importlib
+    import sentinelid_edge.main as main_mod
+    importlib.reload(main_mod)
+    return TestClient(
+        main_mod.app,
+        headers={"Authorization": f"Bearer {cfg_mod.settings.EDGE_AUTH_TOKEN}"},
+    )
 
 
 def _seed_templates(db_path: str, key_dir: str, n: int = 3):

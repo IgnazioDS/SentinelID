@@ -22,10 +22,17 @@ make bundle-edge
 make build-desktop
 ```
 
+Equivalent one-shot script:
+
+```bash
+./scripts/build_and_smoke_desktop.sh
+```
+
 Validation:
 
 ```bash
 ./scripts/smoke_test_bundling.sh
+./scripts/smoke_test_desktop.sh
 ```
 
 ## Runtime Behavior

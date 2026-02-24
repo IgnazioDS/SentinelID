@@ -10,7 +10,8 @@ from fastapi.testclient import TestClient
 def client():
     """Create test client."""
     from main import app
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def test_admin_events_missing_token(client):
@@ -73,21 +74,21 @@ def test_token_from_environment():
         os.environ["ADMIN_API_TOKEN"] = "custom-secret-token"
 
         from main import app
-        client = TestClient(app)
+        with TestClient(app) as client:
 
-        # Should reject old token
-        response = client.get(
-            "/v1/admin/events",
-            headers={"X-Admin-Token": "dev-admin-token"}
-        )
-        assert response.status_code == 401
+            # Should reject old token
+            response = client.get(
+                "/v1/admin/events",
+                headers={"X-Admin-Token": "dev-admin-token"}
+            )
+            assert response.status_code == 401
 
-        # Should accept new token
-        response = client.get(
-            "/v1/admin/events",
-            headers={"X-Admin-Token": "custom-secret-token"}
-        )
-        assert response.status_code in [200, 422, 500]  # Auth passed
+            # Should accept new token
+            response = client.get(
+                "/v1/admin/events",
+                headers={"X-Admin-Token": "custom-secret-token"}
+            )
+            assert response.status_code in [200, 422, 500]  # Auth passed
 
     finally:
         # Restore original

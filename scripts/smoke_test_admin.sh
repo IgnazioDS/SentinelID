@@ -10,13 +10,13 @@ API_URL="${API_URL:-http://localhost:8000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-dev-admin-token}"
 TIMEOUT=5
 
-echo "🔍 Starting Admin Dashboard Smoke Tests"
+echo "Starting Admin Dashboard Smoke Tests"
 echo "   API URL: $API_URL"
 echo "   Timeout: ${TIMEOUT}s"
 echo ""
 
 # Test admin devices endpoint
-echo "📱 Testing /v1/admin/devices..."
+echo "Testing /v1/admin/devices..."
 response=$(curl -s -w "\n%{http_code}" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   --max-time "$TIMEOUT" \
@@ -34,7 +34,7 @@ else
 fi
 
 # Test admin events endpoint
-echo "📋 Testing /v1/admin/events..."
+echo "Testing /v1/admin/events..."
 response=$(curl -s -w "\n%{http_code}" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   --max-time "$TIMEOUT" \
@@ -52,7 +52,7 @@ else
 fi
 
 # Test admin stats endpoint
-echo "📊 Testing /v1/admin/stats..."
+echo "Testing /v1/admin/stats..."
 response=$(curl -s -w "\n%{http_code}" \
   -H "X-Admin-Token: $ADMIN_TOKEN" \
   --max-time "$TIMEOUT" \
@@ -73,7 +73,7 @@ else
 fi
 
 # Test authentication rejection
-echo "🔐 Testing authentication rejection (missing token)..."
+echo "Testing authentication rejection (missing token)..."
 response=$(curl -s -w "\n%{http_code}" \
   --max-time "$TIMEOUT" \
   "$API_URL/v1/admin/devices")
@@ -88,7 +88,7 @@ else
 fi
 
 # Test invalid token rejection
-echo "🔐 Testing authentication rejection (invalid token)..."
+echo "Testing authentication rejection (invalid token)..."
 response=$(curl -s -w "\n%{http_code}" \
   -H "X-Admin-Token: invalid-token" \
   --max-time "$TIMEOUT" \
@@ -104,4 +104,4 @@ else
 fi
 
 echo ""
-echo "✅ All smoke tests passed!"
+echo "All smoke tests passed."

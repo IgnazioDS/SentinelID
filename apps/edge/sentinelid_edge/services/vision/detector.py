@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -36,9 +37,12 @@ class DetectedFace:
 class FaceDetector:
     """Detect faces and produce landmarks for liveness + quality gating."""
 
+    _global_model: Optional[Any] = None
+    _global_init_attempted: bool = False
+    _global_lock = threading.Lock()
+
     def __init__(self) -> None:
-        self._insightface_model: Optional[Any] = None
-        self._insightface_init_attempted = False
+        pass
 
     def decode_frame_to_bgr(self, frame_data: str) -> Optional[np.ndarray]:
         """Decode base64 data URL / base64 payload to OpenCV BGR image."""
@@ -67,7 +71,9 @@ class FaceDetector:
                 "reason_codes": [ReasonCode.NO_FACE],
                 "detector_backend": "decode_error",
             }
+        return self.detect_faces_from_bgr(image)
 
+    def detect_faces_from_bgr(self, image: np.ndarray) -> Tuple[List[DetectedFace], Dict[str, Any]]:
         model = self._get_insightface_model()
         if model is not None:
             try:
@@ -125,22 +131,26 @@ class FaceDetector:
         )
         return True, primary.landmarks, meta
 
-    def _get_insightface_model(self):
-        if self._insightface_init_attempted:
-            return self._insightface_model
+    @classmethod
+    def _get_insightface_model(cls):
+        if cls._global_init_attempted:
+            return cls._global_model
 
-        self._insightface_init_attempted = True
-        try:
-            from insightface.app import FaceAnalysis
+        with cls._global_lock:
+            if cls._global_init_attempted:
+                return cls._global_model
+            cls._global_init_attempted = True
+            try:
+                from insightface.app import FaceAnalysis
 
-            model = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
-            model.prepare(ctx_id=0, det_size=(640, 640))
-            self._insightface_model = model
-            logger.info("InsightFace detector loaded")
-        except Exception as exc:
-            logger.warning("InsightFace unavailable, detector fallback enabled: %s", exc)
-            self._insightface_model = None
-        return self._insightface_model
+                model = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+                model.prepare(ctx_id=0, det_size=(640, 640))
+                cls._global_model = model
+                logger.info("InsightFace detector loaded")
+            except Exception as exc:
+                logger.warning("InsightFace unavailable, detector fallback enabled: %s", exc)
+                cls._global_model = None
+            return cls._global_model
 
     def _from_insightface_face(self, face: Any) -> DetectedFace:
         bbox = tuple(float(v) for v in face.bbox.tolist())

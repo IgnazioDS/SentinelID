@@ -63,6 +63,8 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
     logger.info("Initializing cloud database...")
     init_db()
+    if not os.environ.get("ADMIN_API_TOKEN"):
+        logger.warning("ADMIN_API_TOKEN is not set; admin endpoints will reject requests")
     logger.info("Cloud service ready")
     yield
     logger.info("Cloud service shutting down")
@@ -70,7 +72,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SentinelID Cloud",
-    version="0.6.0",
+    version="0.9.0",
     lifespan=lifespan,
 )
 

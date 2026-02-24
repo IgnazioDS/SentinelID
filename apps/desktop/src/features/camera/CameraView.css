@@ -17,14 +17,6 @@
   justify-content: flex-start;
 }
 
-.demo-toggle {
-  width: 100%;
-  max-width: 640px;
-  text-align: left;
-  font-size: 13px;
-  color: #444;
-}
-
 .demo-badge {
   margin: 12px 0;
   padding: 8px 10px;
@@ -111,6 +103,22 @@
   font-weight: 500;
 }
 
+.progress-bar-wrap {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto 10px auto;
+  height: 10px;
+  border-radius: 999px;
+  background: #dde3ef;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f78ff, #00a8a8);
+  transition: width 0.15s linear;
+}
+
 .frame-count {
   font-size: 12px;
   color: #999;
@@ -187,6 +195,47 @@
   margin-top: 20px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 640px;
+  border: 1px solid #d6d8e1;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8f9fc;
+}
+
+.settings-panel h3 {
+  margin: 0 0 12px 0;
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-note {
+  font-size: 12px;
+  color: #495057;
+}
+
+.settings-error {
+  color: #b02a37;
+}
+
+.diagnostics {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #dfe3f0;
+  font-size: 12px;
+}
+
+.diagnostics p {
+  margin: 6px 0;
 }
 
 button {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 import CameraView from './features/camera/CameraView';
 
 interface EdgeInfo {
@@ -11,32 +11,31 @@ function App() {
   const [edgeReady, setEdgeReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function initializeEdge() {
-      try {
-        console.log('App: Starting edge process...');
-        const edgeInfo = await invoke<EdgeInfo>('start_edge');
-        console.log('App: Edge started at', edgeInfo.base_url);
-        setEdgeReady(true);
-      } catch (err) {
-        console.error('App: Failed to start edge:', err);
-        setError(String(err));
-      }
+  const initializeEdge = async () => {
+    try {
+      setError(null);
+      await invoke<EdgeInfo>('start_edge');
+      setEdgeReady(true);
+    } catch (err) {
+      setError(String(err));
     }
+  };
 
+  useEffect(() => {
     initializeEdge();
 
     return () => {
       // Kill edge on unmount
-      invoke('kill_edge').catch(err => console.error('App: Failed to kill edge:', err));
+      invoke('kill_edge').catch(() => undefined);
     };
   }, []);
 
   if (error) {
     return (
       <div className="container">
-        <h1>Error</h1>
-        <p>Failed to start edge service: {error}</p>
+        <h1>Edge Startup Error</h1>
+        <p>{error}</p>
+        <button onClick={initializeEdge}>Retry</button>
       </div>
     );
   }

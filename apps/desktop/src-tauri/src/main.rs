@@ -1,11 +1,13 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use std::process::{Command, Child};
+use std::net::TcpListener;
+use std::process::{Child, Command};
 use std::sync::Mutex;
-use uuid::Uuid;
 use std::time::Duration;
+use uuid::Uuid;
+
+#[cfg(not(debug_assertions))]
 use std::path::PathBuf;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -20,89 +22,40 @@ struct EdgeState {
 }
 
 #[tauri::command]
-async fn start_edge(state: tauri::State<'_, Mutex<EdgeState>>) -> Result<EdgeInfo, String> {
-    // Select a random free port between 8000-9000
-    // Use rand::random instead of thread_rng to avoid Send issues across await
-    let port: u16 = rand::random::<u16>() % 1000 + 8000;
+async fn start_edge(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<EdgeState>>,
+) -> Result<EdgeInfo, String> {
+    {
+        let guard = state.lock().map_err(|e| e.to_string())?;
+        if let Some(info) = guard.edge_info.clone() {
+            return Ok(info);
+        }
+    }
 
-    // Generate a random token (UUID)
+    let port = find_free_port()?;
     let token = Uuid::new_v4().to_string();
+    let base_url = format!("http://127.0.0.1:{}", port);
 
-    // Start edge process (in dev mode, it's in apps/edge)
-    #[cfg(debug_assertions)]
-    let mut edge_cmd = {
-        // Dev mode: run edge from source using uvicorn
-        // Assuming we're running from project root or have proper paths
-        let mut cmd = Command::new("python");
-        cmd.arg("-m")
-            .arg("uvicorn")
-            .arg("sentinelid_edge.main:app")
-            .arg("--host")
-            .arg("127.0.0.1")
-            .arg("--port")
-            .arg(port.to_string())
-            .env("EDGE_AUTH_TOKEN", &token)
-            .env("EDGE_ENV", "dev");
-        cmd.current_dir("./apps/edge");
-        cmd
-    };
-
-    #[cfg(not(debug_assertions))]
-    let mut edge_cmd = {
-        // Production: use bundled Python venv with run_edge.sh launcher
-        let app = tauri::AppHandle::app(tauri::api::app::get_app_handle().unwrap());
-        let resource_path = app.path_resolver()
-            .resolve_resource("resources/edge/run_edge.sh")
-            .expect("Failed to resolve edge launcher resource");
-
-        let mut cmd = Command::new(resource_path);
-        cmd.arg(port.to_string())
-            .arg("127.0.0.1")
-            .arg(&token)
-            .env("EDGE_AUTH_TOKEN", &token)
-            .env("EDGE_ENV", "production");
-        cmd
-    };
-
+    let mut edge_cmd = build_edge_command(&app, port, &token)?;
     let child = edge_cmd
         .spawn()
         .map_err(|e| format!("Failed to start edge process: {}", e))?;
 
-    // Poll health endpoint until ready (max 10 attempts)
-    let base_url = format!("http://127.0.0.1:{}", port);
-    let health_url = format!("{}/api/v1/", base_url);
+    wait_for_health(&base_url).await?;
 
-    for attempt in 0..10 {
-        match reqwest::Client::new()
-            .get(&health_url)
-            .timeout(Duration::from_secs(1))
-            .send()
-            .await
-        {
-            Ok(resp) if resp.status().is_success() => {
-                let edge_info = EdgeInfo {
-                    base_url: base_url.clone(),
-                    token: token.clone(),
-                };
+    let edge_info = EdgeInfo {
+        base_url: base_url.clone(),
+        token: token.clone(),
+    };
 
-                // Store edge process and info in state
-                {
-                    let mut app_state = state.lock().map_err(|e| e.to_string())?;
-                    app_state.edge_process = Some(child);
-                    app_state.edge_info = Some(edge_info.clone());
-                }
-
-                return Ok(edge_info);
-            }
-            _ => {
-                if attempt < 9 {
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                }
-            }
-        }
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.edge_process = Some(child);
+        guard.edge_info = Some(edge_info.clone());
     }
 
-    Err("Failed to connect to edge after 5 seconds".to_string())
+    Ok(edge_info)
 }
 
 #[tauri::command]
@@ -119,8 +72,80 @@ fn kill_edge(state: tauri::State<Mutex<EdgeState>>) -> Result<(), String> {
     let mut state = state.lock().map_err(|e| e.to_string())?;
     if let Some(mut child) = state.edge_process.take() {
         let _ = child.kill();
+        let _ = child.wait();
     }
+    state.edge_info = None;
     Ok(())
+}
+
+fn find_free_port() -> Result<u16, String> {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("Failed to find free port: {}", e))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("Failed to get local port: {}", e))?
+        .port();
+    drop(listener);
+    Ok(port)
+}
+
+fn build_edge_command(_app: &tauri::AppHandle, port: u16, token: &str) -> Result<Command, String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let launcher = resolve_launcher_path(_app)?;
+        let mut cmd = Command::new(launcher);
+        cmd.arg(port.to_string())
+            .arg("127.0.0.1")
+            .arg(token)
+            .env("EDGE_HOST", "127.0.0.1")
+            .env("EDGE_PORT", port.to_string())
+            .env("EDGE_AUTH_TOKEN", token)
+            .env("EDGE_ENV", "production");
+        return Ok(cmd);
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        // In dev we still use source Edge for faster iteration.
+        let mut cmd = Command::new("python");
+        cmd.arg("-m")
+            .arg("uvicorn")
+            .arg("sentinelid_edge.main:app")
+            .arg("--host")
+            .arg("127.0.0.1")
+            .arg("--port")
+            .arg(port.to_string())
+            .env("EDGE_HOST", "127.0.0.1")
+            .env("EDGE_PORT", port.to_string())
+            .env("EDGE_AUTH_TOKEN", token)
+            .env("EDGE_ENV", "dev")
+            .current_dir("./apps/edge");
+        Ok(cmd)
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn resolve_launcher_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path_resolver()
+        .resolve_resource("resources/edge/run_edge.sh")
+        .or_else(|| app.path_resolver().resolve_resource("edge/run_edge.sh"))
+        .ok_or_else(|| "Failed to resolve bundled edge launcher (run_edge.sh)".to_string())
+}
+
+async fn wait_for_health(base_url: &str) -> Result<(), String> {
+    let health_url = format!("{}/api/v1/health", base_url);
+    for _ in 0..20 {
+        match reqwest::Client::new()
+            .get(&health_url)
+            .timeout(Duration::from_secs(1))
+            .send()
+            .await
+        {
+            Ok(resp) if resp.status().is_success() => return Ok(()),
+            _ => tokio::time::sleep(Duration::from_millis(250)).await,
+        }
+    }
+    Err("Failed to connect to edge health endpoint".to_string())
 }
 
 fn main() {
@@ -130,7 +155,6 @@ fn main() {
             edge_info: None,
         }))
         .invoke_handler(tauri::generate_handler![start_edge, get_edge_info, kill_edge])
-        .on_window_event(|_window_event| {})
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

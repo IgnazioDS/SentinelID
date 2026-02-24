@@ -10,6 +10,9 @@ node_modules/
 dist/
 build/
 coverage/
+# Interrupted local admin installs can leave renamed dependency trees.
+apps/admin/node_modules_corrupt*/
+*.bak_timeout
 
 # Rust/Tauri
 target/

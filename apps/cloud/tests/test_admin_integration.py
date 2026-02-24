@@ -4,10 +4,8 @@ Tests the full flow from authentication to data retrieval.
 """
 import pytest
 import os
-from datetime import datetime, timedelta
-from sentinelid_cloud.database.models import Device, Event
 from fastapi.testclient import TestClient
-from sentinelid_cloud.main import app
+from main import app
 
 
 @pytest.fixture
@@ -19,7 +17,8 @@ def admin_token():
 @pytest.fixture
 def client():
     """Create a test client."""
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture

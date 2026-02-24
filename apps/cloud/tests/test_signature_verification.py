@@ -3,12 +3,8 @@ Tests for cloud signature verification.
 """
 import pytest
 import json
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.backends import default_backend
-
 from sentinelid_edge.services.security.crypto import CryptoProvider
-from sentinelid_cloud.api.signature_verifier import SignatureVerifier
+from api.signature_verifier import SignatureVerifier
 
 
 class TestSignatureVerification:

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminAPI, StatsResponse } from '@/lib/api';
+import { adminAPI, StatsResponse } from '../../lib/api';
 import Link from 'next/link';
 
 export default function StatsPage() {

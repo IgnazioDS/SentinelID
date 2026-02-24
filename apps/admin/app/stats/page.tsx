@@ -120,6 +120,32 @@ export default function StatsPage() {
                 %
               </div>
             </div>
+
+            <div
+              style={{
+                padding: '20px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '8px',
+                border: '2px solid #0d6efd',
+                minWidth: '220px',
+              }}
+            >
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                Latency p50 / p95
+              </div>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0d6efd' }}>
+                {stats.latency_p50_ms !== undefined && stats.latency_p50_ms !== null
+                  ? `${stats.latency_p50_ms.toFixed(0)} / ${stats.latency_p95_ms?.toFixed(0) ?? '0'} ms`
+                  : 'n/a'}
+              </div>
+            </div>
+          </div>
+
+          <h2 style={{ marginTop: '30px', marginBottom: '15px' }}>Risk Distribution</h2>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <StatCard label="Risk Low" value={stats.risk_distribution.low} color="#28a745" />
+            <StatCard label="Risk Medium" value={stats.risk_distribution.medium} color="#ffc107" />
+            <StatCard label="Risk High" value={stats.risk_distribution.high} color="#dc3545" />
           </div>
         </>
       ) : null}

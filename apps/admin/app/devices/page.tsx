@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminAPI, Device, DevicesResponse } from '@/lib/api';
+import { adminAPI, Device } from '@/lib/api';
 import Link from 'next/link';
 
 export default function DevicesPage() {
@@ -11,6 +11,7 @@ export default function DevicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
 
   useEffect(() => {
     async function loadDevices() {
@@ -23,6 +24,7 @@ export default function DevicesPage() {
         });
         setDevices(response.devices);
         setTotal(response.total);
+        setHasNext(response.has_next);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load devices');
       } finally {
@@ -38,7 +40,7 @@ export default function DevicesPage() {
   };
 
   const handleNextPage = () => {
-    if (offset + limit < total) {
+    if (hasNext) {
       setOffset(offset + limit);
     }
   };
@@ -169,14 +171,14 @@ export default function DevicesPage() {
             </span>
             <button
               onClick={handleNextPage}
-              disabled={offset + limit >= total}
+              disabled={!hasNext}
               style={{
                 padding: '8px 16px',
-                backgroundColor: offset + limit >= total ? '#ccc' : '#007bff',
+                backgroundColor: !hasNext ? '#ccc' : '#007bff',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: offset + limit >= total ? 'default' : 'pointer',
+                cursor: !hasNext ? 'default' : 'pointer',
               }}
             >
               Next

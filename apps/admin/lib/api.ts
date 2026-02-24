@@ -52,6 +52,9 @@ export interface Event {
 export interface EventsResponse {
   events: Event[];
   total: number;
+  limit: number;
+  offset: number;
+  has_next: boolean;
 }
 
 export interface StatsResponse {
@@ -62,6 +65,13 @@ export interface StatsResponse {
   deny_count: number;
   error_count: number;
   liveness_failure_rate: number;
+  latency_p50_ms?: number;
+  latency_p95_ms?: number;
+  risk_distribution: {
+    low: number;
+    medium: number;
+    high: number;
+  };
 }
 
 export interface Device {
@@ -75,6 +85,9 @@ export interface Device {
 export interface DevicesResponse {
   devices: Device[];
   total: number;
+  limit: number;
+  offset: number;
+  has_next: boolean;
 }
 
 export const adminAPI = {

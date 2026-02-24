@@ -18,6 +18,7 @@ SentinelID evaluation focuses on:
 - Output is sanitized and excludes frames/embeddings.
 - Verification calibration script: `scripts/eval/run_verify_eval.sh`
 - Verification output: `scripts/eval/out/verify_eval_<timestamp>.json`
+- Performance benchmark: `scripts/perf/bench_edge.py` (p50/p95 latency)
 
 ## Typical Local Run
 

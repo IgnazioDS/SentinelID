@@ -1,6 +1,6 @@
 # SentinelID Runbook
 
-This is the authoritative operational guide for local setup, service startup, smoke checks, and testing.
+This is the single authoritative local run path for SentinelID v0.9.
 
 ## Prerequisites
 
@@ -8,82 +8,46 @@ This is the authoritative operational guide for local setup, service startup, sm
 - Python 3.11+
 - Poetry
 - Node.js 18+
-- Rust toolchain (for Tauri)
-- Docker + Docker Compose plugin (`docker compose`)
+- Rust toolchain (Tauri)
+- Docker + `docker compose`
 
-## Setup
-
-### 1) Clone and configure environment
+## Environment
 
 ```bash
-git clone <repo-url>
-cd SentinelID
 cp .env.example .env
 ```
 
-Set admin token values in `.env` (must match):
+Required values:
 
+- `EDGE_AUTH_TOKEN`
 - `ADMIN_API_TOKEN`
-- `NEXT_PUBLIC_ADMIN_TOKEN`
+- `NEXT_PUBLIC_ADMIN_TOKEN` (should match `ADMIN_API_TOKEN`)
 
-### 2) Install Edge dependencies (Poetry)
+## Install Dependencies
+
+```bash
+cd apps/edge && poetry install && cd ../..
+cd apps/desktop && npm install && cd ../..
+cd apps/admin && npm install && cd ../..
+```
+
+## Start Services
+
+### 1) Edge (local)
 
 ```bash
 cd apps/edge
-poetry install
-cd ../..
+EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787
 ```
 
-### 3) Install Desktop dependencies
-
-```bash
-cd apps/desktop
-npm install
-cd ../..
-```
-
-### 4) Install Admin dependencies (optional for non-Docker local dev)
-
-```bash
-cd apps/admin
-npm install
-cd ../..
-```
-
-## Run Services
-
-### Edge dev (FastAPI)
-
-```bash
-cd apps/edge
-EDGE_ENV=dev EDGE_AUTH_TOKEN=devtoken poetry run uvicorn sentinelid_edge.main:app --reload --host 127.0.0.1 --port 8787
-```
-
-Health check:
+Health checks:
 
 ```bash
 curl http://127.0.0.1:8787/health
-curl http://127.0.0.1:8787/api/v1/
+curl http://127.0.0.1:8787/api/v1/health
 ```
 
-### Desktop dev (Tauri)
-
-From repo root:
-
-```bash
-make dev-desktop
-```
-
-Equivalent direct command:
-
-```bash
-cd apps/desktop
-npm run tauri dev
-```
-
-### Cloud/Admin (Docker Compose)
-
-SentinelID uses `docker-compose.yml` at repo root.
+### 2) Cloud + Admin stack
 
 ```bash
 docker compose up --build
@@ -93,150 +57,63 @@ Health checks:
 
 ```bash
 curl http://127.0.0.1:8000/health
-curl -H "X-Admin-Token: ${ADMIN_API_TOKEN:-dev-admin-token}" http://127.0.0.1:8000/v1/admin/stats
+curl -H "X-Admin-Token: ${ADMIN_API_TOKEN}" http://127.0.0.1:8000/v1/admin/stats
+```
+
+### 3) Desktop app (dev)
+
+```bash
+cd apps/desktop
+npm run tauri dev
 ```
 
 ## Smoke Tests
 
-### Admin API smoke test
+### Edge auth smoke
 
 ```bash
-API_URL=http://127.0.0.1:8000 ADMIN_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token} ./scripts/smoke_test_admin.sh
+EDGE_URL=http://127.0.0.1:8787 EDGE_TOKEN=devtoken ./scripts/smoke_test_edge.sh
 ```
 
-### Desktop bundling smoke test
+### Cloud ingest + admin smoke
 
 ```bash
-./scripts/bundle_edge_venv.sh
-./scripts/smoke_test_bundling.sh
+CLOUD_URL=http://127.0.0.1:8000 ADMIN_TOKEN=${ADMIN_API_TOKEN} ./scripts/smoke_test_cloud.sh
 ```
 
-### Eval smoke run
-
-Use the running edge URL and bearer token:
+### Desktop launcher smoke (bundled `run_edge.sh`)
 
 ```bash
-./scripts/eval/run_eval.sh http://127.0.0.1:8787 devtoken 6
+./scripts/smoke_test_desktop.sh
 ```
 
-Output is written to `scripts/eval/out/`.
+### Full desktop bundle + smoke
+
+```bash
+./scripts/build_and_smoke_desktop.sh
+```
+
+## Performance Check
+
+```bash
+python3 scripts/perf/bench_edge.py --base-url http://127.0.0.1:8787 --token devtoken --attempts 8 --frames 12
+```
+
+Optional output file:
+
+```bash
+python3 scripts/perf/bench_edge.py --out scripts/eval/out/bench_edge.json
+```
 
 ## Tests
 
-### Full suite
-
 ```bash
-make test
+cd apps/edge && poetry run pytest
+cd ../cloud && pytest
+cd ../admin && npm run build
 ```
 
-### Edge tests
+## Release Workflow Reference
 
-```bash
-cd apps/edge
-poetry run pytest -v
-```
+For build/release tagging steps, use `docs/RELEASE.md`.
 
-### Cloud tests
-
-```bash
-cd apps/cloud
-pytest -v
-```
-
-### Admin lint/build checks
-
-```bash
-cd apps/admin
-npm run lint
-npm run build
-```
-
-### Desktop build check
-
-```bash
-cd apps/desktop
-npm run tauri build
-```
-
-## Utility Scripts
-
-- `scripts/bundle_edge_venv.sh`: Builds desktop-embedded edge runtime venv under `apps/desktop/resources/edge/`.
-- `scripts/smoke_test_bundling.sh`: Verifies bundled runtime artifacts.
-- `scripts/smoke_test_admin.sh`: Verifies `/v1/admin/devices`, `/v1/admin/events`, `/v1/admin/stats` and auth behavior.
-- `scripts/eval/run_eval.sh`: Runs repeated auth attempts and writes sanitized evaluation JSON.
-- `scripts/gen_types.sh`: Placeholder for OpenAPI-to-TypeScript type generation.
-- `scripts/dev_cert.sh`: Placeholder (currently empty; no-op).
-
-## Troubleshooting
-
-### Port already in use
-
-```bash
-lsof -nP -iTCP:8787 -sTCP:LISTEN
-lsof -nP -iTCP:8000 -sTCP:LISTEN
-lsof -nP -iTCP:3000 -sTCP:LISTEN
-```
-
-Kill a conflicting process:
-
-```bash
-kill -9 <pid>
-```
-
-### Reset edge local DB and keys
-
-```bash
-rm -rf apps/edge/.sentinelid
-```
-
-### Reset Docker state (cloud/admin/postgres)
-
-```bash
-docker compose down -v
-docker compose up --build
-```
-
-### Force Docker rebuild without cache
-
-```bash
-docker compose build --no-cache
-docker compose up
-```
-
-### Admin 401 errors
-
-Ensure token values match:
-
-- `ADMIN_API_TOKEN` (cloud)
-- `NEXT_PUBLIC_ADMIN_TOKEN` (admin UI)
-- `ADMIN_TOKEN` used by smoke test scripts
-
-### Bundling or Tauri build failures
-
-```bash
-make clean
-make bundle-edge
-make build-desktop
-```
-
-### Tag mismatch or stale local tags during release checks
-
-```bash
-git fetch --tags --force
-git tag
-# if needed:
-# git tag -d <tag>
-# git fetch origin tag <tag>
-```
-
-## Durable References
-
-- System architecture: `docs/architecture.md`
-- API reference: `docs/api.md`
-- Privacy: `docs/privacy.md`
-- Threat model: `docs/threat-model.md`
-- Evaluation: `docs/evaluation.md`
-- Packaging: `docs/PACKAGING.md`
-- Recovery: `docs/RECOVERY.md`
-- Key management: `docs/KEY_MANAGEMENT.md`
-- Release history: `CHANGELOG.md`

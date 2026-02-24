@@ -8,6 +8,7 @@ Base URL (local dev): `http://127.0.0.1:8787`
 
 - `GET /health` (unauthenticated process health)
 - `GET /api/v1/` (v1 health)
+- `GET /api/v1/health` (public v1 health)
 - `POST /api/v1/enroll/start`
 - `POST /api/v1/enroll/frame`
 - `POST /api/v1/enroll/commit`
@@ -17,6 +18,8 @@ Base URL (local dev): `http://127.0.0.1:8787`
 - `POST /api/v1/auth/frame`
 - `POST /api/v1/auth/finish`
 - `GET /api/v1/diagnostics`
+- `GET /api/v1/settings/telemetry`
+- `POST /api/v1/settings/telemetry`
 - `POST /api/v1/admin/rotate-key`
 - `POST /api/v1/settings/delete_identity`
 
@@ -35,6 +38,7 @@ Base URL (local docker): `http://127.0.0.1:8000`
 Auth:
 - Admin routes require header `X-Admin-Token: <ADMIN_API_TOKEN>`.
 - Ingest routes verify device signatures and reject forbidden telemetry fields.
+- Admin stats include latency percentiles (`latency_p50_ms`, `latency_p95_ms`) and `risk_distribution`.
 
 ## Contracts
 

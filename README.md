@@ -38,31 +38,40 @@ It pairs a local edge verifier with cloud telemetry and an admin dashboard, so a
 
 ## Quickstart
 
-For complete setup and command reference, use:
+Use `RUNBOOK.md` as the authoritative command path.
 
-- [`RUNBOOK.md`](RUNBOOK.md)
+Common commands:
 
-Typical flow:
+```bash
+make test
+make docker-build
+make release-check
+```
 
-1. Start edge service locally.
-2. Run desktop app in Tauri dev mode.
-3. Start cloud/admin stack with Docker Compose.
-4. Run smoke tests and component tests.
+## CI Coverage
 
-## Durable Documentation
+GitHub Actions runs the following on PRs and `main` pushes:
 
-- Architecture: [`docs/architecture.md`](docs/architecture.md)
+- edge pytest
+- cloud pytest
+- desktop web build + cargo check
+- docker compose build (cloud + admin)
+
+## Documentation
+
+- Runbook: [`RUNBOOK.md`](RUNBOOK.md)
+- Release process: [`docs/RELEASE.md`](docs/RELEASE.md)
 - API: [`docs/api.md`](docs/api.md)
+- Architecture: [`docs/architecture.md`](docs/architecture.md)
 - Privacy: [`docs/privacy.md`](docs/privacy.md)
 - Threat model: [`docs/threat-model.md`](docs/threat-model.md)
 - Evaluation: [`docs/evaluation.md`](docs/evaluation.md)
 - Packaging: [`docs/PACKAGING.md`](docs/PACKAGING.md)
-- Release: [`docs/RELEASE.md`](docs/RELEASE.md)
 - Recovery: [`docs/RECOVERY.md`](docs/RECOVERY.md)
 - Key management: [`docs/KEY_MANAGEMENT.md`](docs/KEY_MANAGEMENT.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## Contributing
 
-- Follow the run/test workflow in [`RUNBOOK.md`](RUNBOOK.md).
-- Keep docs centralized: operational commands in `RUNBOOK.md`, release notes in `CHANGELOG.md`.
+- Follow `RUNBOOK.md` for run/test commands.
+- Keep release notes in `CHANGELOG.md` and release steps in `docs/RELEASE.md`.

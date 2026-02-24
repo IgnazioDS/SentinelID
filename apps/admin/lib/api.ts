@@ -12,13 +12,11 @@ interface FetchOptions extends RequestInit {
 async function fetchWithAuth(endpoint: string, options: FetchOptions = {}) {
   const { includeToken = true, ...fetchOptions } = options;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...fetchOptions.headers,
-  };
+  const headers = new Headers(fetchOptions.headers);
+  headers.set('Content-Type', 'application/json');
 
   if (includeToken) {
-    headers['X-Admin-Token'] = ADMIN_TOKEN;
+    headers.set('X-Admin-Token', ADMIN_TOKEN);
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {

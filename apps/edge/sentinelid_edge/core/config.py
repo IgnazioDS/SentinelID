@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "SentinelID Edge"
     API_V1_STR: str = "/api/v1"
     EDGE_ENV: str = os.getenv("EDGE_ENV", "dev")
+    EDGE_HOST: str = os.getenv("EDGE_HOST", "127.0.0.1")
+    EDGE_PORT: int = int(os.getenv("EDGE_PORT", "8787"))
     EDGE_AUTH_TOKEN: str = os.getenv("EDGE_AUTH_TOKEN", "devtoken")
 
     # Telemetry configuration
@@ -12,6 +14,13 @@ class Settings(BaseSettings):
     CLOUD_INGEST_URL: str = os.getenv("CLOUD_INGEST_URL", "http://localhost:8000/v1/ingest/events")
     TELEMETRY_BATCH_SIZE: int = int(os.getenv("TELEMETRY_BATCH_SIZE", "10"))
     TELEMETRY_MAX_RETRIES: int = int(os.getenv("TELEMETRY_MAX_RETRIES", "3"))
+    TELEMETRY_EXPORT_INTERVAL_SECONDS: float = float(
+        os.getenv("TELEMETRY_EXPORT_INTERVAL_SECONDS", "1.5")
+    )
+    TELEMETRY_SIGNAL_QUEUE_SIZE: int = int(os.getenv("TELEMETRY_SIGNAL_QUEUE_SIZE", "256"))
+    TELEMETRY_HTTP_TIMEOUT_SECONDS: float = float(
+        os.getenv("TELEMETRY_HTTP_TIMEOUT_SECONDS", "10.0")
+    )
 
     # Storage paths
     DB_PATH: str = os.getenv("SENTINELID_DB_PATH", ".sentinelid/audit.db")
@@ -19,8 +28,13 @@ class Settings(BaseSettings):
 
     # Input hardening
     MAX_REQUEST_BODY_BYTES: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(2 * 1024 * 1024)))  # 2 MB
+    REQUEST_TIMEOUT_SECONDS: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "15.0"))
     MAX_FRAMES_PER_SESSION: int = int(os.getenv("MAX_FRAMES_PER_SESSION", "200"))
     MAX_SESSION_LIFETIME_SECONDS: int = int(os.getenv("MAX_SESSION_LIFETIME_SECONDS", "120"))
+    FRAME_PROCESSING_MAX_FPS: float = float(os.getenv("FRAME_PROCESSING_MAX_FPS", "10.0"))
+    FRAME_CONTROLLER_STATE_TTL_SECONDS: int = int(
+        os.getenv("FRAME_CONTROLLER_STATE_TTL_SECONDS", "180")
+    )
 
     # Risk scoring thresholds (v0.7)
     # risk < R1: allow (if liveness passed)
@@ -52,6 +66,9 @@ class Settings(BaseSettings):
 
     # Number of recent risk scores kept in memory for diagnostics
     RISK_SCORE_WINDOW_SIZE: int = int(os.getenv("RISK_SCORE_WINDOW_SIZE", "100"))
+
+    # Perf window for p50/p95 diagnostics
+    PERF_WINDOW_SIZE: int = int(os.getenv("PERF_WINDOW_SIZE", "300"))
 
     class Config:
         case_sensitive = True

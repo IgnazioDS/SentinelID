@@ -2,6 +2,25 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.4.0 (2026-02-25)
+
+### Desktop Distribution
+- Standardized bundled edge launcher at `apps/desktop/resources/edge/run_edge.sh` with loopback-only startup and runtime env wiring (`EDGE_PORT`, `EDGE_AUTH_TOKEN`, `EDGE_ENV`).
+- Updated Tauri production startup to launch bundled edge resources (not Poetry) while preserving existing dev-mode source startup.
+- Added edge process shutdown handling on desktop app exit to avoid orphaned child processes.
+
+### Packaging Tooling
+- Reworked `scripts/bundle_edge_venv.sh` to build a clean bundled venv, install deterministic runtime dependencies, install edge wheel, and verify `uvicorn`.
+- Added bundled fallback source copy under `apps/desktop/resources/edge/app/` for controlled runtime import fallback.
+- Updated ignore rules to keep bundled runtime artifacts local-only (`pyvenv/`, `app/`).
+
+### Smoke Validation
+- Hardened `scripts/smoke_test_bundling.sh` into a deterministic distribution smoke path with dynamic port selection, health waits, explicit auth-gating assertion (`401`), and timeout-based failure output.
+
+### Documentation
+- Updated `RUNBOOK.md` with distribution build guidance, dev vs production edge startup behavior, and no-Poetry runtime sanity command.
+- Updated `docs/PACKAGING.md` with bundled layout, clean-machine verification steps, and troubleshooting guidance (Gatekeeper, permissions, port conflicts).
+
 ## v1.3.0 (2026-02-25)
 
 ### CI / Release Gating

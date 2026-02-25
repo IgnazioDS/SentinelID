@@ -75,11 +75,91 @@ def test_ingest_e2e_persists_events(client: TestClient) -> None:
         data = response.json()
         assert data["status"] == "accepted"
         assert data["events_ingested"] == 1
+        assert data["events_duplicated"] == 0
+        assert data["events_received"] == 1
 
         db = SessionLocal()
         try:
             rows = db.query(TelemetryEvent).count()
             assert rows == 1
+        finally:
+            db.close()
+
+
+def test_ingest_retry_is_idempotent_for_existing_event_id(client: TestClient) -> None:
+    with tempfile.TemporaryDirectory(prefix="sentinelid_ingest_e2e_") as keychain_dir:
+        signer = TelemetrySigner(keychain_dir=keychain_dir)
+        event = _build_signed_event(signer)
+
+        batch = TelemetryBatch(
+            batch_id=str(uuid.uuid4()),
+            device_id=signer.get_device_id(),
+            timestamp=int(time.time()),
+            events=[event],
+        )
+        signer.sign_batch(batch)
+
+        payload = {
+            "batch_id": batch.batch_id,
+            "device_id": batch.device_id,
+            "timestamp": batch.timestamp,
+            "device_public_key": signer.get_public_key(),
+            "batch_signature": batch.signature,
+            "events": [TelemetryMapper.to_dict(event)],
+        }
+
+        first = client.post("/v1/ingest/events", json=payload)
+        assert first.status_code == 202, first.text
+        first_body = first.json()
+        assert first_body["events_ingested"] == 1
+        assert first_body["events_duplicated"] == 0
+
+        second = client.post("/v1/ingest/events", json=payload)
+        assert second.status_code == 202, second.text
+        second_body = second.json()
+        assert second_body["events_ingested"] == 0
+        assert second_body["events_duplicated"] == 1
+        assert second_body["events_received"] == 1
+
+        db = SessionLocal()
+        try:
+            rows = db.query(TelemetryEvent).count()
+            assert rows == 1
+        finally:
+            db.close()
+
+
+def test_ingest_rejects_duplicate_event_ids_inside_same_batch(client: TestClient) -> None:
+    with tempfile.TemporaryDirectory(prefix="sentinelid_ingest_e2e_") as keychain_dir:
+        signer = TelemetrySigner(keychain_dir=keychain_dir)
+        event = _build_signed_event(signer)
+        event_payload = TelemetryMapper.to_dict(event)
+
+        batch_id = str(uuid.uuid4())
+        ts = int(time.time())
+        signable_batch_payload = signer.batch_payload_for_signature(
+            batch_id=batch_id,
+            device_id=signer.get_device_id(),
+            timestamp=ts,
+            events=[event_payload, event_payload],
+        )
+
+        payload = {
+            "batch_id": batch_id,
+            "device_id": signer.get_device_id(),
+            "timestamp": ts,
+            "device_public_key": signer.get_public_key(),
+            "batch_signature": signer.sign_batch_payload(signable_batch_payload),
+            "events": [event_payload, event_payload],
+        }
+
+        response = client.post("/v1/ingest/events", json=payload)
+        assert response.status_code == 409, response.text
+
+        db = SessionLocal()
+        try:
+            rows = db.query(TelemetryEvent).count()
+            assert rows == 0
         finally:
             db.close()
 

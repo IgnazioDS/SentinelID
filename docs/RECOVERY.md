@@ -22,6 +22,15 @@ curl -H "Authorization: Bearer <edge-token>" http://127.0.0.1:8787/api/v1/diagno
 
 Inspect `pending_count`, `dlq_count`, `sent_count`, and recent error metadata.
 
+Primary reliability fields in diagnostics:
+
+- `outbox_pending_count`
+- `dlq_count`
+- `last_attempt`
+- `last_success`
+- `last_error_summary`
+- `telemetry_flags`
+
 ### Database-level diagnostics
 
 ```bash
@@ -55,6 +64,26 @@ SELECT status, COUNT(*) FROM outbox_events GROUP BY status;
 - Confirm ingest URL configured on edge (`CLOUD_INGEST_URL`).
 - Replay or reset failed entries after root-cause resolution.
 
+Replay DLQ entries back to `PENDING` (bearer-protected, localhost-only):
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <edge-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"limit": 100}' \
+  http://127.0.0.1:8787/api/v1/admin/outbox/replay-dlq
+```
+
+Replay a specific DLQ event:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <edge-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"event_id": 42}' \
+  http://127.0.0.1:8787/api/v1/admin/outbox/replay-dlq
+```
+
 ### Local database corruption
 
 1. Backup first.
@@ -78,6 +107,11 @@ rm -rf apps/edge/.sentinelid
 - Do not delete DLQ rows before capturing `last_error` and payload context.
 - Prefer replay after fixing connectivity or schema mismatch root causes.
 - Keep cloud/admin token and URL configuration consistent across `.env` and runtime exports.
+- Validate outage recovery end-to-end with:
+
+```bash
+./scripts/smoke_test_cloud_recovery.sh
+```
 
 ## Related Docs
 

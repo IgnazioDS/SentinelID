@@ -143,6 +143,7 @@ Smoke checks:
 ```bash
 make smoke-edge
 make smoke-cloud
+make smoke-cloud-recovery
 make smoke-admin
 make smoke-desktop
 make smoke-bundling

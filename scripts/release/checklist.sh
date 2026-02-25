@@ -5,49 +5,83 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 
 EDGE_URL="${EDGE_URL:-http://127.0.0.1:8787}"
-EDGE_TOKEN="${EDGE_TOKEN:-devtoken}"
+EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-devtoken}}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-dev-admin-token}}"
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 
-if command -v poetry >/dev/null 2>&1; then
-  EDGE_POETRY_CMD=(poetry)
-elif [[ -x "${ROOT_DIR}/apps/edge/.venv/bin/poetry" ]]; then
-  EDGE_POETRY_CMD=("${ROOT_DIR}/apps/edge/.venv/bin/poetry")
-else
-  echo "Poetry not found. Install Poetry or ensure apps/edge/.venv/bin/poetry exists."
-  exit 1
-fi
+PASSED_STEPS=()
+FAILED_STEP=""
+EDGE_PID=""
+SERVICES_STARTED=0
 
-echo "[1/7] Running edge tests"
-make test-edge
-
-echo "[2/7] Running cloud tests"
-make test-cloud
-
-echo "[3/7] Running desktop build checks"
-make build-desktop-web
-make check-desktop-rust
-
-echo "[4/7] Building cloud/admin Docker images"
-make docker-build
-
-echo "[5/7] Running edge smoke + perf"
-EDGE_LOG="$(mktemp -t sentinelid_release_edge.XXXXXX.log)"
-(
-  cd apps/edge
-  "${EDGE_POETRY_CMD[@]}" run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
-) &
-EDGE_PID=$!
+summary() {
+  echo ""
+  if [[ -n "${FAILED_STEP}" ]]; then
+    echo "Release checklist failed at step: ${FAILED_STEP}"
+    echo "Passed steps: ${#PASSED_STEPS[@]}"
+    for step in "${PASSED_STEPS[@]}"; do
+      echo "  - ${step}"
+    done
+  else
+    echo "Release checklist completed successfully"
+    echo "Passed steps: ${#PASSED_STEPS[@]}"
+    for step in "${PASSED_STEPS[@]}"; do
+      echo "  - ${step}"
+    done
+  fi
+}
 
 cleanup() {
-  if kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
+  if [[ -n "${EDGE_PID}" ]] && kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
     kill "${EDGE_PID}" >/dev/null 2>&1 || true
     wait "${EDGE_PID}" >/dev/null 2>&1 || true
   fi
+  if [[ "${SERVICES_STARTED}" == "1" && "${KEEP_SERVICES:-0}" != "1" ]]; then
+    docker compose down >/dev/null 2>&1 || true
+  fi
 }
-trap cleanup EXIT
 
-for _ in $(seq 1 60); do
+on_exit() {
+  cleanup
+  summary
+}
+
+trap on_exit EXIT
+
+run_step() {
+  local name="$1"
+  shift
+  echo "[run] ${name}"
+  if "$@"; then
+    PASSED_STEPS+=("${name}")
+  else
+    FAILED_STEP="${name}"
+    return 1
+  fi
+}
+
+run_step "edge tests" make test-edge
+run_step "cloud tests" make test-cloud
+run_step "desktop web build" make build-desktop-web
+run_step "desktop cargo check" make check-desktop-rust
+run_step "docker build (cloud/admin)" make docker-build
+
+EDGE_LOG="$(mktemp -t sentinelid_release_edge.XXXXXX.log)"
+echo "[run] start edge for smoke/perf"
+(
+  cd apps/edge
+  if command -v poetry >/dev/null 2>&1; then
+    EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
+  elif [[ -x .venv/bin/poetry ]]; then
+    EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
+  else
+    echo "Poetry not found for edge runtime"
+    exit 1
+  fi
+) &
+EDGE_PID=$!
+
+for _ in $(seq 1 80); do
   if curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
     break
   fi
@@ -55,31 +89,27 @@ for _ in $(seq 1 60); do
 done
 
 if ! curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
-  echo "Edge failed to start"
-  tail -n 100 "${EDGE_LOG}" || true
+  FAILED_STEP="start edge for smoke/perf"
+  echo "Edge failed to start; tailing logs"
+  tail -n 120 "${EDGE_LOG}" || true
   exit 1
 fi
+PASSED_STEPS+=("start edge for smoke/perf")
 
-EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ./scripts/smoke_test_edge.sh
-
-BENCH_OUT="scripts/eval/out/bench_edge_release_$(date +%Y%m%d_%H%M%S).json"
-python3 scripts/perf/bench_edge.py --base-url "${EDGE_URL}" --token "${EDGE_TOKEN}" --attempts 5 --frames 10 --out "${BENCH_OUT}"
-echo "Benchmark output: ${BENCH_OUT}"
+run_step "edge smoke" env EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ./scripts/smoke_test_edge.sh
+run_step "edge perf" env EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" make perf-edge
 
 cleanup
-trap - EXIT
+EDGE_PID=""
 
-echo "[6/7] Starting cloud/admin services for smoke"
+echo "[run] start cloud/admin for smoke"
 docker compose up -d postgres cloud admin >/dev/null
+SERVICES_STARTED=1
+PASSED_STEPS+=("start cloud/admin for smoke")
 
-echo "[7/7] Running cloud/admin/desktop smoke scripts"
-CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud.sh
-./scripts/smoke_test_admin.sh
-./scripts/smoke_test_desktop.sh
-./scripts/smoke_test_bundling.sh
+run_step "cloud smoke" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud.sh
+run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_admin.sh
+run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
+run_step "bundling smoke" ./scripts/smoke_test_bundling.sh
 
-if [[ "${KEEP_SERVICES:-0}" != "1" ]]; then
-  docker compose down >/dev/null
-fi
-
-echo "Release checklist completed successfully"
+FAILED_STEP=""

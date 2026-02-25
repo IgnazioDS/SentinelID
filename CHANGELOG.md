@@ -2,6 +2,26 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.3.0 (2026-02-25)
+
+### CI / Release Gating
+- Updated PR and `main` CI workflows for edge tests, cloud tests, desktop build checks, and docker image builds with dependency caching.
+- Added tag-triggered release workflow (`v*.*.*`) that reruns gating checks and uploads edge benchmark artifacts (`scripts/perf/out/*.json`, optional logs).
+
+### Release Automation Hardening
+- Hardened release checklist orchestration with explicit step tracking, strict exit behavior, and concise pass/fail summary output.
+- Aligned release-check path with CI parity commands (`test-edge`, `test-cloud`, `build-desktop-web`, `check-desktop-rust`, `docker-build`) plus smoke/perf validation.
+
+### Smoke + Perf Scripts
+- Hardened smoke scripts for deterministic behavior:
+  - required env var validation
+  - service health wait loops
+  - strict assertions and clear failure messages
+- Standardized benchmark output artifacts under `scripts/perf/out/` and added ignore rules for generated JSON/log files.
+
+### Documentation
+- Updated `RUNBOOK.md` to keep Docker Compose as the beginner-first path and document cloud local-dev Python constraints (`3.11` to `3.13`) with pyenv setup guidance.
+
 ## v1.2.0 (2026-02-25)
 
 ### Verification Hardening

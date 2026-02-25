@@ -11,10 +11,15 @@ if [[ ! -x "${LAUNCHER}" ]]; then
 fi
 
 PORT="${EDGE_PORT:-8891}"
-TOKEN="${EDGE_AUTH_TOKEN:-desktop-smoke-token}"
 HOST="${EDGE_HOST:-127.0.0.1}"
+TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-desktop-smoke-token}}"
 BASE_URL="http://${HOST}:${PORT}"
 LOG_FILE="$(mktemp -t sentinelid_desktop_smoke.XXXXXX.log)"
+
+if [[ -z "${TOKEN}" ]]; then
+  echo "EDGE_TOKEN (or EDGE_AUTH_TOKEN) is required"
+  exit 1
+fi
 
 echo "Starting bundled edge launcher: ${LAUNCHER}"
 "${LAUNCHER}" "${PORT}" "${HOST}" "${TOKEN}" >"${LOG_FILE}" 2>&1 &
@@ -28,7 +33,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for _ in $(seq 1 40); do
+for _ in $(seq 1 80); do
   if curl -fsS "${BASE_URL}/api/v1/health" >/dev/null 2>&1; then
     break
   fi
@@ -43,4 +48,3 @@ fi
 
 EDGE_URL="${BASE_URL}" EDGE_TOKEN="${TOKEN}" "${REPO_ROOT}/scripts/smoke_test_edge.sh"
 echo "Desktop launcher smoke test passed"
-

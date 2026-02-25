@@ -19,7 +19,7 @@
 	clean
 
 help:
-	@echo "SentinelID v1.0.2 Commands"
+	@echo "SentinelID v1.3.0 Commands"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
@@ -40,7 +40,7 @@ help:
 	@echo "  make smoke-admin         Run admin smoke script"
 	@echo "  make smoke-desktop       Run desktop launcher smoke script"
 	@echo "  make smoke-bundling      Run desktop bundling smoke script"
-	@echo "  make perf-edge           Run edge benchmark"
+	@echo "  make perf-edge           Run edge benchmark (writes scripts/perf/out/*.json)"
 	@echo "  make release-check       Run full release checklist"
 	@echo ""
 	@echo "Docs"

@@ -2,10 +2,15 @@
 set -euo pipefail
 
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
-ADMIN_TOKEN="${ADMIN_TOKEN:-dev-admin-token}"
+ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-${REPO_ROOT}/apps/edge/.venv/bin/python}"
+
+if [[ -z "${ADMIN_TOKEN}" ]]; then
+  echo "ADMIN_TOKEN (or ADMIN_API_TOKEN) is required"
+  exit 1
+fi
 
 if [[ ! -x "${PYTHON_BIN}" ]]; then
   PYTHON_BIN="python3"
@@ -13,7 +18,7 @@ fi
 
 echo "Running cloud smoke test against ${CLOUD_URL}"
 
-for _ in $(seq 1 60); do
+for _ in $(seq 1 80); do
   if curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
     break
   fi
@@ -120,9 +125,7 @@ with tempfile.TemporaryDirectory(prefix="sentinelid_smoke_cloud_") as keychain_d
     ingest = request("POST", "/v1/ingest/events", ingest_payload)
     assert ingest.get("status") == "accepted", f"Ingest failed: {ingest}"
     events_ingested = int(ingest.get("events_ingested", 0))
-    assert events_ingested > 0, (
-        f"Ingest accepted but persisted zero events: {ingest}"
-    )
+    assert events_ingested > 0, f"Ingest accepted but persisted zero events: {ingest}"
 
 stats = request("GET", "/v1/admin/stats", headers={"X-Admin-Token": admin_token})
 events = request("GET", "/v1/admin/events?limit=1", headers={"X-Admin-Token": admin_token})

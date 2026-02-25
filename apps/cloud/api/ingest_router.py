@@ -204,22 +204,28 @@ async def ingest_events(
             # Update last_seen
             device.last_seen = datetime.utcnow()
 
-        events_ingested = 0
+        event_ids = [event_req.event_id for event_req in request.events]
+        if len(set(event_ids)) != len(event_ids):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Duplicate event_id values in batch",
+            )
+
+        existing_ids = {
+            row[0]
+            for row in db.query(TelemetryEvent.event_id)
+            .filter(TelemetryEvent.event_id.in_(event_ids))
+            .all()
+        }
+        if existing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Event IDs already ingested: {sorted(existing_ids)}",
+            )
+
+        telemetry_rows = []
         for event_req in request.events:
-
-            # Check if event already ingested
-            existing = db.query(TelemetryEvent).filter(
-                TelemetryEvent.event_id == event_req.event_id
-            ).first()
-
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Duplicate event_id {event_req.event_id}"
-                )
-
-            # Store event
-            telemetry_event = TelemetryEvent(
+            telemetry_rows.append(TelemetryEvent(
                 event_id=event_req.event_id,
                 device_id=event_req.device_id,
                 timestamp=event_req.timestamp,
@@ -232,12 +238,24 @@ async def ingest_events(
                 session_duration_seconds=event_req.session_duration_seconds,
                 audit_event_hash=event_req.audit_event_hash,
                 signature=event_req.signature,
-            )
-            db.add(telemetry_event)
-            events_ingested += 1
+            ))
+
+        db.add_all(telemetry_rows)
+        events_ingested = len(telemetry_rows)
+        logger.debug(
+            "Persisting telemetry batch batch_id=%s device_id=%s events=%s",
+            request.batch_id,
+            request.device_id,
+            events_ingested,
+        )
 
         # Commit all changes
         db.commit()
+        logger.debug(
+            "Persisted telemetry batch batch_id=%s ingested=%s",
+            request.batch_id,
+            events_ingested,
+        )
 
         logger.info(
             f"Ingested {events_ingested}/{len(request.events)} events "

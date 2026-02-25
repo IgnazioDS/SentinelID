@@ -2,6 +2,21 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.0.2 (2026-02-25)
+
+### Security
+- Added edge localhost-only middleware guard that rejects non-loopback clients with `403` (health endpoints remain publicly reachable).
+- Added edge tests covering localhost access and non-local rejection behavior.
+
+### Documentation
+- Updated `RUNBOOK.md` with pipx-based Poetry install instructions for PEP 668-safe macOS setups.
+- Made Docker Compose the recommended cloud/admin runtime path and documented local cloud Python compatibility (`3.11` to `3.13`).
+- Added explicit three-terminal local run workflow (cloud/admin, edge, desktop) and clarified edge health endpoints (`/health` and `/api/v1/health`).
+
+### Build / Stability
+- Added `make dev-edge` target so runbook commands map directly to available Makefile targets.
+- Verified `docker compose build admin` succeeds with existing App Router root layout.
+
 ## v1.0.0 (2026-02-25)
 
 ### Added

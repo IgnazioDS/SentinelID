@@ -31,7 +31,12 @@ def client() -> TestClient:
         yield test_client
 
 
-def _build_signed_event(signer: TelemetrySigner) -> EdgeTelemetryEvent:
+def _build_signed_event(
+    signer: TelemetrySigner,
+    *,
+    request_id: str | None = None,
+    session_id: str | None = None,
+) -> EdgeTelemetryEvent:
     event = EdgeTelemetryEvent(
         event_id=str(uuid.uuid4()),
         device_id=signer.get_device_id(),
@@ -43,6 +48,11 @@ def _build_signed_event(signer: TelemetrySigner) -> EdgeTelemetryEvent:
         similarity_score=0.92,
         risk_score=0.07,
         session_duration_seconds=2,
+        request_id=request_id,
+        session_id=session_id,
+        outbox_pending_count=3,
+        dlq_count=1,
+        last_error_summary="status=503",
     )
     signer.sign_event(event)
     return event
@@ -127,6 +137,59 @@ def test_ingest_retry_is_idempotent_for_existing_event_id(client: TestClient) ->
             assert rows == 1
         finally:
             db.close()
+
+
+def test_ingest_persists_and_filters_request_and_session_ids(client: TestClient) -> None:
+    with tempfile.TemporaryDirectory(prefix="sentinelid_ingest_e2e_") as keychain_dir:
+        signer = TelemetrySigner(keychain_dir=keychain_dir)
+        req_id = "req-e2e-001"
+        sess_id = "sess-e2e-001"
+        event = _build_signed_event(signer, request_id=req_id, session_id=sess_id)
+
+        batch = TelemetryBatch(
+            batch_id=str(uuid.uuid4()),
+            device_id=signer.get_device_id(),
+            timestamp=int(time.time()),
+            events=[event],
+        )
+        signer.sign_batch(batch)
+
+        payload = {
+            "batch_id": batch.batch_id,
+            "device_id": batch.device_id,
+            "timestamp": batch.timestamp,
+            "device_public_key": signer.get_public_key(),
+            "batch_signature": batch.signature,
+            "events": [TelemetryMapper.to_dict(event)],
+        }
+
+        ingest = client.post("/v1/ingest/events", json=payload)
+        assert ingest.status_code == 202, ingest.text
+
+        db = SessionLocal()
+        try:
+            row = db.query(TelemetryEvent).first()
+            assert row is not None
+            assert row.request_id == req_id
+            assert row.session_id == sess_id
+            assert row.outbox_pending_count == 3
+            assert row.dlq_count == 1
+            assert row.last_error_summary == "status=503"
+        finally:
+            db.close()
+
+        headers = {"X-Admin-Token": "dev-admin-token"}
+        by_request = client.get(f"/v1/admin/events?request_id={req_id}", headers=headers)
+        assert by_request.status_code == 200, by_request.text
+        request_events = by_request.json()["events"]
+        assert len(request_events) == 1
+        assert request_events[0]["request_id"] == req_id
+
+        by_session = client.get(f"/v1/admin/events?session_id={sess_id}", headers=headers)
+        assert by_session.status_code == 200, by_session.text
+        session_events = by_session.json()["events"]
+        assert len(session_events) == 1
+        assert session_events[0]["session_id"] == sess_id
 
 
 def test_ingest_rejects_duplicate_event_ids_inside_same_batch(client: TestClient) -> None:

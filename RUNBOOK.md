@@ -1,4 +1,4 @@
-# SentinelID Runbook (v1.3.0)
+# SentinelID Runbook (v1.4.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -170,6 +170,36 @@ make build-desktop
 Bundled local artifact ignored by git:
 
 - `apps/desktop/resources/edge/pyvenv/`
+
+## Distribution Build (Desktop)
+
+Build flow:
+
+```bash
+make bundle-edge
+make build-desktop
+```
+
+Where artifacts are generated:
+
+- macOS bundles and installers: `apps/desktop/src-tauri/target/release/bundle/`
+
+Mode behavior:
+
+- Dev (`make dev-desktop`): desktop starts edge from source tree for fast iteration.
+- Production bundle (`make build-desktop`): desktop starts bundled `apps/desktop/resources/edge/run_edge.sh` using bundled `pyvenv` (no Poetry required on target machine).
+
+Distribution smoke:
+
+```bash
+./scripts/smoke_test_bundling.sh
+```
+
+Optional local sanity check for "no Poetry at runtime" path:
+
+```bash
+PATH="/usr/bin:/bin:/usr/sbin:/sbin" SKIP_DESKTOP_BUILD=1 ./scripts/smoke_test_bundling.sh
+```
 
 ## CI Parity
 

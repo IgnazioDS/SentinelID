@@ -5,10 +5,13 @@ use std::net::TcpListener;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
+use tauri::Manager;
 use uuid::Uuid;
 
 #[cfg(not(debug_assertions))]
 use std::path::PathBuf;
+#[cfg(not(debug_assertions))]
+use std::process::Stdio;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct EdgeInfo {
@@ -95,12 +98,15 @@ fn build_edge_command(_app: &tauri::AppHandle, port: u16, token: &str) -> Result
         let launcher = resolve_launcher_path(_app)?;
         let mut cmd = Command::new(launcher);
         cmd.arg(port.to_string())
-            .arg("127.0.0.1")
             .arg(token)
+            .arg("prod")
             .env("EDGE_HOST", "127.0.0.1")
             .env("EDGE_PORT", port.to_string())
             .env("EDGE_AUTH_TOKEN", token)
-            .env("EDGE_ENV", "production");
+            .env("EDGE_ENV", "prod")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
         return Ok(cmd);
     }
 
@@ -149,12 +155,29 @@ async fn wait_for_health(base_url: &str) -> Result<(), String> {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(Mutex::new(EdgeState {
             edge_process: None,
             edge_info: None,
         }))
         .invoke_handler(tauri::generate_handler![start_edge, get_edge_info, kill_edge])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+            if matches!(
+                event,
+                tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
+            ) {
+                if let Some(state) = app_handle.try_state::<Mutex<EdgeState>>() {
+                    if let Ok(mut guard) = state.lock() {
+                        if let Some(mut child) = guard.edge_process.take() {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                        guard.edge_info = None;
+                    }
+                }
+            }
+        });
 }

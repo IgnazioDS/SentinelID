@@ -6,31 +6,52 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DESKTOP_APP="${PROJECT_ROOT}/apps/desktop"
 RESOURCES_DIR="${DESKTOP_APP}/resources/edge"
 VENV_DIR="${RESOURCES_DIR}/pyvenv"
+RUNNER="${RESOURCES_DIR}/run_edge.sh"
+SKIP_DESKTOP_BUILD="${SKIP_DESKTOP_BUILD:-0}"
+SKIP_BUNDLE="${SKIP_BUNDLE:-0}"
+HEALTH_TIMEOUT_SEC="${HEALTH_TIMEOUT_SEC:-120}"
 
-echo "Smoke testing desktop bundling artifacts"
+PORT="$(
+  python3 - <<'PY'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PY
+)"
+TOKEN="bundling-smoke-token"
+BASE_URL="http://127.0.0.1:${PORT}"
+EDGE_LOG="$(mktemp -t sentinelid_bundle_smoke_edge.XXXXXX.log)"
+EDGE_PID=""
 
-if [[ ! -d "${VENV_DIR}" ]]; then
-  echo "Bundled venv not found at ${VENV_DIR}. Run ./scripts/bundle_edge_venv.sh first."
+echo "Bundling smoke config: skip_bundle=${SKIP_BUNDLE} skip_desktop_build=${SKIP_DESKTOP_BUILD} health_timeout_sec=${HEALTH_TIMEOUT_SEC}"
+
+cleanup() {
+  if [[ -n "${EDGE_PID}" ]] && kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
+    kill "${EDGE_PID}" >/dev/null 2>&1 || true
+    wait "${EDGE_PID}" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+if [[ "${SKIP_BUNDLE}" != "1" ]]; then
+  echo "Bundling smoke: bundle edge runtime"
+  "${PROJECT_ROOT}/scripts/bundle_edge_venv.sh"
+fi
+
+if [[ "${SKIP_DESKTOP_BUILD}" != "1" ]]; then
+  echo "Bundling smoke: build desktop bundle"
+  make -C "${PROJECT_ROOT}" build-desktop
+fi
+
+if [[ ! -x "${RUNNER}" ]]; then
+  echo "Bundled runner missing or not executable: ${RUNNER}"
   exit 1
 fi
 
-if [[ ! -f "${VENV_DIR}/bin/python" ]]; then
-  echo "Python executable missing in bundled venv"
-  exit 1
-fi
-
-if ! "${VENV_DIR}/bin/python" -m uvicorn --version >/dev/null 2>&1; then
-  echo "uvicorn missing in bundled venv"
-  exit 1
-fi
-
-if [[ ! -x "${RESOURCES_DIR}/run_edge.sh" ]]; then
-  echo "run_edge.sh missing or not executable at ${RESOURCES_DIR}/run_edge.sh"
-  exit 1
-fi
-
-if ! grep -q '"resources"' "${DESKTOP_APP}/src-tauri/tauri.conf.json"; then
-  echo "tauri.conf.json is missing resources configuration"
+if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
+  echo "Bundled python missing: ${VENV_DIR}/bin/python"
   exit 1
 fi
 
@@ -41,16 +62,41 @@ for pkg in fastapi uvicorn pydantic sqlalchemy; do
   fi
 done
 
-VENV_SIZE_KB="$(du -s "${VENV_DIR}" | awk '{print $1}')"
-if [[ "${VENV_SIZE_KB}" -lt 50000 ]]; then
-  echo "Bundled venv too small (${VENV_SIZE_KB}KB): expected >50000KB"
-  exit 1
-fi
-if [[ "${VENV_SIZE_KB}" -gt 2000000 ]]; then
-  echo "Bundled venv too large (${VENV_SIZE_KB}KB): expected <2000000KB"
+echo "Bundling smoke: start bundled runner on dynamic port ${PORT}"
+EDGE_PORT="${PORT}" EDGE_AUTH_TOKEN="${TOKEN}" EDGE_ENV="prod" \
+  "${RUNNER}" >"${EDGE_LOG}" 2>&1 &
+EDGE_PID=$!
+
+MAX_POLLS=$((HEALTH_TIMEOUT_SEC * 2))
+for _ in $(seq 1 "${MAX_POLLS}"); do
+  if curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then
+    break
+  fi
+  if ! kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
+    echo "Bundled edge process exited before becoming healthy"
+    tail -n 120 "${EDGE_LOG}" || true
+    exit 1
+  fi
+  sleep 0.5
+done
+
+if ! curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then
+  echo "Bundled edge failed health check at ${BASE_URL}/health within ${HEALTH_TIMEOUT_SEC}s"
+  tail -n 120 "${EDGE_LOG}" || true
   exit 1
 fi
 
-bash -n "${RESOURCES_DIR}/run_edge.sh"
+if ! curl -fsS "${BASE_URL}/api/v1/health" >/dev/null 2>&1; then
+  echo "Bundled edge failed API health check at ${BASE_URL}/api/v1/health"
+  tail -n 120 "${EDGE_LOG}" || true
+  exit 1
+fi
+
+AUTH_STATUS="$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/v1/settings/telemetry")"
+if [[ "${AUTH_STATUS}" != "401" ]]; then
+  echo "Expected auth-gated endpoint to return 401, got ${AUTH_STATUS}"
+  tail -n 120 "${EDGE_LOG}" || true
+  exit 1
+fi
 
 echo "Bundling smoke test passed"

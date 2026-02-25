@@ -1,0 +1,156 @@
+"""End-to-end ingest tests for telemetry trust-chain and persistence."""
+from __future__ import annotations
+
+import tempfile
+import time
+import uuid
+
+import pytest
+from fastapi.testclient import TestClient
+
+from main import app
+from models import Device, SessionLocal, TelemetryEvent
+from sentinelid_edge.services.telemetry.event import TelemetryBatch, TelemetryEvent as EdgeTelemetryEvent, TelemetryMapper
+from sentinelid_edge.services.telemetry.signer import TelemetrySigner
+
+
+@pytest.fixture(autouse=True)
+def _reset_tables() -> None:
+    db = SessionLocal()
+    try:
+        db.query(TelemetryEvent).delete()
+        db.query(Device).delete()
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def client() -> TestClient:
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def _build_signed_event(signer: TelemetrySigner) -> EdgeTelemetryEvent:
+    event = EdgeTelemetryEvent(
+        event_id=str(uuid.uuid4()),
+        device_id=signer.get_device_id(),
+        timestamp=int(time.time()),
+        event_type="auth_finished",
+        outcome="allow",
+        reason_codes=["LIVENESS_PASSED"],
+        liveness_passed=True,
+        similarity_score=0.92,
+        risk_score=0.07,
+        session_duration_seconds=2,
+    )
+    signer.sign_event(event)
+    return event
+
+
+def test_ingest_e2e_persists_events(client: TestClient) -> None:
+    with tempfile.TemporaryDirectory(prefix="sentinelid_ingest_e2e_") as keychain_dir:
+        signer = TelemetrySigner(keychain_dir=keychain_dir)
+        event = _build_signed_event(signer)
+
+        batch = TelemetryBatch(
+            batch_id=str(uuid.uuid4()),
+            device_id=signer.get_device_id(),
+            timestamp=int(time.time()),
+            events=[event],
+        )
+        signer.sign_batch(batch)
+
+        payload = {
+            "batch_id": batch.batch_id,
+            "device_id": batch.device_id,
+            "timestamp": batch.timestamp,
+            "device_public_key": signer.get_public_key(),
+            "batch_signature": batch.signature,
+            "events": [TelemetryMapper.to_dict(event)],
+        }
+
+        response = client.post("/v1/ingest/events", json=payload)
+        assert response.status_code == 202, response.text
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert data["events_ingested"] == 1
+
+        db = SessionLocal()
+        try:
+            rows = db.query(TelemetryEvent).count()
+            assert rows == 1
+        finally:
+            db.close()
+
+
+def test_ingest_rejects_tampered_event_signature_and_persists_zero(client: TestClient) -> None:
+    with tempfile.TemporaryDirectory(prefix="sentinelid_ingest_e2e_") as keychain_dir:
+        signer = TelemetrySigner(keychain_dir=keychain_dir)
+        event = _build_signed_event(signer)
+        tampered_event = TelemetryMapper.to_dict(event)
+        tampered_event["outcome"] = "deny"
+
+        batch_id = str(uuid.uuid4())
+        ts = int(time.time())
+        signable_batch_payload = signer.batch_payload_for_signature(
+            batch_id=batch_id,
+            device_id=signer.get_device_id(),
+            timestamp=ts,
+            events=[tampered_event],
+        )
+
+        payload = {
+            "batch_id": batch_id,
+            "device_id": signer.get_device_id(),
+            "timestamp": ts,
+            "device_public_key": signer.get_public_key(),
+            "batch_signature": signer.sign_batch_payload(signable_batch_payload),
+            "events": [tampered_event],
+        }
+
+        response = client.post("/v1/ingest/events", json=payload)
+        assert response.status_code == 401, response.text
+
+        db = SessionLocal()
+        try:
+            rows = db.query(TelemetryEvent).count()
+            assert rows == 0
+        finally:
+            db.close()
+
+
+def test_ingest_rejects_device_id_mismatch_and_persists_zero(client: TestClient) -> None:
+    with tempfile.TemporaryDirectory(prefix="sentinelid_ingest_e2e_") as keychain_dir:
+        signer = TelemetrySigner(keychain_dir=keychain_dir)
+        event = _build_signed_event(signer)
+        mismatched = TelemetryMapper.to_dict(event)
+        mismatched["device_id"] = "different-device-id"
+
+        batch_id = str(uuid.uuid4())
+        ts = int(time.time())
+        signable_batch_payload = signer.batch_payload_for_signature(
+            batch_id=batch_id,
+            device_id=signer.get_device_id(),
+            timestamp=ts,
+            events=[mismatched],
+        )
+
+        payload = {
+            "batch_id": batch_id,
+            "device_id": signer.get_device_id(),
+            "timestamp": ts,
+            "device_public_key": signer.get_public_key(),
+            "batch_signature": signer.sign_batch_payload(signable_batch_payload),
+            "events": [mismatched],
+        }
+
+        response = client.post("/v1/ingest/events", json=payload)
+        assert response.status_code == 422, response.text
+
+        db = SessionLocal()
+        try:
+            rows = db.query(TelemetryEvent).count()
+            assert rows == 0
+        finally:
+            db.close()

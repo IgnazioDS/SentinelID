@@ -2,9 +2,9 @@
 Tests for cloud signature verification.
 """
 import pytest
-import json
 from sentinelid_edge.services.security.crypto import CryptoProvider
 from api.signature_verifier import SignatureVerifier
+from api.canonical import canonical_json_bytes
 
 
 class TestSignatureVerification:
@@ -26,8 +26,7 @@ class TestSignatureVerification:
         }
 
         # Sign payload
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = CryptoProvider.sign(private_pem, payload_json.encode())
+        signature = CryptoProvider.sign(private_pem, canonical_json_bytes(payload))
 
         # Verify signature
         is_valid = SignatureVerifier.verify_event(public_pem, payload, signature)
@@ -71,8 +70,7 @@ class TestSignatureVerification:
         }
 
         # Sign payload
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = CryptoProvider.sign(private_pem, payload_json.encode())
+        signature = CryptoProvider.sign(private_pem, canonical_json_bytes(payload))
 
         # Tamper with payload
         tampered_payload = {
@@ -103,8 +101,7 @@ class TestSignatureVerification:
         }
 
         # Sign payload
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = CryptoProvider.sign(private_pem, payload_json.encode())
+        signature = CryptoProvider.sign(private_pem, canonical_json_bytes(payload))
 
         # Verify signature
         is_valid = SignatureVerifier.verify_batch(public_pem, payload, signature)
@@ -147,8 +144,7 @@ class TestSignatureVerification:
             "reason_codes": ["TEST"]
         }
 
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = CryptoProvider.sign(private_pem1, payload_json.encode())
+        signature = CryptoProvider.sign(private_pem1, canonical_json_bytes(payload))
 
         # Verify with first key should pass
         is_valid1 = SignatureVerifier.verify_event(public_pem1, payload, signature)
@@ -177,8 +173,7 @@ class TestSignatureVerification:
         }
 
         # Sign first payload
-        payload_json = json.dumps(payload1, sort_keys=True)
-        signature = CryptoProvider.sign(private_pem, payload_json.encode())
+        signature = CryptoProvider.sign(private_pem, canonical_json_bytes(payload1))
 
         # Should verify against second payload (same canonical form)
         is_valid = SignatureVerifier.verify_event(public_pem, payload2, signature)

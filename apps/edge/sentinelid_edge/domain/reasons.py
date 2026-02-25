@@ -47,6 +47,8 @@ class ReasonCode(str, Enum):
     TOO_DARK = "TOO_DARK"
     TOO_BLURRY = "TOO_BLURRY"
     ENROLL_INCOMPLETE = "ENROLL_INCOMPLETE"
+    MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+    FALLBACK_EMBEDDING_USED = "FALLBACK_EMBEDDING_USED"
 
     # Risk scoring (v0.7)
     RISK_HIGH = "RISK_HIGH"
@@ -92,6 +94,8 @@ def get_reason_messages() -> dict:
         ReasonCode.TOO_DARK: "Face sample is too dark",
         ReasonCode.TOO_BLURRY: "Face sample is too blurry",
         ReasonCode.ENROLL_INCOMPLETE: "Enrollment does not yet have enough good frames",
+        ReasonCode.MODEL_UNAVAILABLE: "Face model is unavailable",
+        ReasonCode.FALLBACK_EMBEDDING_USED: "Fallback embedding path was used",
         # Risk / spoof
         ReasonCode.RISK_HIGH: "Risk score exceeds denial threshold",
         ReasonCode.RISK_STEP_UP: "Risk score requires additional verification",

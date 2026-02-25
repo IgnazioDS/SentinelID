@@ -35,6 +35,11 @@ Required values:
 - `ADMIN_API_TOKEN`
 - `NEXT_PUBLIC_ADMIN_TOKEN` (must match `ADMIN_API_TOKEN`)
 
+Optional verification fallback toggle (dev only):
+
+- `ALLOW_FALLBACK_EMBEDDINGS=1` enables non-production fallback embeddings only when `EDGE_ENV=dev`.
+- In production, fallback embeddings are always disabled.
+
 ## Dependency Installation
 
 ```bash

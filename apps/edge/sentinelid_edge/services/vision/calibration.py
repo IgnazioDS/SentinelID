@@ -10,6 +10,8 @@ import numpy as np
 from .detector import FaceDetector
 from .embedder import FaceEmbedder, aggregate_embeddings, cosine_similarity
 from .quality import FaceQualityGate
+from ...domain.reasons import ReasonCode
+from .detector import ModelUnavailableError
 
 _ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -39,11 +41,14 @@ def _extract_embedding_from_file(
 
     quality = quality_gate.evaluate(image, faces)
     if not quality.passed:
-        return None, [str(code) for code in quality.reason_codes]
+        return None, [code.value if hasattr(code, "value") else str(code) for code in quality.reason_codes]
 
-    embedding = embedder.extract_embedding(frame_data, face=faces[0], image_bgr=image)
+    try:
+        embedding = embedder.extract_embedding(frame_data, face=faces[0], image_bgr=image)
+    except ModelUnavailableError:
+        return None, [ReasonCode.MODEL_UNAVAILABLE.value]
     if embedding is None:
-        return None, ["LOW_QUALITY"]
+        return None, [ReasonCode.LOW_QUALITY.value]
     return embedding, []
 
 

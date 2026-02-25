@@ -32,7 +32,7 @@ from ...services.storage.repo_audit import AuditEvent, AuditRepository
 from ...services.storage.repo_templates import TemplateRepository
 from ...services.telemetry.runtime import get_telemetry_runtime
 from ...services.telemetry.event import TelemetryMapper
-from ...services.vision.detector import FaceDetector
+from ...services.vision.detector import FaceDetector, ModelUnavailableError
 from ...services.vision.embedder import FaceEmbedder, cosine_similarity
 from ...services.vision.quality import FaceQualityGate
 
@@ -221,6 +221,15 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
             else:
                 faces, meta = _face_detector.detect_faces_from_bgr(image_bgr)
 
+        if meta.get("model_unavailable"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "detail": "Face model unavailable",
+                    "reason_codes": [ReasonCode.MODEL_UNAVAILABLE.value],
+                },
+            )
+
         landmarks = faces[0].landmarks if len(faces) == 1 else None
 
         if len(faces) == 0:
@@ -252,15 +261,27 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
         # Quality gates for verification embedding capture.
         quality_report = _face_quality_gate.evaluate(image_bgr, faces) if image_bgr is not None else None
         if quality_report is not None and quality_report.passed:
-            with _perf.stage("frame.embed"):
-                embedding = _face_embedder.extract_embedding(
-                    request.frame,
-                    face=faces[0],
-                    image_bgr=image_bgr,
+            try:
+                with _perf.stage("frame.embed"):
+                    embedding = _face_embedder.extract_embedding(
+                        request.frame,
+                        face=faces[0],
+                        image_bgr=image_bgr,
+                    )
+            except ModelUnavailableError:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail={
+                        "detail": "Face model unavailable",
+                        "reason_codes": [ReasonCode.MODEL_UNAVAILABLE.value],
+                    },
                 )
             if embedding is not None:
                 session.latest_embedding = np.asarray(embedding, dtype=np.float32)
-                session.latest_quality_reasons = []
+                if _face_embedder.last_fallback_used:
+                    session.latest_quality_reasons = [ReasonCode.FALLBACK_EMBEDDING_USED]
+                else:
+                    session.latest_quality_reasons = []
             else:
                 session.latest_quality_reasons = [ReasonCode.LOW_QUALITY]
         elif quality_report is not None:
@@ -394,6 +415,12 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
 
         # --- Handle STEP_UP: issue additional challenges, keep session open ---
         if auth_decision.decision == "step_up":
+            step_up_reason_codes = list(auth_decision.reason_codes)
+            if (
+                ReasonCode.FALLBACK_EMBEDDING_USED in session.latest_quality_reasons
+                and ReasonCode.FALLBACK_EMBEDDING_USED not in step_up_reason_codes
+            ):
+                step_up_reason_codes.append(ReasonCode.FALLBACK_EMBEDDING_USED)
             step_up_challenges = _challenge_generator.generate_challenges()
             session.start_step_up(step_up_challenges)
             # Reset liveness evaluator for fresh step-up challenge evaluation
@@ -404,7 +431,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             step_up_names = [c.challenge_type.value for c in step_up_challenges]
             return FinishAuthResponse(
                 decision="step_up",
-                reason_codes=auth_decision.reason_codes,
+                reason_codes=step_up_reason_codes,
                 liveness_passed=auth_decision.liveness_passed,
                 similarity_score=auth_decision.similarity_score,
                 risk_score=auth_decision.risk_score,
@@ -435,6 +462,11 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             for code in session.latest_quality_reasons:
                 if code not in final_reason_codes:
                     final_reason_codes.append(code)
+        if (
+            ReasonCode.FALLBACK_EMBEDDING_USED in session.latest_quality_reasons
+            and ReasonCode.FALLBACK_EMBEDDING_USED not in final_reason_codes
+        ):
+            final_reason_codes.append(ReasonCode.FALLBACK_EMBEDDING_USED)
 
         session.finished = True
         session.clear_step_up()

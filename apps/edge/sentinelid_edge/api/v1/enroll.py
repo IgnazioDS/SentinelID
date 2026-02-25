@@ -125,13 +125,22 @@ async def enroll_frame(request: EnrollFrameRequest) -> EnrollFrameResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment session not found")
 
     result = _pipeline.process_frame(session, request.frame)
+    result_reason_values = _reason_values(result["reason_codes"])
+    if ReasonCode.MODEL_UNAVAILABLE.value in result_reason_values:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "detail": "Face model unavailable",
+                "reason_codes": [ReasonCode.MODEL_UNAVAILABLE.value],
+            },
+        )
     _enroll_store.save_session(session)
     return EnrollFrameResponse(
         session_id=session.session_id,
         accepted=bool(result["accepted"]),
         accepted_frames=int(result["accepted_frames"]),
         target_frames=int(result["target_frames"]),
-        reason_codes=_reason_values(result["reason_codes"]),
+        reason_codes=result_reason_values,
         quality=result["quality"],
     )
 

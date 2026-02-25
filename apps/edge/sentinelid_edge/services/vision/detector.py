@@ -16,9 +16,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from ...core.config import settings
 from ...domain.reasons import ReasonCode
 
 logger = logging.getLogger(__name__)
+
+
+class ModelUnavailableError(RuntimeError):
+    """Raised when real face model inference is required but unavailable."""
 
 
 @dataclass
@@ -41,8 +46,14 @@ class FaceDetector:
     _global_init_attempted: bool = False
     _global_lock = threading.Lock()
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, allow_fallback: Optional[bool] = None) -> None:
+        # Fallback is allowed only in dev and only when explicitly enabled.
+        self._allow_fallback_override = allow_fallback
+
+    def _fallback_allowed(self) -> bool:
+        if self._allow_fallback_override is not None:
+            return bool(self._allow_fallback_override)
+        return settings.EDGE_ENV.lower() == "dev" and bool(settings.ALLOW_FALLBACK_EMBEDDINGS)
 
     def decode_frame_to_bgr(self, frame_data: str) -> Optional[np.ndarray]:
         """Decode base64 data URL / base64 payload to OpenCV BGR image."""
@@ -86,7 +97,30 @@ class FaceDetector:
                     "image_bgr": image,
                 }
             except Exception as exc:
-                logger.warning("InsightFace detection failed; using fallback detector: %s", exc)
+                if self._fallback_allowed():
+                    logger.warning("InsightFace detection failed; using fallback detector: %s", exc)
+                else:
+                    logger.error("InsightFace detection failed and fallback is disabled: %s", exc)
+                    return [], {
+                        "num_faces": 0,
+                        "image_shape": list(image.shape[:2]),
+                        "detector_backend": "insightface_error",
+                        "image_bgr": image,
+                        "model_unavailable": True,
+                        "fallback_used": False,
+                        "reason_codes": [ReasonCode.MODEL_UNAVAILABLE],
+                    }
+
+        if not self._fallback_allowed():
+            return [], {
+                "num_faces": 0,
+                "image_shape": list(image.shape[:2]),
+                "detector_backend": "model_unavailable",
+                "image_bgr": image,
+                "model_unavailable": True,
+                "fallback_used": False,
+                "reason_codes": [ReasonCode.MODEL_UNAVAILABLE],
+            }
 
         # Deterministic fallback used only when InsightFace cannot run locally.
         fallback_face = self._fallback_face(image)
@@ -95,6 +129,9 @@ class FaceDetector:
             "image_shape": list(image.shape[:2]),
             "detector_backend": "fallback",
             "image_bgr": image,
+            "model_unavailable": True,
+            "fallback_used": True,
+            "reason_codes": [ReasonCode.FALLBACK_EMBEDDING_USED],
         }
 
     def detect_and_extract_landmarks(

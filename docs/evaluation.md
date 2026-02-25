@@ -18,6 +18,8 @@ SentinelID evaluation focuses on:
 - Output is sanitized and excludes frames/embeddings.
 - Verification calibration script: `scripts/eval/run_verify_eval.sh`
 - Verification output: `scripts/eval/out/verify_eval_<timestamp>.json`
+- Threshold calibration script: `scripts/eval/calibrate_threshold.sh`
+- Threshold calibration output: `scripts/eval/out/calibration_<timestamp>.json`
 - Performance benchmark: `scripts/perf/bench_edge.py` (p50/p95 latency)
 
 ## Typical Local Run
@@ -27,6 +29,28 @@ SentinelID evaluation focuses on:
 3. Review generated JSON outputs for policy and latency regressions.
 
 Example command is documented in `RUNBOOK.md`.
+
+## Verification Calibration (v1.2)
+
+Dataset structure (local only):
+
+- `data/genuine/*.jpg`
+- `data/impostor/*.jpg`
+
+Run:
+
+```bash
+./scripts/eval/calibrate_threshold.sh data/genuine data/impostor 0.01
+```
+
+Report fields include:
+
+- `report.genuine_distribution`
+- `report.impostor_distribution`
+- `report.recommended_threshold`
+- `report.operating_point` (FAR/FRR at suggested threshold)
+
+The script reads local images and emits sanitized numeric metrics only.
 
 ## Interpretation Notes
 

@@ -62,7 +62,7 @@ class FaceQualityGate:
 
         reasons: List[str] = []
         if face_size < self.min_face_size_px:
-            reasons.append(ReasonCode.LOW_QUALITY)
+            reasons.append(ReasonCode.FACE_TOO_SMALL)
         if abs(face.yaw) > self.max_abs_yaw_deg or abs(face.pitch) > self.max_abs_pitch_deg or abs(face.roll) > self.max_abs_roll_deg:
             reasons.append(ReasonCode.POSE_TOO_LARGE)
         if blur_var < self.min_blur_variance:
@@ -70,9 +70,6 @@ class FaceQualityGate:
         if illum_mean < self.min_illumination_mean:
             reasons.append(ReasonCode.TOO_DARK)
         if illum_mean > self.max_illumination_mean:
-            reasons.append(ReasonCode.LOW_QUALITY)
-
-        if reasons and ReasonCode.LOW_QUALITY not in reasons:
             reasons.append(ReasonCode.LOW_QUALITY)
 
         deduped: List[str] = []

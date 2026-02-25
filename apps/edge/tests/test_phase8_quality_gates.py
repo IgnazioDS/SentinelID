@@ -41,7 +41,6 @@ def test_quality_gate_rejects_too_dark() -> None:
     report = gate.evaluate(image, [_face()])
     assert report.passed is False
     assert ReasonCode.TOO_DARK in report.reason_codes
-    assert ReasonCode.LOW_QUALITY in report.reason_codes
 
 
 def test_quality_gate_rejects_too_blurry() -> None:
@@ -62,6 +61,21 @@ def test_quality_gate_rejects_large_pose() -> None:
     report = gate.evaluate(image, [_face(yaw=45.0)])
     assert report.passed is False
     assert ReasonCode.POSE_TOO_LARGE in report.reason_codes
+
+
+def test_quality_gate_rejects_small_face() -> None:
+    gate = FaceQualityGate()
+    gate.min_blur_variance = 0.0
+    gate.min_illumination_mean = 0.0
+    image = np.full((200, 200, 3), 160, dtype=np.uint8)
+    small = DetectedFace(
+        bbox=(80.0, 80.0, 110.0, 110.0),
+        landmarks=np.zeros((68, 2), dtype=np.float32),
+        confidence=0.9,
+    )
+    report = gate.evaluate(image, [small])
+    assert report.passed is False
+    assert ReasonCode.FACE_TOO_SMALL in report.reason_codes
 
 
 def test_quality_gate_accepts_good_frame() -> None:

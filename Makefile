@@ -19,7 +19,7 @@
 	clean
 
 help:
-	@echo "SentinelID v1.0.0 Commands"
+	@echo "SentinelID v1.0.2 Commands"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"

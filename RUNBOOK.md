@@ -1,4 +1,4 @@
-# SentinelID Runbook (v1.0.2)
+# SentinelID Runbook (v1.3.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -48,9 +48,25 @@ cd apps/desktop && npm install && cd ../..
 cd apps/admin && npm install && cd ../..
 ```
 
-Cloud/Admin runtime is Docker-first (recommended). This avoids local Python version and dependency issues.
+Cloud/Admin runtime is Docker-first (recommended beginner path). This avoids local Python version and dependency issues.
 
 Local cloud development without Docker is optional and requires Python `3.11` to `3.13`.
+
+## Cloud Local Dev Python Constraints (Optional Path)
+
+Use this only when you intentionally run cloud outside Docker.
+
+- Required interpreter range: Python `3.11` to `3.13`.
+- Recommended quick setup on macOS with `pyenv`:
+
+```bash
+brew install pyenv
+pyenv install 3.12.8
+pyenv local 3.12.8
+python --version
+```
+
+Then install cloud deps in `apps/cloud` and run migrations before startup.
 
 ## Cloud DB Migrations (Alembic)
 

@@ -1,7 +1,7 @@
 """
 Telemetry event model (sanitized, no images/embeddings/PII).
 """
-from typing import Optional, List
+from typing import Any, Optional, List
 from dataclasses import dataclass, asdict
 from ..storage.repo_audit import AuditEvent
 
@@ -35,6 +35,11 @@ class TelemetryEvent:
     similarity_score: Optional[float] = None
     risk_score: Optional[float] = None
     session_duration_seconds: Optional[int] = None
+    session_id: Optional[str] = None
+    request_id: Optional[str] = None
+    outbox_pending_count: Optional[int] = None
+    dlq_count: Optional[int] = None
+    last_error_summary: Optional[str] = None
     audit_event_hash: Optional[str] = None
     signature: Optional[str] = None  # Populated by signer
 
@@ -57,7 +62,8 @@ class TelemetryMapper:
     def from_audit_event(
         audit_event: AuditEvent,
         device_id: str,
-        session_start_time: Optional[int] = None
+        session_start_time: Optional[int] = None,
+        exporter_snapshot: Optional[dict[str, Any]] = None,
     ) -> TelemetryEvent:
         """
         Convert audit event to sanitized telemetry event.
@@ -85,6 +91,23 @@ class TelemetryMapper:
             similarity_score=audit_event.similarity_score,
             risk_score=audit_event.risk_score,
             session_duration_seconds=session_duration,
+            session_id=audit_event.session_id,
+            request_id=audit_event.request_id,
+            outbox_pending_count=(
+                int(exporter_snapshot["pending_count"])
+                if exporter_snapshot and exporter_snapshot.get("pending_count") is not None
+                else None
+            ),
+            dlq_count=(
+                int(exporter_snapshot["dlq_count"])
+                if exporter_snapshot and exporter_snapshot.get("dlq_count") is not None
+                else None
+            ),
+            last_error_summary=(
+                str(exporter_snapshot.get("last_error_summary"))
+                if exporter_snapshot and exporter_snapshot.get("last_error_summary")
+                else None
+            ),
             audit_event_hash=audit_event.hash,
         )
 

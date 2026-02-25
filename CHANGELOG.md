@@ -2,6 +2,27 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.6.0 (2026-02-25)
+
+### Correlation IDs
+- Standardized `X-Request-Id` propagation on edge and cloud request middleware.
+- Added request/session correlation fields through edge audit + telemetry payloads.
+- Cloud now persists `request_id` and `session_id` on telemetry events and supports admin filtering by both.
+
+### Structured Logging
+- Added structured logging configuration for edge and cloud with `LOG_FORMAT=json|text` and `LOG_LEVEL`.
+- Logs now emit consistent fields (`ts`, `level`, `service`, `request_id`, `session_id`, `device_id`, `event_id`).
+- Added log redaction for token/signature-style fields and bearer credentials.
+
+### Admin Reliability Metrics
+- Extended cloud admin stats with ingest reliability counters and per-device health summaries.
+- Added supportability fields from telemetry (`outbox_pending_count`, `dlq_count`, `last_error_summary`) for exporter lag visibility.
+
+### Supportability Tooling
+- Added `scripts/support_bundle.sh` to generate sanitized support tarballs under `scripts/support/out/`.
+- Updated runbook and recovery docs with support bundle usage.
+- Hardened smoke scripts to assert and print request correlation headers.
+
 ## v1.5.0 (2026-02-25)
 
 ### Edge Exporter Durability

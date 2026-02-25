@@ -45,8 +45,8 @@ Optional verification fallback toggle (dev only):
 ```bash
 cd apps/edge && poetry install && cd ../..
 cd apps/desktop && npm install && cd ../..
-cd apps/admin && npm install && cd ../..
-```
+d apps/admin && npm install && cd ../..
+c```
 
 Cloud/Admin runtime is Docker-first (recommended beginner path). This avoids local Python version and dependency issues.
 
@@ -147,6 +147,7 @@ make smoke-cloud-recovery
 make smoke-admin
 make smoke-desktop
 make smoke-bundling
+make support-bundle
 ```
 
 Perf check:
@@ -201,6 +202,18 @@ Optional local sanity check for "no Poetry at runtime" path:
 ```bash
 PATH="/usr/bin:/bin:/usr/sbin:/sbin" SKIP_DESKTOP_BUILD=1 ./scripts/smoke_test_bundling.sh
 ```
+
+## Support Bundle (Sanitized)
+
+Generate a support/debug bundle without raw frames, embeddings, tokens, or signatures:
+
+```bash
+EDGE_TOKEN="${EDGE_AUTH_TOKEN}" ADMIN_TOKEN="${ADMIN_API_TOKEN}" ./scripts/support_bundle.sh
+```
+
+Artifact path:
+
+- `scripts/support/out/support_bundle_<timestamp>.tar.gz`
 
 ## CI Parity
 

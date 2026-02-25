@@ -49,12 +49,9 @@ export interface DiagnosticsResponse {
   };
 }
 
-let edgeInfo: EdgeInfo | null = null;
-
 async function getEdgeInfo(): Promise<EdgeInfo> {
   // start_edge is idempotent and restarts Edge if the child exited.
   const info = await invoke<EdgeInfo>('start_edge');
-  edgeInfo = info;
   return info;
 }
 

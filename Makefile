@@ -1,6 +1,9 @@
 .PHONY: help \
 	bundle-edge \
+	check-edge-preflight \
+	edge-shell \
 	dev-edge \
+	check-tauri-config \
 	dev-desktop \
 	build-desktop-web \
 	check-desktop-rust \
@@ -25,7 +28,10 @@ help:
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
+	@echo "  make check-edge-preflight Validate edge Poetry env imports (pydantic_settings/uvicorn)"
+	@echo "  make edge-shell          Open a shell inside edge Poetry environment"
 	@echo "  make dev-edge            Run edge API locally (foreground)"
+	@echo "  make check-tauri-config  Validate required Tauri config keys"
 	@echo "  make build-desktop-web   Build desktop frontend"
 	@echo "  make check-desktop-rust  Cargo check for Tauri runtime"
 	@echo "  make build-desktop       Produce desktop distribution bundle (bundled edge runner)"
@@ -53,11 +59,21 @@ help:
 bundle-edge:
 	@./scripts/bundle_edge_venv.sh
 
+check-edge-preflight:
+	@./scripts/dev/edge_env.sh preflight
+
+edge-shell:
+	@./scripts/dev/edge_env.sh shell
+
 dev-edge:
-	@cd apps/edge && if command -v poetry >/dev/null 2>&1; then EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787; elif [ -x .venv/bin/poetry ]; then EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787; else echo "Poetry not found. Install Poetry or create apps/edge/.venv with Poetry."; exit 1; fi
+	@EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken ./scripts/dev/edge_env.sh run
+
+check-tauri-config:
+	@./scripts/dev/check_tauri_config.py
 
 dev-desktop:
-	@cd apps/desktop/src-tauri && ../node_modules/.bin/tauri dev --config tauri.conf.json
+	@make check-tauri-config
+	@cd apps/desktop && npm run tauri:dev
 
 build-desktop-web:
 	@cd apps/desktop && npm run build
@@ -66,8 +82,9 @@ check-desktop-rust:
 	@cd apps/desktop/src-tauri && cargo check
 
 build-desktop: build-desktop-web check-desktop-rust
+	@make check-tauri-config
 	@[ -x apps/desktop/resources/edge/pyvenv/bin/python ] || (echo "Bundled edge runtime missing. Run 'make bundle-edge' first."; exit 1)
-	@cd apps/desktop/src-tauri && ../node_modules/.bin/tauri build --config tauri.conf.json
+	@cd apps/desktop && npm run tauri:build
 
 test-edge:
 	@cd apps/edge && if command -v poetry >/dev/null 2>&1; then poetry run pytest -q; elif [ -x .venv/bin/poetry ]; then .venv/bin/poetry run pytest -q; else echo "Poetry not found. Install Poetry or create apps/edge/.venv with Poetry."; exit 1; fi

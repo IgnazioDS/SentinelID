@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_NO_INPUT=1
 
 # Bundle Edge runtime into desktop resources in a reproducible way.
 

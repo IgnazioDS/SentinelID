@@ -2,6 +2,34 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.5.0 (2026-02-25)
+
+### Edge Exporter Durability
+- Extended outbox durability metadata with persisted `last_attempt_at`, `last_success_at`, and sanitized `last_error` summaries.
+- Added jittered exponential retry scheduling and restart-safe replay semantics for `PENDING`/`DLQ` transitions.
+- Added localhost-only, bearer-protected DLQ replay endpoint: `POST /api/v1/admin/outbox/replay-dlq`.
+
+### Cloud Ingest Idempotency
+- Updated ingest handling to accept duplicate retry batches idempotently (existing `event_id` rows are counted as duplicates, not reinserted).
+- Preserved uniqueness guarantees (`event_id` constraint) while avoiding retry-induced duplicate writes.
+
+### Diagnostics + Recovery
+- Expanded edge diagnostics with reliability-first fields:
+  - `outbox_pending_count`, `dlq_count`
+  - `last_attempt`, `last_success`, `last_error_summary`
+  - `telemetry_flags`
+- Added outage recovery smoke script: `scripts/smoke_test_cloud_recovery.sh`.
+- Updated release checklist to include cloud-down recovery validation.
+- Updated `RUNBOOK.md` and `docs/RECOVERY.md` with replay and recovery flow details.
+
+### Desktop Reliability
+- Hardened Tauri edge lifecycle to recover from crashed child process by restarting with a fresh port/token on the next command path.
+- Updated desktop API client to refresh edge connection metadata and retry once across edge restarts.
+
+### Tests
+- Added edge coverage for jittered retry metadata, error sanitization, bulk DLQ replay, replay endpoint behavior, and diagnostics reliability fields.
+- Added cloud ingest idempotency coverage (retry of same payload does not create duplicate rows).
+
 ## v1.4.0 (2026-02-25)
 
 ### Desktop Distribution

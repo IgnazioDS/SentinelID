@@ -1,15 +1,27 @@
-# SentinelID Runbook (v1.0.0)
+# SentinelID Runbook (v1.0.2)
 
-This is the single source of truth for local run, validation, and release preflight commands.
+This is the single source of truth for local setup, run, and validation.
 
 ## Prerequisites
 
 - macOS or Linux
 - Python 3.11+
-- Poetry
 - Node.js 18+
 - Rust toolchain (Tauri)
 - Docker + `docker compose`
+
+## Install Poetry (pipx, PEP 668-safe)
+
+On macOS with Homebrew Python, install Poetry via `pipx`:
+
+```bash
+brew install pipx
+pipx ensurepath
+pipx install poetry==1.8.2
+poetry --version
+```
+
+If `poetry` is not on your PATH yet, restart your shell.
 
 ## Environment
 
@@ -21,62 +33,62 @@ Required values:
 
 - `EDGE_AUTH_TOKEN`
 - `ADMIN_API_TOKEN`
-- `NEXT_PUBLIC_ADMIN_TOKEN` (match `ADMIN_API_TOKEN`)
+- `NEXT_PUBLIC_ADMIN_TOKEN` (must match `ADMIN_API_TOKEN`)
 
 ## Dependency Installation
 
 ```bash
 cd apps/edge && poetry install && cd ../..
-cd apps/cloud && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cd ../..
 cd apps/desktop && npm install && cd ../..
 cd apps/admin && npm install && cd ../..
 ```
 
-## One-Command Release Preflight
+Cloud/Admin runtime is Docker-first (recommended). This avoids local Python version and dependency issues.
 
-```bash
-make release-check
-```
+Local cloud development without Docker is optional and requires Python `3.11` to `3.13`.
 
-This runs tests, desktop checks, docker builds, smoke scripts, and perf benchmark.
+## Recommended Local Run (3 Terminals)
 
-## Manual Run Path
-
-### 1) Edge local
-
-```bash
-cd apps/edge
-EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787
-```
-
-Health:
-
-```bash
-curl http://127.0.0.1:8787/api/v1/health
-```
-
-### 2) Cloud + Admin stack
+Terminal 1: Cloud + Admin (Docker)
 
 ```bash
 docker compose up --build
 ```
 
-Health:
+Terminal 2: Edge API (loopback-only)
 
 ```bash
-curl http://127.0.0.1:8000/health
-curl -H "X-Admin-Token: ${ADMIN_API_TOKEN}" http://127.0.0.1:8000/v1/admin/stats
+make dev-edge
 ```
 
-### 3) Desktop dev
+Terminal 3: Desktop app
 
 ```bash
 make dev-desktop
 ```
 
+## Health Checks
+
+Edge exposes both process-level and API-level health endpoints:
+
+```bash
+curl http://127.0.0.1:8787/health
+curl http://127.0.0.1:8787/api/v1/health
+```
+
+Use `/api/v1/health` for API-path checks and `/health` for basic process liveness.
+
+Cloud/Admin checks:
+
+```bash
+curl http://127.0.0.1:8000/health
+curl -H "X-Admin-Token: ${ADMIN_API_TOKEN}" http://127.0.0.1:8000/v1/admin/stats
+curl http://127.0.0.1:3000
+```
+
 ## Validation Commands
 
-### Tests
+Tests:
 
 ```bash
 make test-edge
@@ -84,20 +96,15 @@ make test-cloud
 make test
 ```
 
-### Desktop checks
+Build checks:
 
 ```bash
 make build-desktop-web
 make check-desktop-rust
-```
-
-### Docker build checks
-
-```bash
 make docker-build
 ```
 
-### Smoke checks
+Smoke checks:
 
 ```bash
 make smoke-edge
@@ -107,28 +114,32 @@ make smoke-desktop
 make smoke-bundling
 ```
 
-### Perf check
+Perf check:
 
 ```bash
 make perf-edge
 ```
 
-## Packaging
+## One-Command Release Preflight
 
-Bundle edge runtime and build desktop app:
+```bash
+make release-check
+```
+
+## Packaging
 
 ```bash
 make bundle-edge
 make build-desktop
 ```
 
-Bundled artifacts are reproducible locally and ignored via `.gitignore`:
+Bundled local artifact ignored by git:
 
 - `apps/desktop/resources/edge/pyvenv/`
 
 ## CI Parity
 
-CI enforces the same key checks on PRs and pushes to `main`:
+CI enforces on PRs and `main` pushes:
 
 - edge pytest
 - cloud pytest
@@ -144,4 +155,4 @@ Workflow files:
 
 ## Release
 
-Use `docs/RELEASE.md` for tagging rules and release cut steps.
+Use `docs/RELEASE.md` for tag and release steps.

@@ -48,6 +48,22 @@ make docker-build
 make release-check
 ```
 
+## Desktop UX (v1.9.0)
+
+The desktop app now follows a clear three-tab flow:
+
+- `Login`: live camera preview, challenge instructions, progress meter, and step-up continuation state.
+- `Enroll`: start/capture/commit wizard with real-time quality feedback.
+- `Settings`: demo mode, telemetry/exporter health, reset identity, and support bundle action.
+
+Status strip fields are always visible: service status, camera status, and last sync timestamp.
+
+Screenshot placeholders for release artifacts:
+
+- `docs/images/desktop-login-placeholder.png`
+- `docs/images/desktop-enroll-placeholder.png`
+- `docs/images/desktop-settings-placeholder.png`
+
 ## CI Coverage
 
 GitHub Actions runs the following on PRs and `main` pushes:

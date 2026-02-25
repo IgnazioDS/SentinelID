@@ -79,6 +79,27 @@ class TestTelemetrySanitization:
         assert telemetry.session_duration_seconds == 7
         assert isinstance(telemetry.session_duration_seconds, int)
 
+    def test_telemetry_mapper_carries_correlation_ids(self):
+        audit_event = AuditEvent(
+            event_id="audit-corr-1",
+            timestamp=int(time.time()),
+            event_type="auth_finished",
+            outcome="deny",
+            reason_codes=["LIVENESS_FAILED"],
+            session_id="session-123",
+            request_id="request-456",
+        )
+        telemetry = TelemetryMapper.from_audit_event(
+            audit_event,
+            device_id="device-1",
+            exporter_snapshot={"pending_count": 2, "dlq_count": 1, "last_error_summary": "status=503"},
+        )
+        assert telemetry.session_id == "session-123"
+        assert telemetry.request_id == "request-456"
+        assert telemetry.outbox_pending_count == 2
+        assert telemetry.dlq_count == 1
+        assert telemetry.last_error_summary == "status=503"
+
     def test_telemetry_to_dict_no_none_values(self):
         """Test telemetry dict removes None values."""
         event = TelemetryEvent(

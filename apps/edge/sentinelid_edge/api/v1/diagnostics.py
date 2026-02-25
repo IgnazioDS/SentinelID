@@ -71,17 +71,37 @@ async def get_diagnostics(_: str = Depends(verify_bearer_token)) -> Dict[str, An
             },
             "outbox": outbox_stats,
             "last_export_attempt_time": None,
+            "last_export_success_time": None,
             "last_export_error": None,
         }
     )
 
+    telemetry_flags = {
+        "enabled": bool(telemetry_stats.get("enabled", False)),
+        "runtime_available": telemetry_runtime is not None,
+        "cloud_ingest_configured": bool(settings.CLOUD_INGEST_URL),
+    }
+
+    last_attempt = telemetry_stats.get("last_export_attempt_time") or outbox_stats.get("last_attempt_at")
+    last_success = telemetry_stats.get("last_export_success_time") or outbox_stats.get("last_success_at")
+    last_error_summary = telemetry_stats.get("last_export_error") or outbox_stats.get("last_error_summary")
+
     return {
         "device_id": device_id,
         "device_key_fingerprint": keychain.get_public_key_fingerprint()[:16],
+        "outbox_pending_count": outbox_stats["pending_count"],
+        "dlq_count": outbox_stats["dlq_count"],
+        "last_attempt": last_attempt,
+        "last_success": last_success,
+        "last_error_summary": last_error_summary,
+        "telemetry_flags": telemetry_flags,
         "outbox": {
             "pending_count": outbox_stats["pending_count"],
             "dlq_count": outbox_stats["dlq_count"],
             "sent_count": outbox_stats["sent_count"],
+            "last_attempt_at": outbox_stats.get("last_attempt_at"),
+            "last_success_at": outbox_stats.get("last_success_at"),
+            "last_error_summary": outbox_stats.get("last_error_summary"),
         },
         "telemetry": telemetry_stats,
         "dlq_preview": dlq_preview,

@@ -47,5 +47,11 @@ if ! curl -fsS "${BASE_URL}/api/v1/health" >/dev/null 2>&1; then
   exit 1
 fi
 
+UNAUTH_CODE="$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/v1/diagnostics")"
+if [[ "${UNAUTH_CODE}" != "401" && "${UNAUTH_CODE}" != "403" ]]; then
+  echo "Expected auth-gated diagnostics endpoint to return 401/403, got ${UNAUTH_CODE}"
+  exit 1
+fi
+
 EDGE_URL="${BASE_URL}" EDGE_TOKEN="${TOKEN}" "${REPO_ROOT}/scripts/smoke_test_edge.sh"
 echo "Desktop launcher smoke test passed"

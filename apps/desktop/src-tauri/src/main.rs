@@ -30,9 +30,27 @@ async fn start_edge(
     state: tauri::State<'_, Mutex<EdgeState>>,
 ) -> Result<EdgeInfo, String> {
     {
-        let guard = state.lock().map_err(|e| e.to_string())?;
-        if let Some(info) = guard.edge_info.clone() {
-            return Ok(info);
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        let mut stale = false;
+        if let Some(child) = guard.edge_process.as_mut() {
+            match child.try_wait() {
+                Ok(None) => {
+                    if let Some(info) = guard.edge_info.clone() {
+                        return Ok(info);
+                    }
+                    stale = true;
+                }
+                Ok(Some(_)) | Err(_) => {
+                    stale = true;
+                }
+            }
+        }
+        if stale {
+            if let Some(mut child) = guard.edge_process.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            guard.edge_info = None;
         }
     }
 
@@ -41,11 +59,15 @@ async fn start_edge(
     let base_url = format!("http://127.0.0.1:{}", port);
 
     let mut edge_cmd = build_edge_command(&app, port, &token)?;
-    let child = edge_cmd
+    let mut child = edge_cmd
         .spawn()
         .map_err(|e| format!("Failed to start edge process: {}", e))?;
 
-    wait_for_health(&base_url).await?;
+    if let Err(err) = wait_for_health(&base_url).await {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(err);
+    }
 
     let edge_info = EdgeInfo {
         base_url: base_url.clone(),
@@ -63,11 +85,26 @@ async fn start_edge(
 
 #[tauri::command]
 fn get_edge_info(state: tauri::State<Mutex<EdgeState>>) -> Result<EdgeInfo, String> {
-    let state = state.lock().map_err(|e| e.to_string())?;
-    state
-        .edge_info
-        .clone()
-        .ok_or_else(|| "Edge not started".to_string())
+    let mut state = state.lock().map_err(|e| e.to_string())?;
+    if let Some(child) = state.edge_process.as_mut() {
+        match child.try_wait() {
+            Ok(None) => {
+                return state
+                    .edge_info
+                    .clone()
+                    .ok_or_else(|| "Edge not started".to_string());
+            }
+            Ok(Some(_)) | Err(_) => {
+                if let Some(mut old_child) = state.edge_process.take() {
+                    let _ = old_child.wait();
+                }
+                state.edge_info = None;
+                return Err("Edge not started".to_string());
+            }
+        }
+    }
+    state.edge_info = None;
+    Err("Edge not started".to_string())
 }
 
 #[tauri::command]

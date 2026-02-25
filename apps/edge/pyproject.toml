@@ -9,7 +9,7 @@ python = "^3.11"
 fastapi = "^0.109.0"
 uvicorn = {extras = ["standard"], version = "^0.27.0"}
 pydantic = "^2.5.0"
-pydantic-settings = "^2.1.0"
+pydantic-settings = ">=2.1.0,<3.0.0"
 opencv-python = "^4.13.0"
 # Insightface is a key dependency. It may require specific system libraries.
 # For now, we specify the package, but a real setup might need a more controlled environment (like Docker).

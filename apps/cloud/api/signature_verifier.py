@@ -1,9 +1,7 @@
-"""
-Signature verification for cloud ingest.
-"""
-import json
+"""Signature verification for cloud ingest."""
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+from api.canonical import canonical_json_bytes
 
 
 class SignatureVerifier:
@@ -59,9 +57,8 @@ class SignatureVerifier:
                 backend=default_backend()
             )
 
-            # Create canonical JSON for verification
-            payload_json = json.dumps(payload, sort_keys=True)
-            data = payload_json.encode('utf-8')
+            # Canonical bytes must match edge signer exactly.
+            data = canonical_json_bytes(payload)
             signature = bytes.fromhex(signature_hex)
 
             # Verify signature

@@ -1,11 +1,7 @@
-"""
-Telemetry event signing with device keypair.
-"""
-import json
-from typing import List
+"""Telemetry event signing with device keypair."""
 from .event import TelemetryEvent, TelemetryBatch, TelemetryMapper
+from .canonical import canonical_json_bytes
 from ..security.device_binding import DeviceBinding
-from ..security.crypto import CryptoProvider
 
 
 class TelemetrySigner:
@@ -35,9 +31,8 @@ class TelemetrySigner:
         if 'signature' in payload:
             del payload['signature']
 
-        # Sign the canonical JSON
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = self.device.sign(payload_json.encode())
+        # Sign canonical JSON bytes shared with cloud verifier.
+        signature = self.device.sign(canonical_json_bytes(payload))
 
         # Update event with signature
         event.signature = signature
@@ -62,9 +57,8 @@ class TelemetrySigner:
             'event_ids': [e.event_id for e in batch.events]
         }
 
-        # Sign the canonical JSON
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = self.device.sign(payload_json.encode())
+        # Sign canonical JSON bytes shared with cloud verifier.
+        signature = self.device.sign(canonical_json_bytes(payload))
 
         # Update batch with signature
         batch.signature = signature

@@ -121,6 +121,7 @@ class TelemetryRuntime:
                 "sent_count": exporter_stats["sent_count"],
             },
             "last_export_attempt_time": exporter_stats["last_export_attempt_time"],
+            "last_export_success_time": exporter_stats.get("last_export_success_time"),
             "last_export_error": exporter_stats["last_export_error"],
         }
 

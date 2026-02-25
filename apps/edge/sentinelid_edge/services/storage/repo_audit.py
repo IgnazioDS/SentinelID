@@ -23,6 +23,7 @@ class AuditEvent:
     risk_score: Optional[float] = None
     liveness_passed: Optional[bool] = None
     session_id: Optional[str] = None
+    request_id: Optional[str] = None
     prev_hash: Optional[str] = None
     hash: Optional[str] = None
 
@@ -66,7 +67,7 @@ class AuditRepository:
         event.prev_hash = prev_hash
 
         # Compute event hash
-        event_data = json.dumps({
+        payload = {
             'event_id': event.event_id,
             'timestamp': event.timestamp,
             'event_type': event.event_type,
@@ -76,7 +77,10 @@ class AuditRepository:
             'risk_score': event.risk_score,
             'liveness_passed': event.liveness_passed,
             'session_id': event.session_id,
-        }).encode()
+        }
+        if event.request_id is not None:
+            payload['request_id'] = event.request_id
+        event_data = json.dumps(payload).encode()
 
         event.hash = CryptoProvider.hash_chain(prev_hash, event_data)
 
@@ -87,9 +91,9 @@ class AuditRepository:
         cursor.execute("""
             INSERT INTO audit_events (
                 event_id, timestamp, event_type, outcome, reason_codes,
-                similarity_score, risk_score, liveness_passed, session_id,
+                similarity_score, risk_score, liveness_passed, session_id, request_id,
                 prev_hash, hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             event.event_id,
             event.timestamp,
@@ -100,6 +104,7 @@ class AuditRepository:
             event.risk_score,
             event.liveness_passed,
             event.session_id,
+            event.request_id,
             event.prev_hash,
             event.hash,
         ))
@@ -140,6 +145,7 @@ class AuditRepository:
                 risk_score=row['risk_score'],
                 liveness_passed=bool(row['liveness_passed']) if row['liveness_passed'] is not None else None,
                 session_id=row['session_id'],
+                request_id=row['request_id'],
                 prev_hash=row['prev_hash'],
                 hash=row['hash'],
             )
@@ -159,7 +165,7 @@ class AuditRepository:
 
         cursor.execute("""
             SELECT event_id, timestamp, event_type, outcome, reason_codes,
-                   similarity_score, risk_score, liveness_passed, session_id,
+                   similarity_score, risk_score, liveness_passed, session_id, request_id,
                    prev_hash, hash
             FROM audit_events
             ORDER BY id ASC
@@ -174,7 +180,7 @@ class AuditRepository:
                 return False
 
             # Recompute hash
-            event_data = json.dumps({
+            payload = {
                 'event_id': row['event_id'],
                 'timestamp': row['timestamp'],
                 'event_type': row['event_type'],
@@ -184,7 +190,10 @@ class AuditRepository:
                 'risk_score': row['risk_score'],
                 'liveness_passed': row['liveness_passed'],
                 'session_id': row['session_id'],
-            }).encode()
+            }
+            if row['request_id'] is not None:
+                payload['request_id'] = row['request_id']
+            event_data = json.dumps(payload).encode()
 
             computed_hash = CryptoProvider.hash_chain(expected_prev_hash, event_data)
 

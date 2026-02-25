@@ -57,6 +57,7 @@ class Database:
                 risk_score REAL,
                 liveness_passed INTEGER,
                 session_id TEXT,
+                request_id TEXT,
                 prev_hash TEXT,
                 hash TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -80,6 +81,7 @@ class Database:
         """)
 
         # Lightweight schema migration for existing DBs created before v1.5.0.
+        self._ensure_column(conn, "audit_events", "request_id", "TEXT")
         self._ensure_column(conn, "outbox_events", "last_attempt_at", "DATETIME")
         self._ensure_column(conn, "outbox_events", "last_success_at", "DATETIME")
 

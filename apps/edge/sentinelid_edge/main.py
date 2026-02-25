@@ -2,6 +2,7 @@ import hashlib
 import logging
 from contextlib import asynccontextmanager
 import asyncio
+import ipaddress
 
 from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -142,6 +143,20 @@ _SKIP_AUTH_PATHS = {
     f"{settings.API_V1_STR}/health",
     f"{settings.API_V1_STR}/",
 }
+_LOCALHOST_GUARD_EXEMPT_PATHS = set(_SKIP_AUTH_PATHS)
+
+
+def _is_loopback_host(host: str | None) -> bool:
+    """Return True when host is a loopback address/name."""
+    if not host:
+        return False
+    if host.lower() in {"localhost", "testclient"}:
+        # "testclient" is Starlette's in-process client host used in unit tests.
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _client_key_from_request(request: Request) -> str:
@@ -197,10 +212,35 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class LocalhostOnlyMiddleware(BaseHTTPMiddleware):
+    """
+    Defense-in-depth guard: reject requests not originating from localhost.
+
+    The edge API is intended for loopback-only desktop usage.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in _LOCALHOST_GUARD_EXEMPT_PATHS:
+            return await call_next(request)
+
+        client_host = request.client.host if request.client else None
+        if client_host is None and request.headers.get("host", "").startswith("testserver"):
+            # Starlette TestClient in-process requests may not populate client scope.
+            return await call_next(request)
+        if not _is_loopback_host(client_host):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "Edge API accepts loopback clients only"},
+            )
+
+        return await call_next(request)
+
+
 # Add middleware (innermost first in execution order with Starlette)
 app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(RequestTimeoutMiddleware)
 app.add_middleware(RequestIDMiddleware)
+app.add_middleware(LocalhostOnlyMiddleware)
 app.add_middleware(BearerTokenMiddleware)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)

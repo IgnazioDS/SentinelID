@@ -9,7 +9,7 @@ Privacy enforcement:
 """
 import json
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
@@ -24,6 +24,7 @@ sys.path.insert(0, parent_dir)
 
 from models import get_db, Device, TelemetryEvent
 from api.signature_verifier import SignatureVerifier
+from api.canonical import event_payload_for_signature, batch_payload_for_signature
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Ingest"])
@@ -100,6 +101,11 @@ class IngestResponse(BaseModel):
     device_registered: bool
 
 
+def _event_as_payload(event: TelemetryEventRequest) -> Dict[str, Any]:
+    """Return event payload as received over the wire (excluding Nones)."""
+    return event.model_dump(exclude_none=True)
+
+
 @router.post("/ingest/events", response_model=IngestResponse, status_code=status.HTTP_202_ACCEPTED)
 async def ingest_events(
     request: IngestRequest,
@@ -123,14 +129,25 @@ async def ingest_events(
         Ingest response with status and counts
     """
     try:
-        # Verify batch signature
-        batch_payload = {
-            'batch_id': request.batch_id,
-            'device_id': request.device_id,
-            'timestamp': request.timestamp,
-            'event_count': len(request.events),
-            'event_ids': [e.event_id for e in request.events]
-        }
+        # Enforce device_id invariant before any persistence.
+        for event_req in request.events:
+            if event_req.device_id != request.device_id:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "event.device_id must match batch.device_id "
+                        f"(event_id={event_req.event_id})"
+                    ),
+                )
+
+        # Verify batch signature over canonical full batch payload.
+        events_payload = [_event_as_payload(event_req) for event_req in request.events]
+        batch_payload = batch_payload_for_signature(
+            batch_id=request.batch_id,
+            device_id=request.device_id,
+            timestamp=request.timestamp,
+            events=events_payload,
+        )
 
         if not SignatureVerifier.verify_batch(
             request.device_public_key,
@@ -142,6 +159,24 @@ async def ingest_events(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid batch signature"
             )
+
+        # Verify every event signature before writing any records.
+        for event_req in request.events:
+            event_payload = event_payload_for_signature(_event_as_payload(event_req))
+
+            if not SignatureVerifier.verify_event(
+                request.device_public_key,
+                event_payload,
+                event_req.signature
+            ):
+                logger.warning(
+                    f"Invalid event signature for event {event_req.event_id} "
+                    f"from device {request.device_id}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Invalid event signature for event_id={event_req.event_id}"
+                )
 
         # Register or retrieve device
         device = db.query(Device).filter(Device.device_id == request.device_id).first()
@@ -169,30 +204,8 @@ async def ingest_events(
             # Update last_seen
             device.last_seen = datetime.utcnow()
 
-        # Verify and ingest events
         events_ingested = 0
-
         for event_req in request.events:
-            # Verify event signature
-            event_payload = {
-                'event_id': event_req.event_id,
-                'device_id': event_req.device_id,
-                'timestamp': event_req.timestamp,
-                'event_type': event_req.event_type,
-                'outcome': event_req.outcome,
-                'reason_codes': event_req.reason_codes,
-            }
-
-            if not SignatureVerifier.verify_event(
-                request.device_public_key,
-                event_payload,
-                event_req.signature
-            ):
-                logger.warning(
-                    f"Invalid event signature for event {event_req.event_id} "
-                    f"from device {request.device_id}"
-                )
-                continue  # Skip invalid events, don't fail entire batch
 
             # Check if event already ingested
             existing = db.query(TelemetryEvent).filter(
@@ -200,8 +213,10 @@ async def ingest_events(
             ).first()
 
             if existing:
-                logger.debug(f"Event {event_req.event_id} already ingested, skipping")
-                continue
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Duplicate event_id {event_req.event_id}"
+                )
 
             # Store event
             telemetry_event = TelemetryEvent(
@@ -237,8 +252,10 @@ async def ingest_events(
         )
 
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
+        db.rollback()
         logger.error(f"Ingest error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

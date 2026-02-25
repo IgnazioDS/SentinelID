@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Dict, List
 
 
 def canonical_json_bytes(payload: Any) -> bytes:
@@ -20,3 +20,25 @@ def canonical_json_bytes(payload: Any) -> bytes:
         separators=(",", ":"),
         ensure_ascii=False,
     ).encode("utf-8")
+
+
+def event_payload_for_signature(event_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Return canonical signable event payload (exclude mutable signature field)."""
+    payload = dict(event_payload)
+    payload.pop("signature", None)
+    return payload
+
+
+def batch_payload_for_signature(
+    batch_id: str,
+    device_id: str,
+    timestamp: int,
+    events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Return canonical signable batch payload."""
+    return {
+        "batch_id": batch_id,
+        "device_id": device_id,
+        "timestamp": timestamp,
+        "events": events,
+    }

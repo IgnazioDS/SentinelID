@@ -1,134 +1,106 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Bundle Edge runtime into Tauri resources
-# Creates a clean Python venv with edge dependencies for production builds
-
-set -e
+# Bundle Edge runtime into desktop resources in a reproducible way.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-DESKTOP_APP="$PROJECT_ROOT/apps/desktop"
-EDGE_APP="$PROJECT_ROOT/apps/edge"
-RESOURCES_DIR="$DESKTOP_APP/resources/edge"
-VENV_DIR="$RESOURCES_DIR/pyvenv"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DESKTOP_APP="${PROJECT_ROOT}/apps/desktop"
+EDGE_APP="${PROJECT_ROOT}/apps/edge"
+RESOURCES_DIR="${DESKTOP_APP}/resources/edge"
+VENV_DIR="${RESOURCES_DIR}/pyvenv"
+APP_FALLBACK_DIR="${RESOURCES_DIR}/app"
+RUNNER_PATH="${RESOURCES_DIR}/run_edge.sh"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-echo "Bundling Edge Runtime for Tauri Desktop App"
-echo "   Project Root: $PROJECT_ROOT"
-echo "   Resources Dir: $RESOURCES_DIR"
-echo ""
-
-# Step 1: Create resources directory structure
-echo "Creating resources directory structure..."
-mkdir -p "$RESOURCES_DIR"
-rm -rf "$VENV_DIR"  # Clean previous builds
-
-# Step 2: Create Python virtual environment
-echo "Creating Python virtual environment..."
-python3 -m venv "$VENV_DIR"
-
-# Activate venv
-source "$VENV_DIR/bin/activate"
-
-# Upgrade pip
-pip install --upgrade pip setuptools wheel
-
-# Step 3: Install edge dependencies
-echo "Installing edge dependencies..."
-cd "$EDGE_APP"
+if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+  echo "Python interpreter not found: ${PYTHON_BIN}"
+  exit 1
+fi
 
 POETRY_BIN=""
 if command -v poetry >/dev/null 2>&1; then
-    POETRY_BIN="$(command -v poetry)"
-elif [ -x "$EDGE_APP/.venv/bin/poetry" ]; then
-    POETRY_BIN="$EDGE_APP/.venv/bin/poetry"
+  POETRY_BIN="$(command -v poetry)"
+elif [[ -x "${EDGE_APP}/.venv/bin/poetry" ]]; then
+  POETRY_BIN="${EDGE_APP}/.venv/bin/poetry"
 fi
 
-# If poetry.lock exists, use it for reproducible builds
-if [ -f "poetry.lock" ]; then
-    if [ -n "$POETRY_BIN" ]; then
-        echo "   Using poetry.lock for reproducible installation..."
-        # Export dependencies from poetry.lock to requirements.txt
-        "$POETRY_BIN" export -f requirements.txt --output /tmp/requirements.txt --without-hashes
-        pip install -r /tmp/requirements.txt
-        rm /tmp/requirements.txt
-    else
-        echo "   Poetry not found; falling back to pip editable install."
-        pip install -e .
-    fi
-elif [ -f "pyproject.toml" ]; then
-    echo "   Using pyproject.toml..."
-    pip install -e .
-else
-    echo "   ERROR: No pyproject.toml or poetry.lock found in $EDGE_APP"
-    exit 1
+if [[ -z "${POETRY_BIN}" ]]; then
+  echo "Poetry is required for deterministic edge bundling. Install Poetry or ensure ${EDGE_APP}/.venv/bin/poetry exists."
+  exit 1
 fi
 
-# Step 4: Install the edge package
-echo "Installing edge package..."
-# Install package code into the bundled venv.
-pip install -e .
+echo "Bundling Edge runtime for desktop distribution"
+echo "  edge app: ${EDGE_APP}"
+echo "  resources: ${RESOURCES_DIR}"
 
-# Ensure runtime deps that are imported dynamically are always present.
-MISSING_DEPS=()
-python -c "import cryptography" >/dev/null 2>&1 || MISSING_DEPS+=("cryptography>=41,<45")
-python -c "import httpx" >/dev/null 2>&1 || MISSING_DEPS+=("httpx>=0.25,<0.29")
-if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
-    echo "Installing missing runtime dependencies: ${MISSING_DEPS[*]}"
-    pip install "${MISSING_DEPS[@]}"
+mkdir -p "${RESOURCES_DIR}"
+rm -rf "${VENV_DIR}" "${APP_FALLBACK_DIR}"
+"${PYTHON_BIN}" -m venv "${VENV_DIR}"
+
+TMP_DIR="$(mktemp -d)"
+cleanup() {
+  rm -rf "${TMP_DIR}"
+}
+trap cleanup EXIT
+
+REQ_FILE="${TMP_DIR}/edge_requirements.txt"
+WHEEL_DIR="${TMP_DIR}/wheelhouse"
+mkdir -p "${WHEEL_DIR}"
+
+echo "Exporting edge runtime dependencies from poetry.lock"
+(
+  cd "${EDGE_APP}"
+  "${POETRY_BIN}" export \
+    --format requirements.txt \
+    --without-hashes \
+    --only main \
+    --output "${REQ_FILE}"
+)
+
+# Desktop distribution is headless; keep opencv headless and drop GUI opencv wheels.
+if grep -q '^opencv-python-headless==' "${REQ_FILE}"; then
+  sed -i.bak '/^opencv-python==/d' "${REQ_FILE}"
+  rm -f "${REQ_FILE}.bak"
 fi
 
-# Step 5: Verify uvicorn is available
-echo "✓ Verifying uvicorn installation..."
-if ! $VENV_DIR/bin/python -m uvicorn --version > /dev/null; then
-    echo "   ERROR: uvicorn not found in venv"
-    exit 1
+echo "Installing dependencies into bundled venv"
+"${VENV_DIR}/bin/python" -m pip install --upgrade pip setuptools wheel
+"${VENV_DIR}/bin/pip" install -r "${REQ_FILE}"
+# poetry.lock is currently out of sync with pyproject (keyring omitted) and
+# cryptography is required by edge encryption code; install explicit runtime deps.
+"${VENV_DIR}/bin/pip" install keyring==24.3.1 cryptography==46.0.3 httpx==0.25.2
+
+echo "Building edge wheel and installing into bundled venv"
+(
+  cd "${EDGE_APP}"
+  rm -f dist/*.whl
+  "${POETRY_BIN}" build -f wheel
+  EDGE_WHEEL="$(ls -1t dist/*.whl | head -n 1)"
+  cp "${EDGE_WHEEL}" "${WHEEL_DIR}/"
+)
+"${VENV_DIR}/bin/pip" install --no-deps "${WHEEL_DIR}"/*.whl
+
+if ! "${VENV_DIR}/bin/python" -m uvicorn --version >/dev/null 2>&1; then
+  echo "uvicorn missing after bundle install"
+  exit 1
 fi
-echo "   ✓ uvicorn is available"
 
-# Step 6: Create run_edge.sh launcher
-echo "Creating run_edge.sh launcher..."
-cat > "$RESOURCES_DIR/run_edge.sh" << 'LAUNCHER'
-#!/bin/bash
-# Edge runtime launcher script
-# Called by Tauri in production builds
+if ! "${VENV_DIR}/bin/python" -c "import sentinelid_edge.main" >/dev/null 2>&1; then
+  echo "sentinelid_edge import check failed in bundled runtime"
+  exit 1
+fi
 
-# Get script directory (should be resources/edge)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="$SCRIPT_DIR/pyvenv"
+echo "Copying edge source fallback for PYTHONPATH runtime fallback"
+mkdir -p "${APP_FALLBACK_DIR}"
+cp -R "${EDGE_APP}/sentinelid_edge" "${APP_FALLBACK_DIR}/"
 
-# Extract parameters from command line or environment
-PORT=${1:-${EDGE_PORT:-8000}}
-HOST=${2:-${EDGE_HOST:-127.0.0.1}}
-TOKEN=${3:-${EDGE_AUTH_TOKEN:-dev-token}}
+if [[ ! -f "${RUNNER_PATH}" ]]; then
+  echo "Missing bundled runner at ${RUNNER_PATH}"
+  exit 1
+fi
+chmod +x "${RUNNER_PATH}"
 
-# Ensure runtime settings are visible to the app config loader.
-export EDGE_PORT="$PORT"
-export EDGE_HOST="$HOST"
-export EDGE_AUTH_TOKEN="$TOKEN"
-
-# Activate venv and start uvicorn
-source "$VENV_DIR/bin/activate"
-exec python -m uvicorn sentinelid_edge.main:app \
-    --host "$HOST" \
-    --port "$PORT" \
-    --no-access-log \
-    --log-level info
-LAUNCHER
-
-chmod +x "$RESOURCES_DIR/run_edge.sh"
-echo "   ✓ run_edge.sh created and executable"
-
-# Step 7: Deactivate venv
-deactivate
-
-# Step 8: Summary
-echo ""
-echo "Bundle complete."
-echo "   Venv location: $VENV_DIR"
-echo "   Launcher location: $RESOURCES_DIR/run_edge.sh"
-echo "   Resources ready for Tauri packaging"
-echo ""
-echo "Next steps:"
-echo "  1. Update apps/desktop/tauri.conf.json to include resources"
-echo "  2. Update apps/desktop/src-tauri/src/main.rs to use run_edge.sh"
-echo "  3. Build Tauri app: npm run tauri build"
+echo "Bundle complete"
+echo "  bundled python: ${VENV_DIR}/bin/python"
+echo "  runner: ${RUNNER_PATH}"

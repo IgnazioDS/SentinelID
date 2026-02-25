@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     EDGE_HOST: str = os.getenv("EDGE_HOST", "127.0.0.1")
     EDGE_PORT: int = int(os.getenv("EDGE_PORT", "8787"))
     EDGE_AUTH_TOKEN: str = os.getenv("EDGE_AUTH_TOKEN", "devtoken")
+    ALLOW_FALLBACK_EMBEDDINGS: bool = (
+        os.getenv("ALLOW_FALLBACK_EMBEDDINGS", "0").strip().lower() in {"1", "true", "yes"}
+    )
 
     # Telemetry configuration
     TELEMETRY_ENABLED: bool = os.getenv("TELEMETRY_ENABLED", "false").lower() == "true"

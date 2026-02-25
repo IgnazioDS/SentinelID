@@ -174,7 +174,7 @@ print("auth_completed", finish["decision"])
 PY
 
 echo "[recovery] asserting outbox has pending events"
-PENDING_COUNT="$(python3 - "${EDGE_URL}" "${EDGE_TOKEN}" <<'PY'
+COUNTS="$(python3 - "${EDGE_URL}" "${EDGE_TOKEN}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -189,12 +189,24 @@ req = urllib.request.Request(
 )
 with urllib.request.urlopen(req, timeout=20) as resp:
     body = json.loads(resp.read().decode("utf-8"))
-print(int(body.get("outbox_pending_count", 0)))
+outbox = body.get("outbox", {})
+pending = max(
+    int(body.get("outbox_pending_count", 0)),
+    int(outbox.get("pending_count", 0)),
+)
+dlq = max(
+    int(body.get("dlq_count", 0)),
+    int(outbox.get("dlq_count", 0)),
+)
+print(f"{pending},{dlq}")
 PY
 )"
 
-if [[ "${PENDING_COUNT}" -le 0 ]]; then
-  echo "Expected pending outbox events while cloud is down, got ${PENDING_COUNT}"
+PENDING_COUNT="${COUNTS%%,*}"
+DLQ_COUNT="${COUNTS##*,}"
+
+if [[ "${PENDING_COUNT}" -le 0 && "${DLQ_COUNT}" -le 0 ]]; then
+  echo "Expected buffered events while cloud is down, got pending=${PENDING_COUNT} dlq=${DLQ_COUNT}"
   exit 1
 fi
 

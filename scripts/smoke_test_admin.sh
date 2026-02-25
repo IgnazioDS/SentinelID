@@ -2,6 +2,7 @@
 set -euo pipefail
 
 API_URL="${API_URL:-http://127.0.0.1:8000}"
+ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
 
 if [[ -z "${ADMIN_TOKEN}" ]]; then
@@ -23,7 +24,19 @@ if ! curl -fsS "${API_URL}/health" >/dev/null 2>&1; then
   exit 1
 fi
 
-python3 - "${API_URL}" "${ADMIN_TOKEN}" <<'PY'
+for _ in $(seq 1 80); do
+  if curl -fsS "${ADMIN_UI_URL}/" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
+
+if ! curl -fsS "${ADMIN_UI_URL}/" >/dev/null 2>&1; then
+  echo "Admin UI did not become healthy at ${ADMIN_UI_URL}/"
+  exit 1
+fi
+
+python3 - "${API_URL}" "${ADMIN_UI_URL}" "${ADMIN_TOKEN}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -32,7 +45,8 @@ import urllib.error
 import urllib.request
 
 api_url = sys.argv[1].rstrip("/")
-admin_token = sys.argv[2]
+admin_ui_url = sys.argv[2].rstrip("/")
+admin_token = sys.argv[3]
 
 
 def request(path: str, token: str | None = None) -> tuple[int, dict | str]:
@@ -104,6 +118,13 @@ assert status == 401, f"/devices without token expected 401, got {status}: {no_a
 
 status, bad_auth = request("/v1/admin/devices", "invalid-token")
 assert status == 401, f"/devices invalid token expected 401, got {status}: {bad_auth}"
+
+# Verify the admin UI proxy can reach cloud with docker-network URL wiring.
+proxy_req = urllib.request.Request(f"{admin_ui_url}/api/cloud/v1/admin/stats?window=24h")
+with urllib.request.urlopen(proxy_req, timeout=20) as proxy_resp:
+    assert proxy_resp.status == 200, f"admin proxy status unexpected: {proxy_resp.status}"
+    proxy_data = json.loads(proxy_resp.read().decode("utf-8"))
+    assert "total_events" in proxy_data, f"admin proxy payload invalid: {proxy_data}"
 
 print("Admin smoke test passed")
 PY

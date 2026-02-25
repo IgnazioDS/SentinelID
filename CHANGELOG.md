@@ -2,6 +2,30 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.8.0 (2026-02-26)
+
+### Developer Experience Stability
+- Hardened `make dev-edge` to always run through Poetry-managed edge runtime with explicit dependency preflight (`pydantic_settings`, `uvicorn`) to prevent wrong-venv leakage.
+- Added `make check-edge-preflight` and `make edge-shell` for consistent edge environment checks and troubleshooting.
+- Added edge import smoke test to catch startup-time dependency regressions (`pydantic_settings` + app import path).
+
+### Desktop Runtime Consistency
+- Added `make check-tauri-config` plus JSON validation for required Tauri metadata in both desktop config files.
+- Fixed `make dev-desktop` pathing so Tauri dev/build execute from `src-tauri` consistently (no package-info config mismatch).
+- Standardized desktop Tauri config versions to `1.8.0`.
+
+### Admin/Compose Networking Consistency
+- Standardized admin cloud env wiring to `NEXT_PUBLIC_CLOUD_BASE_URL` and `NEXT_PUBLIC_ADMIN_TOKEN`.
+- Updated Docker Compose to use in-network cloud URL (`http://cloud:8000`) for admin container runtime.
+- Added admin-side cloud proxy route (`/api/cloud/...`) so browser clients use same-origin requests while server resolves cloud service name.
+- Improved admin API error message when cloud base URL config is missing.
+
+### Release and Runbook Hardening
+- Updated release checklist with devx checks (edge preflight, tauri config validation, compose admin env wiring).
+- Added optional cloud recovery smoke toggle in release checklist (`RUN_CLOUD_RECOVERY_SMOKE=1`).
+- Updated RUNBOOK and `.env.example` to document hardened env vars, preflight targets, and venv footgun warning.
+- Updated admin smoke script to verify UI proxy path and cloud connectivity through admin server.
+
 ## v1.7.0 (2026-02-26)
 
 ### Admin UX and Operations

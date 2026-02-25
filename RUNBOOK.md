@@ -1,4 +1,4 @@
-# SentinelID Runbook (v1.4.0)
+# SentinelID Runbook (v1.8.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -34,7 +34,7 @@ Required values:
 - `EDGE_AUTH_TOKEN`
 - `ADMIN_API_TOKEN`
 - `NEXT_PUBLIC_ADMIN_TOKEN` (must match `ADMIN_API_TOKEN`)
-- `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`)
+- `NEXT_PUBLIC_CLOUD_BASE_URL` (`http://127.0.0.1:8000` for host-local runs; Docker sets `http://cloud:8000`)
 
 Optional verification fallback toggle (dev only):
 
@@ -48,6 +48,11 @@ cd apps/edge && poetry install && cd ../..
 cd apps/desktop && npm install && cd ../..
 cd apps/admin && npm install && cd ../..
 ```
+
+Important:
+
+- Do not activate unrelated virtualenvs before running `make` commands.
+- `make dev-edge` always runs inside the Poetry-managed edge environment and performs a dependency preflight.
 
 Cloud/Admin runtime is Docker-first (recommended beginner path). This avoids local Python version and dependency issues.
 
@@ -102,6 +107,13 @@ Terminal 3: Desktop app
 make dev-desktop
 ```
 
+Optional preflight helpers:
+
+```bash
+make check-edge-preflight
+make check-tauri-config
+```
+
 ## Health Checks
 
 Edge exposes both process-level and API-level health endpoints:
@@ -119,6 +131,7 @@ Cloud/Admin checks:
 curl http://127.0.0.1:8000/health
 curl -H "X-Admin-Token: ${ADMIN_API_TOKEN}" http://127.0.0.1:8000/v1/admin/stats
 curl http://127.0.0.1:3000
+curl http://127.0.0.1:3000/api/cloud/v1/admin/stats?window=24h
 ```
 
 Admin UI routes:

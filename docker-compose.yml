@@ -51,8 +51,8 @@ services:
       cloud:
         condition: service_healthy
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_ADMIN_TOKEN=${NEXT_PUBLIC_ADMIN_TOKEN:-dev-admin-token}
+      - NEXT_PUBLIC_CLOUD_BASE_URL=http://cloud:8000
+      - NEXT_PUBLIC_ADMIN_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token}
     healthcheck:
       test:
         [

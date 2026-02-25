@@ -2,54 +2,55 @@
  * Cloud API client with admin token support.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN || 'dev-admin-token';
+const CLOUD_BASE_URL = process.env.NEXT_PUBLIC_CLOUD_BASE_URL?.trim();
+const API_PROXY_BASE = '/api/cloud';
+const MISSING_CONFIG_ERROR =
+  'Admin configuration missing NEXT_PUBLIC_CLOUD_BASE_URL. Set it and restart admin.';
 
 interface FetchOptions extends RequestInit {
   includeToken?: boolean;
 }
 
+function ensureCloudBaseConfigured() {
+  if (!CLOUD_BASE_URL) {
+    throw new Error(MISSING_CONFIG_ERROR);
+  }
+}
+
 async function fetchWithAuth(endpoint: string, options: FetchOptions = {}) {
-  const { includeToken = true, ...fetchOptions } = options;
+  const { includeToken: _includeToken = true, ...fetchOptions } = options;
+  ensureCloudBaseConfigured();
 
   const headers = new Headers(fetchOptions.headers);
   headers.set('Content-Type', 'application/json');
-
-  if (includeToken) {
-    headers.set('X-Admin-Token', ADMIN_TOKEN);
-  }
-
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(`${API_PROXY_BASE}${endpoint}`, {
     ...fetchOptions,
     headers,
     cache: 'no-store',
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `API error: ${response.status}`);
+    const error = await response.json().catch(() => null);
+    throw new Error((error as { detail?: string } | null)?.detail || `API error: ${response.status}`);
   }
 
   return response.json();
 }
 
 async function fetchBlobWithAuth(endpoint: string, options: FetchOptions = {}) {
-  const { includeToken = true, ...fetchOptions } = options;
+  const { includeToken: _includeToken = true, ...fetchOptions } = options;
+  ensureCloudBaseConfigured();
 
   const headers = new Headers(fetchOptions.headers);
-  if (includeToken) {
-    headers.set('X-Admin-Token', ADMIN_TOKEN);
-  }
-
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(`${API_PROXY_BASE}${endpoint}`, {
     ...fetchOptions,
     headers,
     cache: 'no-store',
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `API error: ${response.status}`);
+    const error = await response.json().catch(() => null);
+    throw new Error((error as { detail?: string } | null)?.detail || `API error: ${response.status}`);
   }
 
   return response;

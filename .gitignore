@@ -69,6 +69,8 @@ htmlcov/
 .tox/
 .hypothesis/
 scripts/eval/out/*.json
+scripts/perf/out/*.json
+scripts/perf/out/*.log
 
 # Docker
 /.dockerignore

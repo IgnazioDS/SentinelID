@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import statistics
 import time
@@ -106,6 +107,7 @@ def main() -> None:
         time.sleep(0.3)
 
     result = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "attempts": args.attempts,
         "frames_per_attempt": args.frames,
         "frame_count": len(frame_latencies),
@@ -128,11 +130,13 @@ def main() -> None:
 
     print(json.dumps(result, indent=2))
 
-    if args.out:
-        out_path = Path(args.out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
-        print(f"wrote {out_path}")
+    out_path = Path(args.out) if args.out else (
+        Path(__file__).resolve().parent / "out" /
+        f"bench_edge_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    print(f"wrote {out_path}")
 
 
 if __name__ == "__main__":

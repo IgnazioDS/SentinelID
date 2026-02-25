@@ -2,6 +2,26 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.7.0 (2026-02-26)
+
+### Admin UX and Operations
+- Added a stable admin shell with left navigation (`Overview`, `Events`, `Devices`, `Support`) and a shared top bar for time range (`24h`, `7d`, `30d`) and search.
+- Rebuilt the overview dashboard with real API-backed cards and charts (events over time, outcome breakdown, exporter lag trends).
+- Upgraded events exploration with richer filters (`device_id`, `request_id`, `session_id`, `outcome`, `reason_code`, time range/search), pagination controls, and an event detail drawer with copy affordances.
+- Upgraded devices view with reliability columns and per-device drill-down (`/devices/{device_id}`) showing recent events and outcome/reliability trends.
+- Added support operations page with token-protected support bundle generation and direct download flow.
+
+### Cloud Admin APIs
+- Extended `/v1/admin/events` filtering with `reason_code`, `start_ts`, `end_ts`, and free-text `q`.
+- Added `/v1/admin/events/series` for chart-friendly timeseries aggregation.
+- Extended `/v1/admin/stats` to support windowed metrics and reliability totals.
+- Added `/v1/admin/devices/{device_id}` for drill-down details.
+- Added `/v1/admin/support-bundle` for sanitized tarball generation in-cloud.
+
+### Tests and Smokes
+- Added cloud integration coverage for new admin endpoints and support-bundle response validation.
+- Hardened `scripts/smoke_test_admin.sh` to validate series/device-detail/support-bundle paths.
+
 ## v1.6.0 (2026-02-25)
 
 ### Correlation IDs

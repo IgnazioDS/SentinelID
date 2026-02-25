@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: SentinelID Cloud API
-  version: 0.6.0
+  version: 0.7.0
   description: Cloud telemetry ingest and admin endpoints
 
 paths:
@@ -70,9 +70,54 @@ paths:
           schema:
             type: string
             enum: [allow, deny, error]
+        - name: reason_code
+          in: query
+          schema:
+            type: string
+        - name: start_ts
+          in: query
+          schema:
+            type: integer
+        - name: end_ts
+          in: query
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Events list
+
+  /v1/admin/events/series:
+    get:
+      summary: Retrieve Event Timeseries
+      operationId: getEventSeries
+      tags:
+        - Admin
+      parameters:
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 24h
+        - name: device_id
+          in: query
+          schema:
+            type: string
+        - name: start_ts
+          in: query
+          schema:
+            type: integer
+        - name: end_ts
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Events series data
 
   /v1/admin/stats:
     get:
@@ -80,6 +125,87 @@ paths:
       operationId: getStats
       tags:
         - Admin
+      parameters:
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 24h
       responses:
         '200':
           description: Service statistics
+
+  /v1/admin/devices:
+    get:
+      summary: Retrieve Devices
+      operationId: getDevices
+      tags:
+        - Admin
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Devices list
+
+  /v1/admin/devices/{device_id}:
+    get:
+      summary: Retrieve Device Detail
+      operationId: getDeviceDetail
+      tags:
+        - Admin
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: start_ts
+          in: query
+          schema:
+            type: integer
+        - name: end_ts
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Device detail
+        '404':
+          description: Device not found
+
+  /v1/admin/support-bundle:
+    post:
+      summary: Generate Sanitized Support Bundle
+      operationId: generateSupportBundle
+      tags:
+        - Admin
+      parameters:
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 24h
+        - name: events_limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: tar.gz support bundle

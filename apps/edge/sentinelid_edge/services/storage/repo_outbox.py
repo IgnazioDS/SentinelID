@@ -6,6 +6,7 @@ States: PENDING (new/retry), SENT (successful), DLQ (max retries exceeded)
 """
 import json
 import sqlite3
+import random
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from .db import get_database
@@ -24,6 +25,8 @@ class OutboxEvent:
         status: str,
         last_error: Optional[str] = None,
         last_error_at: Optional[str] = None,
+        last_attempt_at: Optional[str] = None,
+        last_success_at: Optional[str] = None,
     ):
         self.id = id
         self.created_at = created_at
@@ -33,6 +36,8 @@ class OutboxEvent:
         self.status = status
         self.last_error = last_error
         self.last_error_at = last_error_at
+        self.last_attempt_at = last_attempt_at
+        self.last_success_at = last_success_at
 
 
 class OutboxRepository:
@@ -83,7 +88,7 @@ class OutboxRepository:
         cursor.execute(
             """
             SELECT id, created_at, payload_json, attempts, next_attempt_at, status,
-                   last_error, last_error_at
+                   last_error, last_error_at, last_attempt_at, last_success_at
             FROM outbox_events
             WHERE status = 'PENDING' AND next_attempt_at <= ?
             ORDER BY created_at ASC
@@ -107,10 +112,14 @@ class OutboxRepository:
         cursor.execute(
             """
             UPDATE outbox_events
-            SET status = 'SENT'
+            SET status = 'SENT',
+                last_attempt_at = ?,
+                last_success_at = ?,
+                last_error = NULL,
+                last_error_at = NULL
             WHERE id = ?
             """,
-            (event_id,),
+            (datetime.utcnow().isoformat(), datetime.utcnow().isoformat(), event_id),
         )
         conn.commit()
 
@@ -119,6 +128,7 @@ class OutboxRepository:
         event_id: int,
         max_attempts: int = 5,
         initial_backoff_seconds: float = 1.0,
+        jitter_ratio: float = 0.2,
     ):
         """
         Mark event as failed and schedule retry.
@@ -147,32 +157,42 @@ class OutboxRepository:
 
         attempts, _ = row
         new_attempts = attempts + 1
+        now_iso = datetime.utcnow().isoformat()
 
         if new_attempts >= max_attempts:
             # Move to DLQ
             cursor.execute(
                 """
                 UPDATE outbox_events
-                SET status = 'DLQ', attempts = ?, last_error_at = ?
+                SET status = 'DLQ',
+                    attempts = ?,
+                    last_error_at = ?,
+                    last_attempt_at = ?
                 WHERE id = ?
                 """,
-                (new_attempts, datetime.utcnow().isoformat(), event_id),
+                (new_attempts, now_iso, now_iso, event_id),
             )
         else:
             # Schedule retry with exponential backoff
-            backoff_seconds = initial_backoff_seconds * (2 ** (new_attempts - 1))
+            base_backoff_seconds = float(initial_backoff_seconds) * (2 ** (new_attempts - 1))
+            jitter = random.uniform(-jitter_ratio, jitter_ratio) if jitter_ratio > 0 else 0.0
+            backoff_seconds = max(0.1, base_backoff_seconds * (1.0 + jitter))
             next_attempt = datetime.utcnow() + timedelta(seconds=backoff_seconds)
 
             cursor.execute(
                 """
                 UPDATE outbox_events
-                SET attempts = ?, next_attempt_at = ?, last_error_at = ?
+                SET attempts = ?,
+                    next_attempt_at = ?,
+                    last_error_at = ?,
+                    last_attempt_at = ?
                 WHERE id = ?
                 """,
                 (
                     new_attempts,
                     next_attempt.isoformat(),
-                    datetime.utcnow().isoformat(),
+                    now_iso,
+                    now_iso,
                     event_id,
                 ),
             )
@@ -185,6 +205,7 @@ class OutboxRepository:
         error: str,
         max_attempts: int = 5,
         initial_backoff_seconds: float = 1.0,
+        jitter_ratio: float = 0.2,
     ):
         """
         Mark event as failed with error message.
@@ -205,12 +226,12 @@ class OutboxRepository:
             SET last_error = ?
             WHERE id = ?
             """,
-            (error, event_id),
+            (_sanitize_error(error), event_id),
         )
         conn.commit()
 
         # Now schedule retry
-        self.mark_failed(event_id, max_attempts, initial_backoff_seconds)
+        self.mark_failed(event_id, max_attempts, initial_backoff_seconds, jitter_ratio=jitter_ratio)
 
     def get_dlq_events(self, limit: int = 100) -> List[OutboxEvent]:
         """
@@ -228,7 +249,7 @@ class OutboxRepository:
         cursor.execute(
             """
             SELECT id, created_at, payload_json, attempts, next_attempt_at, status,
-                   last_error, last_error_at
+                   last_error, last_error_at, last_attempt_at, last_success_at
             FROM outbox_events
             WHERE status = 'DLQ'
             ORDER BY created_at ASC
@@ -239,7 +260,7 @@ class OutboxRepository:
 
         return [OutboxEvent(*row) for row in cursor.fetchall()]
 
-    def replay_dlq_event(self, event_id: int):
+    def replay_dlq_event(self, event_id: int) -> bool:
         """
         Move event from DLQ back to PENDING for replay.
 
@@ -252,14 +273,50 @@ class OutboxRepository:
         cursor.execute(
             """
             UPDATE outbox_events
-            SET status = 'PENDING', attempts = 0, next_attempt_at = ?, last_error = NULL
+            SET status = 'PENDING',
+                attempts = 0,
+                next_attempt_at = ?,
+                last_error = NULL,
+                last_error_at = NULL
             WHERE id = ? AND status = 'DLQ'
             """,
             (datetime.utcnow().isoformat(), event_id),
         )
         conn.commit()
+        return cursor.rowcount > 0
 
-    def get_stats(self) -> Dict[str, int]:
+    def replay_dlq_events(self, limit: int = 100) -> int:
+        """
+        Move up to limit DLQ events back to PENDING for replay.
+
+        Returns:
+            Number of events moved to PENDING
+        """
+        conn = self.db.connect()
+        cursor = conn.cursor()
+        now_iso = datetime.utcnow().isoformat()
+        cursor.execute(
+            """
+            UPDATE outbox_events
+            SET status = 'PENDING',
+                attempts = 0,
+                next_attempt_at = ?,
+                last_error = NULL,
+                last_error_at = NULL
+            WHERE id IN (
+                SELECT id
+                FROM outbox_events
+                WHERE status = 'DLQ'
+                ORDER BY created_at ASC
+                LIMIT ?
+            )
+            """,
+            (now_iso, limit),
+        )
+        conn.commit()
+        return cursor.rowcount
+
+    def get_stats(self) -> Dict[str, Any]:
         """
         Get outbox statistics.
 
@@ -274,14 +331,35 @@ class OutboxRepository:
             SELECT
                 COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_count,
                 COUNT(CASE WHEN status = 'DLQ' THEN 1 END) as dlq_count,
-                COUNT(CASE WHEN status = 'SENT' THEN 1 END) as sent_count
+                COUNT(CASE WHEN status = 'SENT' THEN 1 END) as sent_count,
+                MAX(last_attempt_at) as last_attempt_at,
+                MAX(last_success_at) as last_success_at
             FROM outbox_events
             """
         )
 
         row = cursor.fetchone()
+        cursor.execute(
+            """
+            SELECT last_error
+            FROM outbox_events
+            WHERE last_error IS NOT NULL
+            ORDER BY COALESCE(last_error_at, created_at) DESC
+            LIMIT 1
+            """
+        )
+        last_error_row = cursor.fetchone()
         return {
             "pending_count": row[0] or 0,
             "dlq_count": row[1] or 0,
             "sent_count": row[2] or 0,
+            "last_attempt_at": row[3],
+            "last_success_at": row[4],
+            "last_error_summary": last_error_row[0] if last_error_row else None,
         }
+
+
+def _sanitize_error(error: str) -> str:
+    """Return compact, log-safe error text without multiline content."""
+    compact = " ".join(str(error).split())
+    return compact[:240]

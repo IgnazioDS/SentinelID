@@ -221,7 +221,7 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
             else:
                 faces, meta = _face_detector.detect_faces_from_bgr(image_bgr)
 
-        if meta.get("model_unavailable"):
+        if meta.get("model_unavailable") and not meta.get("fallback_used"):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient, { DiagnosticsResponse } from '../../lib/apiClient';
 import { ApiClientError, toUserFacingError } from '../../lib/apiErrors';
+import { recoveryHint } from '../../lib/errorHints';
 import { enrollmentPercent, extractProgressParts } from '../../lib/progress';
 import { reasonCodesToMessages, summarizeDecision } from '../../lib/reasonMessages';
 import './CameraView.css';
@@ -103,12 +104,14 @@ const CameraView: React.FC<CameraViewProps> = ({
   const [authState, setAuthState] = useState<AuthState>('idle');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authHint, setAuthHint] = useState<string | null>(null);
   const [authReasonMessages, setAuthReasonMessages] = useState<string[]>([]);
   const [frameCount, setFrameCount] = useState(0);
 
   const [enrollState, setEnrollState] = useState<EnrollState>('idle');
   const [enrollSession, setEnrollSession] = useState<EnrollSession | null>(null);
   const [enrollError, setEnrollError] = useState<string | null>(null);
+  const [enrollHint, setEnrollHint] = useState<string | null>(null);
   const [enrollReasonMessages, setEnrollReasonMessages] = useState<string[]>([]);
   const [enrollLabel, setEnrollLabel] = useState('default');
 
@@ -275,6 +278,7 @@ const CameraView: React.FC<CameraViewProps> = ({
           lastFrameAtRef.current = now;
         } catch (error) {
           setAuthError(toUserFacingError(error));
+          setAuthHint(recoveryHint(error));
           if (error instanceof ApiClientError) {
             setAuthReasonMessages(reasonCodesToMessages(error.reasonCodes));
           }
@@ -302,6 +306,7 @@ const CameraView: React.FC<CameraViewProps> = ({
     setAuthState('idle');
     setSession(null);
     setAuthError(null);
+    setAuthHint(null);
     setAuthReasonMessages([]);
     setFrameCount(0);
   }, [stopVerifyStream]);
@@ -328,6 +333,7 @@ const CameraView: React.FC<CameraViewProps> = ({
     try {
       setAuthState('starting');
       setAuthError(null);
+      setAuthHint(null);
       setAuthReasonMessages([]);
       setFrameCount(0);
 
@@ -341,6 +347,7 @@ const CameraView: React.FC<CameraViewProps> = ({
       startVerifyStream(data.session_id);
     } catch (error) {
       setAuthError(toUserFacingError(error));
+      setAuthHint(recoveryHint(error));
       if (error instanceof ApiClientError) {
         setAuthReasonMessages(reasonCodesToMessages(error.reasonCodes));
       }
@@ -391,6 +398,7 @@ const CameraView: React.FC<CameraViewProps> = ({
       await refreshDiagnostics();
     } catch (error) {
       setAuthError(toUserFacingError(error));
+      setAuthHint(recoveryHint(error));
       if (error instanceof ApiClientError) {
         setAuthReasonMessages(reasonCodesToMessages(error.reasonCodes));
       }
@@ -408,6 +416,7 @@ const CameraView: React.FC<CameraViewProps> = ({
     try {
       setEnrollState('starting');
       setEnrollError(null);
+      setEnrollHint(null);
       setEnrollReasonMessages([]);
       const data = await apiClient.startEnroll();
       setEnrollSession({
@@ -419,6 +428,7 @@ const CameraView: React.FC<CameraViewProps> = ({
       setEnrollState('capturing');
     } catch (error) {
       setEnrollError(toUserFacingError(error));
+      setEnrollHint(recoveryHint(error));
       if (error instanceof ApiClientError) {
         setEnrollReasonMessages(reasonCodesToMessages(error.reasonCodes));
       }
@@ -452,6 +462,7 @@ const CameraView: React.FC<CameraViewProps> = ({
       setEnrollError(null);
     } catch (error) {
       setEnrollError(toUserFacingError(error));
+      setEnrollHint(recoveryHint(error));
       if (error instanceof ApiClientError) {
         setEnrollReasonMessages(reasonCodesToMessages(error.reasonCodes));
       }
@@ -482,6 +493,7 @@ const CameraView: React.FC<CameraViewProps> = ({
       await refreshDiagnostics();
     } catch (error) {
       setEnrollError(toUserFacingError(error));
+      setEnrollHint(recoveryHint(error));
       if (error instanceof ApiClientError) {
         setEnrollReasonMessages(reasonCodesToMessages(error.reasonCodes));
       }
@@ -500,6 +512,7 @@ const CameraView: React.FC<CameraViewProps> = ({
       setEnrollSession(null);
       setEnrollState('idle');
       setEnrollError(null);
+      setEnrollHint(null);
       setEnrollReasonMessages([]);
     }
   }, [enrollSession]);
@@ -667,6 +680,7 @@ const CameraView: React.FC<CameraViewProps> = ({
             {session?.similarity_score !== undefined && <p>Similarity: {session.similarity_score.toFixed(3)}</p>}
             {session?.risk_score !== undefined && <p>Risk score: {session.risk_score.toFixed(3)}</p>}
             {authError && <p className="error-text">{authError}</p>}
+            {authHint && <p className="hint-text">{authHint}</p>}
             {authReasonMessages.length > 0 && <p>Reasons: {authReasonMessages.join(' | ')}</p>}
             <button className="btn-primary" onClick={resetAuth}>
               Retry Login
@@ -766,6 +780,7 @@ const CameraView: React.FC<CameraViewProps> = ({
           <section className="phase-card error">
             <h2>Enrollment Error</h2>
             {enrollError && <p className="error-text">{enrollError}</p>}
+            {enrollHint && <p className="hint-text">{enrollHint}</p>}
             {enrollReasonMessages.length > 0 && <p>Reasons: {enrollReasonMessages.join(' | ')}</p>}
             <div className="button-group">
               <button className="btn-secondary" onClick={() => setEnrollState('capturing')}>

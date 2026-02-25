@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import tempfile
 
 from fastapi.testclient import TestClient
 
@@ -85,6 +86,10 @@ def test_diagnostics_includes_perf_and_frame_processing_sections() -> None:
     data = resp.json()
     assert "performance" in data
     assert "frame_processing" in data
+    assert "outbox_pending_count" in data
+    assert "dlq_count" in data
+    assert "last_error_summary" in data
+    assert "telemetry_flags" in data
 
 
 def test_telemetry_settings_endpoint_handles_runtime_absent(monkeypatch) -> None:
@@ -129,3 +134,35 @@ def test_telemetry_settings_endpoint_updates_runtime(monkeypatch) -> None:
     )
     assert update_resp.status_code == 200
     assert update_resp.json()["telemetry_enabled"] is True
+
+
+def test_admin_replay_dlq_endpoint_requeues_event(monkeypatch) -> None:
+    from sentinelid_edge.services.storage.repo_outbox import OutboxRepository
+
+    with tempfile.TemporaryDirectory(prefix="edge_dlq_replay_") as tmpdir:
+        db_path = f"{tmpdir}/audit.db"
+        monkeypatch.setattr(auth_mod.settings, "DB_PATH", db_path)
+
+        repo = OutboxRepository(db_path)
+        event_id = repo.add_event({"event_id": "dlq-test"})
+        for _ in range(3):
+            repo.mark_failed_with_error(
+                event_id,
+                "cloud unavailable",
+                max_attempts=3,
+                initial_backoff_seconds=0.1,
+                jitter_ratio=0.0,
+            )
+
+        assert len(repo.get_dlq_events()) == 1
+        client = TestClient(app)
+        resp = client.post(
+            "/api/v1/admin/outbox/replay-dlq",
+            headers={"Authorization": f"Bearer {auth_mod.settings.EDGE_AUTH_TOKEN}"},
+            json={"event_id": event_id},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["status"] == "replayed"
+        assert body["replayed_count"] == 1
+        assert len(repo.get_dlq_events()) == 0

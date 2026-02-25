@@ -108,6 +108,7 @@ SERVICES_STARTED=1
 PASSED_STEPS+=("start cloud/admin for smoke")
 
 run_step "cloud smoke" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud.sh
+run_step "cloud recovery smoke" env CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud_recovery.sh
 run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "bundling smoke" ./scripts/smoke_test_bundling.sh

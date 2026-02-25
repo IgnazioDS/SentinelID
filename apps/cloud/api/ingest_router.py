@@ -98,6 +98,8 @@ class IngestResponse(BaseModel):
     status: str
     batch_id: str
     events_ingested: int
+    events_duplicated: int = 0
+    events_received: int
     device_registered: bool
 
 
@@ -217,14 +219,11 @@ async def ingest_events(
             .filter(TelemetryEvent.event_id.in_(event_ids))
             .all()
         }
-        if existing_ids:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Event IDs already ingested: {sorted(existing_ids)}",
-            )
 
         telemetry_rows = []
         for event_req in request.events:
+            if event_req.event_id in existing_ids:
+                continue
             telemetry_rows.append(TelemetryEvent(
                 event_id=event_req.event_id,
                 device_id=event_req.device_id,
@@ -240,13 +239,20 @@ async def ingest_events(
                 signature=event_req.signature,
             ))
 
-        db.add_all(telemetry_rows)
+        if telemetry_rows:
+            db.add_all(telemetry_rows)
         events_ingested = len(telemetry_rows)
+        events_duplicated = len(existing_ids)
+        events_received = len(request.events)
         logger.debug(
-            "Persisting telemetry batch batch_id=%s device_id=%s events=%s",
+            (
+                "Persisting telemetry batch batch_id=%s device_id=%s "
+                "events_ingested=%s events_duplicated=%s"
+            ),
             request.batch_id,
             request.device_id,
             events_ingested,
+            events_duplicated,
         )
 
         # Commit all changes
@@ -258,14 +264,22 @@ async def ingest_events(
         )
 
         logger.info(
-            f"Ingested {events_ingested}/{len(request.events)} events "
-            f"from device {request.device_id}"
+            (
+                "Ingested telemetry batch device=%s ingested=%s duplicated=%s "
+                "received=%s"
+            ),
+            request.device_id,
+            events_ingested,
+            events_duplicated,
+            events_received,
         )
 
         return IngestResponse(
             status="accepted",
             batch_id=request.batch_id,
             events_ingested=events_ingested,
+            events_duplicated=events_duplicated,
+            events_received=events_received,
             device_registered=device_registered
         )
 

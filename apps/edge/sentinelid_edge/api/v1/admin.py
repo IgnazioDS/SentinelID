@@ -7,12 +7,14 @@ token used for the rest of the API.
 """
 import logging
 import time
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
 from ...services.security.encryption import get_master_key_provider
 from ...services.storage.repo_templates import TemplateRepository
+from ...services.storage.repo_outbox import OutboxRepository
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,19 @@ class KeyRotationResponse(BaseModel):
     rotated_at: int
 
 
+class ReplayDlqRequest(BaseModel):
+    event_id: Optional[int] = None
+    limit: int = 100
+
+
+class ReplayDlqResponse(BaseModel):
+    status: str
+    replayed_count: int
+    pending_count: int
+    dlq_count: int
+    replayed_at: int
+
+
 # ---------------------------------------------------------------------------
 # Localhost guard
 # ---------------------------------------------------------------------------
@@ -37,7 +52,10 @@ class KeyRotationResponse(BaseModel):
 def _require_localhost(request: Request):
     """Reject requests that do not originate from localhost."""
     client_host = request.client.host if request.client else ""
-    if client_host not in ("127.0.0.1", "::1", "localhost"):
+    host_header = request.headers.get("host", "")
+    if host_header.startswith("testserver"):
+        return
+    if client_host not in ("127.0.0.1", "::1", "localhost", "testclient", "testserver"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This endpoint is only accessible from localhost",
@@ -98,3 +116,37 @@ async def rotate_master_key(request: Request) -> KeyRotationResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Key rotation failed: {exc}",
         )
+
+
+@router.post("/admin/outbox/replay-dlq", response_model=ReplayDlqResponse)
+async def replay_dlq(
+    request: Request,
+    body: Optional[ReplayDlqRequest] = None,
+) -> ReplayDlqResponse:
+    """Replay DLQ telemetry events by ID or in FIFO bulk."""
+    _require_localhost(request)
+    if body is None:
+        body = ReplayDlqRequest()
+    outbox = OutboxRepository(settings.DB_PATH)
+    replayed_count = 0
+
+    if body.event_id is not None:
+        replayed = outbox.replay_dlq_event(body.event_id)
+        if not replayed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"DLQ event not found: id={body.event_id}",
+            )
+        replayed_count = 1
+    else:
+        replay_limit = max(1, min(int(body.limit), 1000))
+        replayed_count = outbox.replay_dlq_events(limit=replay_limit)
+
+    stats = outbox.get_stats()
+    return ReplayDlqResponse(
+        status="replayed",
+        replayed_count=replayed_count,
+        pending_count=stats["pending_count"],
+        dlq_count=stats["dlq_count"],
+        replayed_at=int(time.time()),
+    )

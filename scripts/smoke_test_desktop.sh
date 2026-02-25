@@ -22,7 +22,8 @@ if [[ -z "${TOKEN}" ]]; then
 fi
 
 echo "Starting bundled edge launcher: ${LAUNCHER}"
-"${LAUNCHER}" "${PORT}" "${HOST}" "${TOKEN}" >"${LOG_FILE}" 2>&1 &
+EDGE_PORT="${PORT}" EDGE_AUTH_TOKEN="${TOKEN}" EDGE_ENV="prod" \
+  "${LAUNCHER}" >"${LOG_FILE}" 2>&1 &
 EDGE_PID=$!
 
 cleanup() {

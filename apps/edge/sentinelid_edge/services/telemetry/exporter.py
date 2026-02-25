@@ -22,6 +22,11 @@ from ..storage.repo_outbox import OutboxRepository, OutboxEvent
 logger = logging.getLogger(__name__)
 
 
+def _sanitize_error_text(value: str) -> str:
+    """Compact exception text for durable outbox metadata."""
+    return " ".join(str(value).split())[:240]
+
+
 class TelemetryExporter:
     """
     Exports signed telemetry events to cloud ingest endpoint with durability.
@@ -60,6 +65,7 @@ class TelemetryExporter:
         self.outbox = OutboxRepository(db_path)
         self.http_timeout_seconds = max(1.0, float(http_timeout_seconds))
         self.last_export_attempt_time: Optional[datetime] = None
+        self.last_export_success_time: Optional[datetime] = None
         self.last_export_error: Optional[str] = None
 
     def add_event(self, event: TelemetryEvent):
@@ -140,6 +146,7 @@ class TelemetryExporter:
         success = await self._send_batch(batch_payload)
         if success:
             self.last_export_attempt_time = datetime.now(timezone.utc)
+            self.last_export_success_time = self.last_export_attempt_time
             self.last_export_error = None
             for outbox_event in events:
                 self.outbox.mark_sent(outbox_event.id)
@@ -220,28 +227,34 @@ class TelemetryExporter:
                         response.status_code,
                         response.text,
                     )
-                    self.last_export_error = f"status={response.status_code}"
+                    self.last_export_error = _sanitize_error_text(f"status={response.status_code}")
                     return False
 
                 data = response.json() if response.content else {}
                 ingested = int(data.get("events_ingested", 0))
+                duplicated = int(data.get("events_duplicated", 0))
                 expected = len(payload["events"])
-                if ingested != expected:
+                if (ingested + duplicated) != expected:
                     logger.warning(
-                        "Telemetry batch ingest mismatch events_ingested=%s expected=%s body=%s",
+                        (
+                            "Telemetry batch ingest mismatch events_ingested=%s "
+                            "events_duplicated=%s expected=%s body=%s"
+                        ),
                         ingested,
+                        duplicated,
                         expected,
                         data,
                     )
-                    self.last_export_error = (
-                        f"events_ingested_mismatch ingested={ingested} expected={expected}"
+                    self.last_export_error = _sanitize_error_text(
+                        "events_ingested_mismatch "
+                        f"ingested={ingested} duplicated={duplicated} expected={expected}"
                     )
                     return False
                 return success
 
         except Exception as e:
             logger.error(f"Failed to send telemetry event: {str(e)}")
-            self.last_export_error = str(e)
+            self.last_export_error = _sanitize_error_text(str(e))
             return False
 
     async def flush(self) -> bool:
@@ -263,8 +276,17 @@ class TelemetryExporter:
         outbox_stats = self.outbox.get_stats()
         return {
             **outbox_stats,
-            'last_export_attempt_time': self.last_export_attempt_time.isoformat() if self.last_export_attempt_time else None,
-            'last_export_error': self.last_export_error
+            "last_export_attempt_time": (
+                self.last_export_attempt_time.isoformat()
+                if self.last_export_attempt_time
+                else outbox_stats.get("last_attempt_at")
+            ),
+            "last_export_success_time": (
+                self.last_export_success_time.isoformat()
+                if self.last_export_success_time
+                else outbox_stats.get("last_success_at")
+            ),
+            "last_export_error": self.last_export_error or outbox_stats.get("last_error_summary"),
         }
 
     def replay_dlq_event(self, event_id: int):
@@ -276,3 +298,9 @@ class TelemetryExporter:
         """
         self.outbox.replay_dlq_event(event_id)
         logger.info(f"Replayed DLQ event {event_id} back to PENDING")
+
+    def replay_dlq_events(self, limit: int = 100) -> int:
+        """Replay up to limit DLQ events back to PENDING."""
+        replayed = self.outbox.replay_dlq_events(limit=limit)
+        logger.info("Replayed %s DLQ events back to PENDING", replayed)
+        return replayed

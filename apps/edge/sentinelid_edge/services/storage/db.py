@@ -73,9 +73,15 @@ class Database:
                 next_attempt_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 status TEXT DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'SENT', 'DLQ')),
                 last_error TEXT,
-                last_error_at DATETIME
+                last_error_at DATETIME,
+                last_attempt_at DATETIME,
+                last_success_at DATETIME
             )
         """)
+
+        # Lightweight schema migration for existing DBs created before v1.5.0.
+        self._ensure_column(conn, "outbox_events", "last_attempt_at", "DATETIME")
+        self._ensure_column(conn, "outbox_events", "last_success_at", "DATETIME")
 
         # Create indices for efficient queries
         cursor.execute("""
@@ -89,6 +95,16 @@ class Database:
         """)
 
         conn.commit()
+
+    @staticmethod
+    def _ensure_column(conn: sqlite3.Connection, table: str, column: str, column_type: str) -> None:
+        """Add a column when absent (safe for repeated startup calls)."""
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({table})")
+        columns = {row["name"] for row in cursor.fetchall()}
+        if column in columns:
+            return
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
 
     def close(self):
         """Close database connection."""

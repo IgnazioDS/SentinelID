@@ -3,8 +3,6 @@ Tests for outbox repository with DLQ pattern.
 """
 import pytest
 import tempfile
-import json
-from pathlib import Path
 from datetime import datetime, timedelta
 from sentinelid_edge.services.storage.repo_outbox import OutboxRepository
 
@@ -51,6 +49,7 @@ class TestOutboxRepository:
 
         stats = repo.get_stats()
         assert stats['sent_count'] == 1
+        assert stats["last_success_at"] is not None
 
     def test_mark_failed_moves_to_dlq_after_max_attempts(self, temp_db):
         """Test event moves to DLQ after max attempts."""
@@ -81,9 +80,27 @@ class TestOutboxRepository:
 
         # Verify attempt count increased
         all_events = repo.db.connect().cursor().execute(
-            "SELECT attempts FROM outbox_events WHERE id = ?", (event_id,)
+            "SELECT attempts, last_attempt_at FROM outbox_events WHERE id = ?", (event_id,)
         ).fetchall()
         assert all_events[0][0] == 1
+        assert all_events[0][1] is not None
+
+    def test_mark_failed_jittered_backoff_range(self, temp_db):
+        """Retry delay stays within jitter window."""
+        repo = OutboxRepository(temp_db)
+        event_id = repo.add_event({'event_id': 'abc'})
+
+        before = datetime.utcnow()
+        repo.mark_failed(event_id, max_attempts=5, initial_backoff_seconds=2.0, jitter_ratio=0.2)
+
+        row = repo.db.connect().cursor().execute(
+            "SELECT next_attempt_at FROM outbox_events WHERE id = ?", (event_id,)
+        ).fetchone()
+        next_attempt = datetime.fromisoformat(row[0])
+        delta = (next_attempt - before).total_seconds()
+
+        assert delta >= 1.5
+        assert delta <= 2.6
 
     def test_replay_dlq_event(self, temp_db):
         """Test replaying event from DLQ."""
@@ -108,6 +125,19 @@ class TestOutboxRepository:
         assert len(pending) == 1
         assert pending[0].attempts == 0
 
+    def test_replay_dlq_events_bulk(self, temp_db):
+        """Bulk replay moves multiple rows back to pending."""
+        repo = OutboxRepository(temp_db)
+        event_ids = [repo.add_event({'event_id': f'{i}'}) for i in range(3)]
+        for event_id in event_ids:
+            for _ in range(5):
+                repo.mark_failed(event_id, max_attempts=5)
+
+        assert len(repo.get_dlq_events()) == 3
+        replayed = repo.replay_dlq_events(limit=2)
+        assert replayed == 2
+        assert len(repo.get_dlq_events()) == 1
+
     def test_get_stats(self, temp_db):
         """Test getting outbox statistics."""
         repo = OutboxRepository(temp_db)
@@ -127,6 +157,18 @@ class TestOutboxRepository:
         stats = repo.get_stats()
         assert stats['pending_count'] == 1
         assert stats['sent_count'] == 1
+        assert stats["last_attempt_at"] is not None
+
+    def test_last_error_is_sanitized(self, temp_db):
+        repo = OutboxRepository(temp_db)
+        event_id = repo.add_event({'event_id': '123'})
+        repo.mark_failed_with_error(event_id, "bad\nerror\twith   spacing")
+        row = repo.db.connect().cursor().execute(
+            "SELECT last_error FROM outbox_events WHERE id = ?",
+            (event_id,),
+        ).fetchone()
+        assert "\n" not in row[0]
+        assert "\t" not in row[0]
 
     def test_error_tracking(self, temp_db):
         """Test error message tracking."""

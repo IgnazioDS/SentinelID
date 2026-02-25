@@ -11,6 +11,7 @@
 	docker-build \
 	smoke-edge \
 	smoke-cloud \
+	smoke-cloud-recovery \
 	smoke-admin \
 	smoke-desktop \
 	smoke-bundling \
@@ -37,6 +38,7 @@ help:
 	@echo "  make docker-build        Build cloud/admin Docker images"
 	@echo "  make smoke-edge          Run edge smoke script"
 	@echo "  make smoke-cloud         Run cloud smoke script"
+	@echo "  make smoke-cloud-recovery Validate edge outbox recovery through cloud outage"
 	@echo "  make smoke-admin         Run admin smoke script"
 	@echo "  make smoke-desktop       Run desktop launcher smoke script"
 	@echo "  make smoke-bundling      Validate bundled desktop runtime (no Poetry at runtime)"
@@ -81,6 +83,9 @@ smoke-edge:
 
 smoke-cloud:
 	@./scripts/smoke_test_cloud.sh
+
+smoke-cloud-recovery:
+	@./scripts/smoke_test_cloud_recovery.sh
 
 smoke-admin:
 	@./scripts/smoke_test_admin.sh

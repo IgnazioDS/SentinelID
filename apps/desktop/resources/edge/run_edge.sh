@@ -1,25 +1,39 @@
-#!/bin/bash
-# Edge runtime launcher script
-# Called by Tauri in production builds
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Get script directory (should be resources/edge)
+# Bundled Edge launcher for distribution builds.
+# Uses bundled Python runtime + venv and never depends on Poetry.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="$SCRIPT_DIR/pyvenv"
+VENV_PYTHON="${SCRIPT_DIR}/pyvenv/bin/python"
+APP_SRC_DIR="${SCRIPT_DIR}/app"
 
-# Extract parameters from command line or environment
-PORT=${1:-${EDGE_PORT:-8000}}
-HOST=${2:-${EDGE_HOST:-127.0.0.1}}
-TOKEN=${3:-${EDGE_AUTH_TOKEN:-dev-token}}
+PORT="${EDGE_PORT:-${1:-8787}}"
+TOKEN="${EDGE_AUTH_TOKEN:-${2:-dev-token}}"
+ENV_NAME="${EDGE_ENV:-${3:-prod}}"
+HOST="127.0.0.1"
 
-# Ensure runtime settings are visible to the app config loader.
-export EDGE_PORT="$PORT"
-export EDGE_HOST="$HOST"
-export EDGE_AUTH_TOKEN="$TOKEN"
+if [[ ! -x "${VENV_PYTHON}" ]]; then
+  echo "Bundled edge python not found at ${VENV_PYTHON}" >&2
+  exit 1
+fi
 
-# Activate venv and start uvicorn
-source "$VENV_DIR/bin/activate"
-exec python -m uvicorn sentinelid_edge.main:app \
-    --host "$HOST" \
-    --port "$PORT" \
-    --no-access-log \
-    --log-level info
+export EDGE_PORT="${PORT}"
+export EDGE_HOST="${HOST}"
+export EDGE_AUTH_TOKEN="${TOKEN}"
+export EDGE_ENV="${ENV_NAME}"
+
+# If bundled source is present, prepend it as a runtime fallback.
+if [[ -d "${APP_SRC_DIR}" ]]; then
+  if [[ -n "${PYTHONPATH:-}" ]]; then
+    export PYTHONPATH="${APP_SRC_DIR}:${PYTHONPATH}"
+  else
+    export PYTHONPATH="${APP_SRC_DIR}"
+  fi
+fi
+
+exec "${VENV_PYTHON}" -m uvicorn sentinelid_edge.main:app \
+  --host "${HOST}" \
+  --port "${PORT}" \
+  --no-access-log \
+  --log-level info

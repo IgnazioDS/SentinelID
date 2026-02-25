@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ...core.config import settings
+from ...core.request_context import get_request_id, set_session_id
 from ...domain.models import AuthSession
 from ...domain.policy import PolicyEngine
 from ...domain.reasons import ReasonCode
@@ -96,7 +97,9 @@ class FinishAuthRequest(BaseModel):
 
 
 class FinishAuthResponse(BaseModel):
+    session_id: str
     decision: str  # "allow", "deny", or "step_up"
+    audit_event_id: Optional[str] = None
     reason_codes: List[str]
     liveness_passed: bool
     similarity_score: Optional[float] = None
@@ -144,6 +147,7 @@ async def start_authentication(request: StartAuthRequest) -> StartAuthResponse:
     try:
         challenges_list = _challenge_generator.generate_challenges()
         session = _session_store.create_session(challenges_list)
+        set_session_id(session.session_id)
         _liveness_evaluator.reset_detectors()
         challenge_names = [c.challenge_type.value for c in challenges_list]
         return StartAuthResponse(
@@ -169,6 +173,7 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
     """
     processed_frame = False
     session_id = request.session_id
+    set_session_id(request.session_id)
     try:
         session = _session_store.get_session(request.session_id)
         if not session:
@@ -379,6 +384,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
         force_final=True is applied; always returns "allow" or "deny".
     """
     session_start_time = None
+    set_session_id(request.session_id)
     try:
         session = _session_store.get_session(request.session_id)
         if not session:
@@ -430,6 +436,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
 
             step_up_names = [c.challenge_type.value for c in step_up_challenges]
             return FinishAuthResponse(
+                session_id=session.session_id,
                 decision="step_up",
                 reason_codes=step_up_reason_codes,
                 liveness_passed=auth_decision.liveness_passed,
@@ -489,6 +496,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
             risk_score=auth_decision.risk_score,
             liveness_passed=auth_decision.liveness_passed,
             session_id=request.session_id,
+            request_id=get_request_id(),
         )
         with _perf.stage("finish.storage.audit"):
             audit_hash = _audit_repo.write_event(audit_event)
@@ -501,6 +509,7 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                     audit_event,
                     device_id=telemetry_runtime.exporter.signer.get_device_id(),
                     session_start_time=session_start_time,
+                    exporter_snapshot=telemetry_runtime.exporter.get_stats(),
                 )
                 telemetry_event.audit_event_hash = audit_hash
                 with _perf.stage("finish.exporter.queue"):
@@ -511,7 +520,9 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                 )
 
         return FinishAuthResponse(
+            session_id=session.session_id,
             decision=auth_decision.decision,
+            audit_event_id=audit_event.event_id,
             reason_codes=final_reason_codes,
             liveness_passed=auth_decision.liveness_passed,
             similarity_score=auth_decision.similarity_score,

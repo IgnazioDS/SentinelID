@@ -19,6 +19,7 @@ apps/admin/tsconfig 2.json
 *.bak_timeout
 # Bundled desktop runtime virtualenv is reproducible and should stay local-only.
 apps/desktop/resources/edge/pyvenv/
+apps/desktop/resources/edge/app/
 
 # Rust/Tauri
 target/

@@ -1,107 +1,79 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# SentinelID Admin Dashboard Smoke Tests
-# Verify all admin API endpoints are accessible and return proper responses
+API_URL="${API_URL:-http://127.0.0.1:8000}"
+ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
 
-set -e
-
-# Configuration
-API_URL="${API_URL:-http://localhost:8000}"
-ADMIN_TOKEN="${ADMIN_TOKEN:-dev-admin-token}"
-TIMEOUT=5
-
-echo "Starting Admin Dashboard Smoke Tests"
-echo "   API URL: $API_URL"
-echo "   Timeout: ${TIMEOUT}s"
-echo ""
-
-# Test admin devices endpoint
-echo "Testing /v1/admin/devices..."
-response=$(curl -s -w "\n%{http_code}" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  --max-time "$TIMEOUT" \
-  "$API_URL/v1/admin/devices?limit=5")
-
-status=$(echo "$response" | tail -n1)
-body=$(echo "$response" | sed '$d')
-
-if [ "$status" = "200" ]; then
-  device_count=$(echo "$body" | grep -o '"device_id"' | wc -l)
-  echo "   ✓ Status: 200 OK (Found $device_count devices)"
-else
-  echo "   ✗ Status: $status (Expected 200)"
+if [[ -z "${ADMIN_TOKEN}" ]]; then
+  echo "ADMIN_TOKEN (or ADMIN_API_TOKEN) is required"
   exit 1
 fi
 
-# Test admin events endpoint
-echo "Testing /v1/admin/events..."
-response=$(curl -s -w "\n%{http_code}" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  --max-time "$TIMEOUT" \
-  "$API_URL/v1/admin/events?limit=5")
+echo "Running admin smoke test against ${API_URL}"
 
-status=$(echo "$response" | tail -n1)
-body=$(echo "$response" | sed '$d')
+for _ in $(seq 1 80); do
+  if curl -fsS "${API_URL}/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
 
-if [ "$status" = "200" ]; then
-  event_count=$(echo "$body" | grep -o '"event_id"' | wc -l)
-  echo "   ✓ Status: 200 OK (Found $event_count events)"
-else
-  echo "   ✗ Status: $status (Expected 200)"
+if ! curl -fsS "${API_URL}/health" >/dev/null 2>&1; then
+  echo "Admin API upstream did not become healthy at ${API_URL}/health"
   exit 1
 fi
 
-# Test admin stats endpoint
-echo "Testing /v1/admin/stats..."
-response=$(curl -s -w "\n%{http_code}" \
-  -H "X-Admin-Token: $ADMIN_TOKEN" \
-  --max-time "$TIMEOUT" \
-  "$API_URL/v1/admin/stats")
+python3 - "${API_URL}" "${ADMIN_TOKEN}" <<'PY'
+from __future__ import annotations
 
-status=$(echo "$response" | tail -n1)
-body=$(echo "$response" | sed '$d')
+import json
+import sys
+import urllib.error
+import urllib.request
 
-if [ "$status" = "200" ]; then
-  total_devices=$(echo "$body" | grep -o '"total_devices":[0-9]*' | cut -d: -f2)
-  liveness_rate=$(echo "$body" | grep -o '"liveness_failure_rate":[0-9.]*' | cut -d: -f2)
-  echo "   ✓ Status: 200 OK"
-  echo "     - Total devices: $total_devices"
-  echo "     - Liveness failure rate: $liveness_rate%"
-else
-  echo "   ✗ Status: $status (Expected 200)"
-  exit 1
-fi
+api_url = sys.argv[1].rstrip("/")
+admin_token = sys.argv[2]
 
-# Test authentication rejection
-echo "Testing authentication rejection (missing token)..."
-response=$(curl -s -w "\n%{http_code}" \
-  --max-time "$TIMEOUT" \
-  "$API_URL/v1/admin/devices")
 
-status=$(echo "$response" | tail -n1)
+def request(path: str, token: str | None = None) -> tuple[int, dict | str]:
+    headers = {}
+    if token is not None:
+        headers["X-Admin-Token"] = token
+    req = urllib.request.Request(f"{api_url}{path}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8")
+            parsed = json.loads(body) if body else {}
+            return resp.status, parsed
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            parsed = json.loads(body)
+        except Exception:
+            parsed = body
+        return exc.code, parsed
 
-if [ "$status" = "401" ]; then
-  echo "   ✓ Correctly returned 401 (Unauthorized)"
-else
-  echo "   ✗ Status: $status (Expected 401)"
-  exit 1
-fi
 
-# Test invalid token rejection
-echo "Testing authentication rejection (invalid token)..."
-response=$(curl -s -w "\n%{http_code}" \
-  -H "X-Admin-Token: invalid-token" \
-  --max-time "$TIMEOUT" \
-  "$API_URL/v1/admin/devices")
+status, devices = request("/v1/admin/devices?limit=5", admin_token)
+assert status == 200, f"/devices unexpected status {status}: {devices}"
+assert isinstance(devices.get("devices"), list), f"/devices payload invalid: {devices}"
+assert "has_next" in devices, f"/devices pagination missing: {devices}"
 
-status=$(echo "$response" | tail -n1)
+status, events = request("/v1/admin/events?limit=5", admin_token)
+assert status == 200, f"/events unexpected status {status}: {events}"
+assert isinstance(events.get("events"), list), f"/events payload invalid: {events}"
+assert "has_next" in events, f"/events pagination missing: {events}"
 
-if [ "$status" = "401" ]; then
-  echo "   ✓ Correctly returned 401 (Unauthorized)"
-else
-  echo "   ✗ Status: $status (Expected 401)"
-  exit 1
-fi
+status, stats = request("/v1/admin/stats", admin_token)
+assert status == 200, f"/stats unexpected status {status}: {stats}"
+for field in ("total_devices", "total_events", "latency_p50_ms", "latency_p95_ms", "risk_distribution"):
+    assert field in stats, f"/stats missing {field}: {stats}"
 
-echo ""
-echo "All smoke tests passed."
+status, no_auth = request("/v1/admin/devices")
+assert status == 401, f"/devices without token expected 401, got {status}: {no_auth}"
+
+status, bad_auth = request("/v1/admin/devices", "invalid-token")
+assert status == 401, f"/devices invalid token expected 401, got {status}: {bad_auth}"
+
+print("Admin smoke test passed")
+PY

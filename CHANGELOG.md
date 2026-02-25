@@ -2,6 +2,24 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.2.0 (2026-02-25)
+
+### Verification Hardening
+- Made fallback embeddings explicit: production now rejects model-unavailable verification with `MODEL_UNAVAILABLE` instead of silently degrading.
+- Added `ALLOW_FALLBACK_EMBEDDINGS` (dev-only opt-in). When fallback is used, responses include `FALLBACK_EMBEDDING_USED`.
+- Extended reason-code catalog for model availability and explicit fallback reporting.
+
+### Enrollment + Quality
+- Tightened enrollment/verification quality gating with explicit `FACE_TOO_SMALL`, `TOO_BLURRY`, `POSE_TOO_LARGE`, `TOO_DARK`, `NO_FACE`, and `MULTIPLE_FACES`.
+- Enrollment pipeline now propagates model-unavailable failures explicitly and continues storing encrypted templates from aggregated embeddings.
+
+### Evaluation
+- Added `scripts/eval/calibrate_threshold.sh` to generate local FAR/FRR calibration reports under `scripts/eval/out/`.
+- Updated `docs/evaluation.md` with calibration dataset format and report interpretation.
+
+### Tests
+- Added v1.2 coverage for fallback mode controls, model-unavailable endpoint behavior, enrollment lifecycle paths, and policy boundary precedence.
+
 ## v1.1.0 (2026-02-25)
 
 ### Cloud Schema Management

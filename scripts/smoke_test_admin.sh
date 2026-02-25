@@ -54,6 +54,19 @@ def request(path: str, token: str | None = None) -> tuple[int, dict | str]:
         return exc.code, parsed
 
 
+def request_bytes(path: str, token: str | None = None, method: str = "GET") -> tuple[int, bytes, dict]:
+    headers = {}
+    if token is not None:
+        headers["X-Admin-Token"] = token
+    req = urllib.request.Request(f"{api_url}{path}", headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read()
+            return resp.status, body, dict(resp.headers.items())
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(), dict(exc.headers.items())
+
+
 status, devices = request("/v1/admin/devices?limit=5", admin_token)
 assert status == 200, f"/devices unexpected status {status}: {devices}"
 assert isinstance(devices.get("devices"), list), f"/devices payload invalid: {devices}"
@@ -68,6 +81,23 @@ status, stats = request("/v1/admin/stats", admin_token)
 assert status == 200, f"/stats unexpected status {status}: {stats}"
 for field in ("total_devices", "total_events", "latency_p50_ms", "latency_p95_ms", "risk_distribution"):
     assert field in stats, f"/stats missing {field}: {stats}"
+
+status, series = request("/v1/admin/events/series?window=24h", admin_token)
+assert status == 200, f"/events/series unexpected status {status}: {series}"
+assert "points" in series, f"/events/series missing points: {series}"
+
+if devices.get("devices"):
+    device_id = devices["devices"][0]["device_id"]
+    status, detail = request(f"/v1/admin/devices/{device_id}?limit=10", admin_token)
+    assert status == 200, f"/devices/{{id}} unexpected status {status}: {detail}"
+    assert "recent_events" in detail, f"/devices/{{id}} payload invalid: {detail}"
+
+status, bundle_bytes, bundle_headers = request_bytes("/v1/admin/support-bundle?window=24h&events_limit=25", admin_token, method="POST")
+assert status == 200, f"/support-bundle unexpected status {status}: {bundle_bytes[:200]!r}"
+normalized_headers = {k.lower(): v for k, v in bundle_headers.items()}
+content_type = normalized_headers.get("content-type", "")
+assert "application/gzip" in content_type, f"/support-bundle content-type invalid: {content_type}"
+assert len(bundle_bytes) > 64, "/support-bundle returned empty payload"
 
 status, no_auth = request("/v1/admin/devices")
 assert status == 401, f"/devices without token expected 401, got {status}: {no_auth}"

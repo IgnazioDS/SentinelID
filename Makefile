@@ -1,5 +1,6 @@
 .PHONY: help \
 	bundle-edge \
+	dev-edge \
 	dev-desktop \
 	build-desktop-web \
 	check-desktop-rust \
@@ -22,6 +23,7 @@ help:
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
+	@echo "  make dev-edge            Run edge API locally (foreground)"
 	@echo "  make build-desktop-web   Build desktop frontend"
 	@echo "  make check-desktop-rust  Cargo check for Tauri runtime"
 	@echo "  make build-desktop       Produce desktop bundle (requires Tauri deps)"
@@ -46,6 +48,9 @@ help:
 
 bundle-edge:
 	@./scripts/bundle_edge_venv.sh
+
+dev-edge:
+	@cd apps/edge && if command -v poetry >/dev/null 2>&1; then EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787; elif [ -x .venv/bin/poetry ]; then EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787; else echo "Poetry not found. Install Poetry or create apps/edge/.venv with Poetry."; exit 1; fi
 
 dev-desktop: bundle-edge
 	@cd apps/desktop && npm run tauri dev

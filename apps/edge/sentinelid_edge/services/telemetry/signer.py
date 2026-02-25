@@ -1,11 +1,11 @@
-"""
-Telemetry event signing with device keypair.
-"""
-import json
-from typing import List
+"""Telemetry event signing with device keypair."""
+from __future__ import annotations
+
+from typing import Any, Dict, List
+
 from .event import TelemetryEvent, TelemetryBatch, TelemetryMapper
+from .canonical import canonical_json_bytes
 from ..security.device_binding import DeviceBinding
-from ..security.crypto import CryptoProvider
 
 
 class TelemetrySigner:
@@ -30,14 +30,10 @@ class TelemetrySigner:
         Returns:
             Event with signature populated
         """
-        # Create payload without signature
-        payload = TelemetryMapper.to_dict(event)
-        if 'signature' in payload:
-            del payload['signature']
+        payload = self.event_payload_for_signature(TelemetryMapper.to_dict(event))
 
-        # Sign the canonical JSON
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = self.device.sign(payload_json.encode())
+        # Sign canonical JSON bytes shared with cloud verifier.
+        signature = self.device.sign(canonical_json_bytes(payload))
 
         # Update event with signature
         event.signature = signature
@@ -53,18 +49,16 @@ class TelemetrySigner:
         Returns:
             Batch with signature populated
         """
-        # Create payload without signature
-        payload = {
-            'batch_id': batch.batch_id,
-            'device_id': batch.device_id,
-            'timestamp': batch.timestamp,
-            'event_count': len(batch.events),
-            'event_ids': [e.event_id for e in batch.events]
-        }
+        events = [TelemetryMapper.to_dict(event) for event in batch.events]
+        payload = self.batch_payload_for_signature(
+            batch_id=batch.batch_id,
+            device_id=batch.device_id,
+            timestamp=batch.timestamp,
+            events=events,
+        )
 
-        # Sign the canonical JSON
-        payload_json = json.dumps(payload, sort_keys=True)
-        signature = self.device.sign(payload_json.encode())
+        # Sign canonical JSON bytes shared with cloud verifier.
+        signature = self.device.sign(canonical_json_bytes(payload))
 
         # Update batch with signature
         batch.signature = signature
@@ -77,3 +71,35 @@ class TelemetrySigner:
     def get_public_key(self) -> str:
         """Get the device public key (for cloud registration)."""
         return self.device.get_public_key()
+
+    def sign_batch_payload(self, payload: Dict[str, Any]) -> str:
+        """Sign canonical batch payload bytes."""
+        return self.device.sign(canonical_json_bytes(payload))
+
+    @staticmethod
+    def event_payload_for_signature(event_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Return canonical signable event payload (exclude mutable signature field)."""
+        payload = dict(event_payload)
+        payload.pop("signature", None)
+        return payload
+
+    @staticmethod
+    def batch_payload_for_signature(
+        batch_id: str,
+        device_id: str,
+        timestamp: int,
+        events: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Return canonical signable batch payload.
+
+        The batch signature covers full event objects exactly as transported
+        (including each event signature) so cloud can verify a single canonical
+        payload before persistence.
+        """
+        return {
+            "batch_id": batch_id,
+            "device_id": device_id,
+            "timestamp": timestamp,
+            "events": events,
+        }

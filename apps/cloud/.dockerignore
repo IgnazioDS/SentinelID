@@ -5,6 +5,7 @@
 !__init__.py
 !api/admin_auth.py
 !api/admin_router.py
+!api/canonical.py
 !api/ingest_router.py
 !api/signature_verifier.py
 !api/__init__.py

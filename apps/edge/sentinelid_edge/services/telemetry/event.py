@@ -72,7 +72,7 @@ class TelemetryMapper:
         """
         session_duration = None
         if session_start_time and audit_event.timestamp:
-            session_duration = audit_event.timestamp - session_start_time
+            session_duration = max(0, int(audit_event.timestamp - int(session_start_time)))
 
         return TelemetryEvent(
             event_id=audit_event.event_id,

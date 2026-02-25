@@ -58,6 +58,26 @@ class TestTelemetrySanitization:
         assert telemetry.reason_codes == ["LIVENESS_PASSED"]
         assert telemetry.liveness_passed is True
         assert telemetry.similarity_score == 0.95
+        assert isinstance(telemetry.session_duration_seconds, int) or telemetry.session_duration_seconds is None
+
+    def test_telemetry_mapper_session_duration_is_integer(self):
+        """Session duration must stay integer for cloud ingest schema compatibility."""
+        audit_event = AuditEvent(
+            event_id="audit-2",
+            timestamp=120,
+            event_type="auth_finished",
+            outcome="allow",
+            reason_codes=["LIVENESS_PASSED"],
+        )
+
+        telemetry = TelemetryMapper.from_audit_event(
+            audit_event,
+            device_id="device-1",
+            session_start_time=113.75,
+        )
+
+        assert telemetry.session_duration_seconds == 7
+        assert isinstance(telemetry.session_duration_seconds, int)
 
     def test_telemetry_to_dict_no_none_values(self):
         """Test telemetry dict removes None values."""

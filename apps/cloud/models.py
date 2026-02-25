@@ -63,6 +63,11 @@ class TelemetryEvent(Base):
     similarity_score = Column(Float, nullable=True)
     risk_score = Column(Float, nullable=True)
     session_duration_seconds = Column(Integer, nullable=True)
+    session_id = Column(String, index=True, nullable=True)
+    request_id = Column(String, index=True, nullable=True)
+    outbox_pending_count = Column(Integer, nullable=True)
+    dlq_count = Column(Integer, nullable=True)
+    last_error_summary = Column(Text, nullable=True)
     audit_event_hash = Column(String, nullable=True)
     signature = Column(Text, nullable=False)
     ingested_at = Column(DateTime, default=datetime.utcnow, index=True)
@@ -75,6 +80,9 @@ class TelemetryEvent(Base):
         Index("ix_events_outcome_ingested", "outcome", "ingested_at"),
         Index("ix_events_risk_score", "risk_score"),
         Index("ix_events_session_duration", "session_duration_seconds"),
+        Index("ix_events_request_id", "request_id"),
+        Index("ix_events_session_id", "session_id"),
+        Index("ix_events_device_ingested", "device_id", "ingested_at"),
     )
 
 

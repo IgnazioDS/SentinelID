@@ -1,10 +1,77 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { adminAPI, Event } from '../../lib/api';
-import Link from 'next/link';
+import { copyToClipboard, normalizeRange, rangeStartEpoch, shortId } from '../../lib/time';
+import { EmptyState, ErrorState, LoadingState } from '../components/ui-state';
+
+function EventDrawer({ event, onClose }: { event: Event; onClose: () => void }) {
+  const [copyMessage, setCopyMessage] = useState<string>('');
+
+  const copyValue = async (label: string, value?: string) => {
+    try {
+      const copied = await copyToClipboard(value);
+      setCopyMessage(copied ? `${label} copied` : `Unable to copy ${label}`);
+    } catch {
+      setCopyMessage(`Unable to copy ${label}`);
+    }
+    setTimeout(() => setCopyMessage(''), 1200);
+  };
+
+  return (
+    <aside className="drawer" role="dialog" aria-label="Event details">
+      <div className="drawer-header">
+        <h2>Event Detail</h2>
+        <button type="button" className="button" onClick={onClose}>Close</button>
+      </div>
+
+      <div className="key-value"><span className="key">Event ID</span><span>{event.event_id}</span></div>
+      <div className="key-value"><span className="key">Device ID</span><span>{event.device_id}</span></div>
+      <div className="key-value"><span className="key">Outcome</span><span>{event.outcome}</span></div>
+      <div className="key-value"><span className="key">Reasons</span><span>{event.reason_codes.join(', ') || '-'}</span></div>
+      <div className="key-value"><span className="key">Risk</span><span>{event.risk_score ?? '-'}</span></div>
+      <div className="key-value"><span className="key">Liveness</span><span>{event.liveness_passed === undefined ? '-' : event.liveness_passed ? 'pass' : 'fail'}</span></div>
+      <div className="key-value"><span className="key">Similarity</span><span>{event.similarity_score ?? '-'}</span></div>
+      <div className="key-value"><span className="key">Latency (s)</span><span>{event.session_duration_seconds ?? '-'}</span></div>
+      <div className="key-value"><span className="key">Timestamp</span><span>{new Date(event.timestamp * 1000).toLocaleString()}</span></div>
+      <div className="key-value"><span className="key">Ingested At</span><span>{new Date(event.ingested_at).toLocaleString()}</span></div>
+
+      <div className="section">
+        <div className="key-value">
+          <span className="key">Request ID</span>
+          <span>
+            {event.request_id || '-'}
+            {event.request_id ? (
+              <button className="button subtle" onClick={() => copyValue('request_id', event.request_id)} style={{ marginLeft: 8 }}>
+                Copy
+              </button>
+            ) : null}
+          </span>
+        </div>
+        <div className="key-value">
+          <span className="key">Session ID</span>
+          <span>
+            {event.session_id || '-'}
+            {event.session_id ? (
+              <button className="button subtle" onClick={() => copyValue('session_id', event.session_id)} style={{ marginLeft: 8 }}>
+                Copy
+              </button>
+            ) : null}
+          </span>
+        </div>
+      </div>
+
+      {copyMessage ? <p className="muted">{copyMessage}</p> : null}
+    </aside>
+  );
+}
 
 export default function EventsPage() {
+  const searchParams = useSearchParams();
+  const range = normalizeRange(searchParams.get('range'));
+  const topSearch = (searchParams.get('q') || '').trim();
+
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -12,301 +79,209 @@ export default function EventsPage() {
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
   const [hasNext, setHasNext] = useState(false);
-  const [deviceFilterInput, setDeviceFilterInput] = useState('');
-  const [deviceFilter, setDeviceFilter] = useState('');
-  const [requestIdFilterInput, setRequestIdFilterInput] = useState('');
-  const [requestIdFilter, setRequestIdFilter] = useState('');
-  const [sessionIdFilterInput, setSessionIdFilterInput] = useState('');
-  const [sessionIdFilter, setSessionIdFilter] = useState('');
-  const [outcomeFilterInput, setOutcomeFilterInput] = useState<string>('');
-  const [outcomeFilter, setOutcomeFilter] = useState<string>('');
+
+  const [deviceId, setDeviceId] = useState('');
+  const [requestId, setRequestId] = useState('');
+  const [sessionId, setSessionId] = useState('');
+  const [outcome, setOutcome] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
+
+  const [appliedFilters, setAppliedFilters] = useState({
+    deviceId: '',
+    requestId: '',
+    sessionId: '',
+    outcome: '',
+    reasonCode: '',
+  });
+
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   useEffect(() => {
+    setOffset(0);
+  }, [range, topSearch]);
+
+  useEffect(() => {
+    let mounted = true;
+
     async function loadEvents() {
       try {
         setLoading(true);
         setError(null);
+
+        const startTs = rangeStartEpoch(range);
+        const endTs = Math.floor(Date.now() / 1000);
         const response = await adminAPI.getEvents({
           limit,
           offset,
-          device_id: deviceFilter || undefined,
-          request_id: requestIdFilter || undefined,
-          session_id: sessionIdFilter || undefined,
-          outcome: outcomeFilter || undefined,
+          device_id: appliedFilters.deviceId || undefined,
+          request_id: appliedFilters.requestId || undefined,
+          session_id: appliedFilters.sessionId || undefined,
+          outcome: appliedFilters.outcome || undefined,
+          reason_code: appliedFilters.reasonCode || undefined,
+          start_ts: startTs,
+          end_ts: endTs,
+          q: topSearch || undefined,
         });
+
+        if (!mounted) return;
         setEvents(response.events);
         setTotal(response.total);
         setHasNext(response.has_next);
       } catch (err) {
+        if (!mounted) return;
         setError(err instanceof Error ? err.message : 'Failed to load events');
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     }
 
     loadEvents();
-  }, [limit, offset, deviceFilter, requestIdFilter, sessionIdFilter, outcomeFilter]);
-
-  const handlePreviousPage = () => {
-    setOffset(Math.max(0, offset - limit));
-  };
-
-  const handleNextPage = () => {
-    if (hasNext) {
-      setOffset(offset + limit);
-    }
-  };
-
-  const applyFilters = () => {
-    setDeviceFilter(deviceFilterInput.trim());
-    setRequestIdFilter(requestIdFilterInput.trim());
-    setSessionIdFilter(sessionIdFilterInput.trim());
-    setOutcomeFilter(outcomeFilterInput);
-    setOffset(0);
-  };
-
-  const clearFilters = () => {
-    setDeviceFilterInput('');
-    setRequestIdFilterInput('');
-    setSessionIdFilterInput('');
-    setOutcomeFilterInput('');
-    setDeviceFilter('');
-    setRequestIdFilter('');
-    setSessionIdFilter('');
-    setOutcomeFilter('');
-    setOffset(0);
-  };
+    return () => {
+      mounted = false;
+    };
+  }, [limit, offset, range, topSearch, appliedFilters]);
 
   const currentPage = Math.floor(offset / limit) + 1;
-  const totalPages = Math.ceil(total / limit);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const activeFilterCount = useMemo(() => {
+    return Object.values(appliedFilters).filter((value) => value.trim().length > 0).length;
+  }, [appliedFilters]);
+
+  if (loading && events.length === 0) {
+    return <LoadingState text="Loading events..." />;
+  }
 
   return (
-    <div style={{ padding: '20px' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <Link href="/" style={{ marginRight: '20px' }}>
-          Home
-        </Link>
-        <Link href="/stats" style={{ marginRight: '20px' }}>
-          Stats
-        </Link>
-        <Link href="/devices">Devices</Link>
-      </div>
+    <div>
+      <h1 className="page-title">Events</h1>
+      <p className="page-subtitle">
+        Filter telemetry events by correlation IDs, outcome, and reason codes. Window: {range}
+      </p>
 
-      <h1>Telemetry Events</h1>
+      <div className="filters">
+        <input className="input" placeholder="Device ID" value={deviceId} onChange={(event) => setDeviceId(event.target.value)} />
+        <input className="input" placeholder="Request ID" value={requestId} onChange={(event) => setRequestId(event.target.value)} />
+        <input className="input" placeholder="Session ID" value={sessionId} onChange={(event) => setSessionId(event.target.value)} />
 
-      <div
-        style={{
-          marginBottom: '20px',
-          display: 'flex',
-          gap: '10px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Filter by device ID..."
-          value={deviceFilterInput}
-          onChange={(e) => setDeviceFilterInput(e.target.value)}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-        />
-        <input
-          type="text"
-          placeholder="Filter by request ID..."
-          value={requestIdFilterInput}
-          onChange={(e) => setRequestIdFilterInput(e.target.value)}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-        />
-        <input
-          type="text"
-          placeholder="Filter by session ID..."
-          value={sessionIdFilterInput}
-          onChange={(e) => setSessionIdFilterInput(e.target.value)}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-        />
-
-        <select
-          value={outcomeFilterInput}
-          onChange={(e) => setOutcomeFilterInput(e.target.value)}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-        >
-          <option value="">All Outcomes</option>
-          <option value="allow">Allow</option>
-          <option value="deny">Deny</option>
-          <option value="error">Error</option>
+        <select className="input" value={outcome} onChange={(event) => setOutcome(event.target.value)}>
+          <option value="">All outcomes</option>
+          <option value="allow">allow</option>
+          <option value="deny">deny</option>
+          <option value="error">error</option>
         </select>
 
-        <select
-          value={limit}
-          onChange={(e) => {
-            setLimit(Number(e.target.value));
-            setOffset(0);
-          }}
-          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-        >
-          <option value={25}>25 per page</option>
-          <option value={50}>50 per page</option>
-          <option value={100}>100 per page</option>
-        </select>
+        <input className="input" placeholder="Reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} />
 
-        <button
-          onClick={applyFilters}
-          style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #007bff', backgroundColor: '#007bff', color: 'white' }}
-        >
-          Apply
-        </button>
-        <button
-          onClick={clearFilters}
-          style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #666', backgroundColor: '#fff', color: '#333' }}
-        >
-          Clear
-        </button>
-      </div>
-
-      {error && (
-        <div style={{ color: 'red', marginBottom: '20px', padding: '10px', backgroundColor: '#ffe0e0', borderRadius: '4px' }}>
-          {error}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="button primary"
+            onClick={() => {
+              setAppliedFilters({
+                deviceId: deviceId.trim(),
+                requestId: requestId.trim(),
+                sessionId: sessionId.trim(),
+                outcome,
+                reasonCode: reasonCode.trim(),
+              });
+              setOffset(0);
+            }}
+          >
+            Apply
+          </button>
+          <button
+            className="button"
+            onClick={() => {
+              setDeviceId('');
+              setRequestId('');
+              setSessionId('');
+              setOutcome('');
+              setReasonCode('');
+              setAppliedFilters({ deviceId: '', requestId: '', sessionId: '', outcome: '', reasonCode: '' });
+              setOffset(0);
+            }}
+          >
+            Clear
+          </button>
         </div>
-      )}
+      </div>
 
-      {loading ? (
-        <p>Loading events...</p>
+      {activeFilterCount > 0 ? <p className="muted">Active filters: {activeFilterCount}</p> : null}
+
+      {error ? (
+        <ErrorState message={error} action={<button className="button subtle" onClick={() => window.location.reload()}>Retry</button>} />
+      ) : null}
+
+      {!loading && events.length === 0 ? (
+        <EmptyState title="No events found" description="Adjust filters or time range and try again." />
       ) : (
         <>
-          <div style={{ marginBottom: '10px' }}>
-            Total: {total} events (Page {currentPage}/{totalPages || 1})
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                marginBottom: '20px',
-              }}
-            >
+          <div className="table-wrap">
+            <table>
               <thead>
-                <tr style={{ backgroundColor: '#f0f0f0' }}>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Event ID
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Device ID
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Request ID
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Session ID
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Outcome
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Liveness
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Timestamp
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Risk
-                  </th>
-                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
-                    Latency
-                  </th>
+                <tr>
+                  <th>Event</th>
+                  <th>Device</th>
+                  <th>Request</th>
+                  <th>Session</th>
+                  <th>Outcome</th>
+                  <th>Reason Codes</th>
+                  <th>Risk</th>
+                  <th>Liveness</th>
+                  <th>Timestamp</th>
                 </tr>
               </thead>
               <tbody>
                 {events.map((event) => (
-                  <tr key={event.event_id}>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {event.event_id.substring(0, 8)}...
+                  <tr key={event.event_id} className="row-clickable" onClick={() => setSelectedEvent(event)}>
+                    <td>{shortId(event.event_id, 12)}</td>
+                    <td>{shortId(event.device_id, 12)}</td>
+                    <td>{event.request_id ? shortId(event.request_id, 12) : '-'}</td>
+                    <td>{event.session_id ? shortId(event.session_id, 12) : '-'}</td>
+                    <td>
+                      <span className={`badge ${event.outcome}`}>{event.outcome}</span>
                     </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {event.device_id.substring(0, 8)}...
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {event.request_id ? `${event.request_id.substring(0, 12)}...` : '-'}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {event.session_id ? `${event.session_id.substring(0, 12)}...` : '-'}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                      <span
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          backgroundColor:
-                            event.outcome === 'allow'
-                              ? '#d4edda'
-                              : event.outcome === 'deny'
-                                ? '#f8d7da'
-                                : '#e2e3e5',
-                          color:
-                            event.outcome === 'allow'
-                              ? '#155724'
-                              : event.outcome === 'deny'
-                                ? '#721c24'
-                                : '#383d41',
-                        }}
-                      >
-                        {event.outcome}
-                      </span>
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                      {event.liveness_passed === true ? '✓' : event.liveness_passed === false ? '✗' : '-'}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {new Date(event.timestamp * 1000).toLocaleString()}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {event.risk_score !== undefined && event.risk_score !== null ? event.risk_score.toFixed(3) : '-'}
-                    </td>
-                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
-                      {event.session_duration_seconds !== undefined && event.session_duration_seconds !== null
-                        ? `${(event.session_duration_seconds * 1000).toFixed(0)} ms`
-                        : '-'}
-                    </td>
+                    <td>{event.reason_codes.slice(0, 2).join(', ') || '-'}</td>
+                    <td>{event.risk_score ?? '-'}</td>
+                    <td>{event.liveness_passed === undefined ? '-' : event.liveness_passed ? 'pass' : 'fail'}</td>
+                    <td>{new Date(event.timestamp * 1000).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'space-between' }}>
-            <button
-              onClick={handlePreviousPage}
-              disabled={offset === 0}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: offset === 0 ? '#ccc' : '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: offset === 0 ? 'default' : 'pointer',
-              }}
-            >
-              Previous
-            </button>
-            <span>
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={handleNextPage}
-              disabled={!hasNext}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: !hasNext ? '#ccc' : '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: !hasNext ? 'default' : 'pointer',
-              }}
-            >
-              Next
-            </button>
+          <div className="pagination">
+            <div>
+              Total {total} events, page {currentPage}/{totalPages}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select
+                className="input"
+                value={limit}
+                onChange={(event) => {
+                  setLimit(Number(event.target.value));
+                  setOffset(0);
+                }}
+              >
+                <option value={25}>25 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+              </select>
+              <button className="button" onClick={() => setOffset(Math.max(0, offset - limit))} disabled={offset === 0}>
+                Prev
+              </button>
+              <button className="button" onClick={() => setOffset(offset + limit)} disabled={!hasNext}>
+                Next
+              </button>
+            </div>
           </div>
         </>
       )}
+
+      {selectedEvent ? <EventDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} /> : null}
     </div>
   );
 }

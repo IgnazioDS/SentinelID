@@ -11,8 +11,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from sentinelid_edge.api.router import api_router
 from sentinelid_edge.core.config import settings
+from sentinelid_edge.core.logging import configure_logging
 from sentinelid_edge.core.auth import verify_bearer_token
-from sentinelid_edge.core.request_context import set_request_id, generate_request_id
+from sentinelid_edge.core.request_context import (
+    clear_request_context,
+    generate_request_id,
+    set_request_id,
+    set_session_id,
+)
 from sentinelid_edge.services.security.rate_limit import get_rate_limiter
 from sentinelid_edge.services.telemetry.exporter import TelemetryExporter
 from sentinelid_edge.services.telemetry.runtime import (
@@ -21,6 +27,12 @@ from sentinelid_edge.services.telemetry.runtime import (
 )
 
 logger = logging.getLogger(__name__)
+
+configure_logging(
+    service_name="edge",
+    log_level=settings.LOG_LEVEL,
+    log_format=settings.LOG_FORMAT,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -125,13 +137,17 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = request.headers.get("X-Request-ID")
+        request_id = request.headers.get("X-Request-Id") or request.headers.get("X-Request-ID")
         if not request_id:
             request_id = generate_request_id()
         set_request_id(request_id)
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        return response
+        set_session_id(None)
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-Id"] = request_id
+            return response
+        finally:
+            clear_request_context()
 
 
 # ---------------------------------------------------------------------------

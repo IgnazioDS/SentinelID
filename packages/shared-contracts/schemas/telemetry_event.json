@@ -55,6 +55,26 @@
       "type": "integer",
       "description": "Duration of authentication session"
     },
+    "session_id": {
+      "type": "string",
+      "description": "Edge session identifier for correlation"
+    },
+    "request_id": {
+      "type": "string",
+      "description": "Request correlation ID from edge API"
+    },
+    "outbox_pending_count": {
+      "type": "integer",
+      "description": "Pending telemetry outbox size observed at emit time"
+    },
+    "dlq_count": {
+      "type": "integer",
+      "description": "DLQ size observed at emit time"
+    },
+    "last_error_summary": {
+      "type": "string",
+      "description": "Sanitized last exporter error summary"
+    },
     "audit_event_hash": {
       "type": "string",
       "description": "Hash of corresponding audit event (for integrity linkage)"

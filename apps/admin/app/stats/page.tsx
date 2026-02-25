@@ -147,6 +147,72 @@ export default function StatsPage() {
             <StatCard label="Risk Medium" value={stats.risk_distribution.medium} color="#ffc107" />
             <StatCard label="Risk High" value={stats.risk_distribution.high} color="#dc3545" />
           </div>
+
+          <h2 style={{ marginTop: '30px', marginBottom: '15px' }}>Ingest Reliability</h2>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <StatCard label="Ingest Success" value={stats.ingest_success_count} color="#28a745" />
+            <StatCard label="Ingest Failures" value={stats.ingest_fail_count} color="#dc3545" />
+            <StatCard label="Events Ingested" value={stats.events_ingested_count} color="#0d6efd" />
+            <StatCard label="Window (s)" value={stats.ingest_window_seconds} color="#6f42c1" />
+          </div>
+
+          <h2 style={{ marginTop: '30px', marginBottom: '15px' }}>Device Health</h2>
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                marginBottom: '20px',
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: '#f0f0f0' }}>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Device ID
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Last Seen
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Events
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Outbox Pending
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    DLQ
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Last Export Error
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.device_health.map((device) => (
+                  <tr key={device.device_id}>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {device.device_id}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {new Date(device.last_seen).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {device.event_count}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {device.outbox_pending_count ?? '-'}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd' }}>
+                      {device.dlq_count ?? '-'}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {device.last_error_summary ?? '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       ) : null}
     </div>

@@ -118,3 +118,17 @@ rm -rf apps/edge/.sentinelid
 - Privacy controls: `docs/privacy.md`
 - Threat model: `docs/threat-model.md`
 - Key lifecycle: `docs/KEY_MANAGEMENT.md`
+
+## Support Bundle
+
+Collect a sanitized support artifact for incident triage:
+
+```bash
+EDGE_TOKEN="<edge-token>" ADMIN_TOKEN="<admin-token>" ./scripts/support_bundle.sh
+```
+
+Output:
+
+- `scripts/support/out/support_bundle_<timestamp>.tar.gz`
+
+Bundle contents intentionally exclude raw biometric payloads, tokens, signatures, frames, and embeddings.

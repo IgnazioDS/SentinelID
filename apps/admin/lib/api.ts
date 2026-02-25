@@ -43,6 +43,11 @@ export interface Event {
   similarity_score?: number;
   risk_score?: number;
   session_duration_seconds?: number;
+  session_id?: string;
+  request_id?: string;
+  outbox_pending_count?: number;
+  dlq_count?: number;
+  last_error_summary?: string;
   audit_event_hash?: string;
   ingested_at: string;
 }
@@ -65,11 +70,25 @@ export interface StatsResponse {
   liveness_failure_rate: number;
   latency_p50_ms?: number;
   latency_p95_ms?: number;
+  ingest_success_count: number;
+  ingest_fail_count: number;
+  events_ingested_count: number;
+  ingest_window_seconds: number;
   risk_distribution: {
     low: number;
     medium: number;
     high: number;
   };
+  device_health: Array<{
+    device_id: string;
+    last_seen: string;
+    event_count: number;
+    outbox_pending_count?: number;
+    dlq_count?: number;
+    last_error_summary?: string;
+    last_request_id?: string;
+    last_session_id?: string;
+  }>;
 }
 
 export interface Device {
@@ -96,12 +115,16 @@ export const adminAPI = {
     limit?: number;
     offset?: number;
     device_id?: string;
+    request_id?: string;
+    session_id?: string;
     outcome?: string;
   }): Promise<EventsResponse> {
     const query = new URLSearchParams();
     if (params?.limit) query.append('limit', params.limit.toString());
     if (params?.offset) query.append('offset', params.offset.toString());
     if (params?.device_id) query.append('device_id', params.device_id);
+    if (params?.request_id) query.append('request_id', params.request_id);
+    if (params?.session_id) query.append('session_id', params.session_id);
     if (params?.outcome) query.append('outcome', params.outcome);
 
     return fetchWithAuth(

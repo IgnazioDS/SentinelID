@@ -25,6 +25,8 @@ sys.path.insert(0, parent_dir)
 from models import get_db, Device, TelemetryEvent
 from api.signature_verifier import SignatureVerifier
 from api.canonical import event_payload_for_signature, batch_payload_for_signature
+from api.ingest_metrics import get_ingest_metrics
+from request_context import get_request_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Ingest"])
@@ -56,6 +58,11 @@ class TelemetryEventRequest(BaseModel):
     similarity_score: Optional[float] = None
     risk_score: Optional[float] = None
     session_duration_seconds: Optional[int] = None
+    session_id: Optional[str] = None
+    request_id: Optional[str] = None
+    outbox_pending_count: Optional[int] = None
+    dlq_count: Optional[int] = None
+    last_error_summary: Optional[str] = None
     audit_event_hash: Optional[str] = None
     signature: str
 
@@ -156,7 +163,10 @@ async def ingest_events(
             batch_payload,
             request.batch_signature
         ):
-            logger.warning(f"Invalid batch signature for device {request.device_id}")
+            logger.warning(
+                "Invalid batch signature",
+                extra={"request_id": get_request_id(), "device_id": request.device_id},
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid batch signature"
@@ -172,8 +182,12 @@ async def ingest_events(
                 event_req.signature
             ):
                 logger.warning(
-                    f"Invalid event signature for event {event_req.event_id} "
-                    f"from device {request.device_id}"
+                    "Invalid event signature",
+                    extra={
+                        "request_id": get_request_id(),
+                        "device_id": request.device_id,
+                        "event_id": event_req.event_id,
+                    },
                 )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -194,11 +208,17 @@ async def ingest_events(
             )
             db.add(device)
             device_registered = True
-            logger.info(f"Registered new device: {request.device_id}")
+            logger.info(
+                "Registered new device",
+                extra={"request_id": get_request_id(), "device_id": request.device_id},
+            )
         else:
             # Verify public key matches (prevent key substitution)
             if device.public_key != request.device_public_key:
-                logger.warning(f"Public key mismatch for device {request.device_id}")
+                logger.warning(
+                    "Public key mismatch",
+                    extra={"request_id": get_request_id(), "device_id": request.device_id},
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Device public key mismatch"
@@ -224,6 +244,7 @@ async def ingest_events(
         for event_req in request.events:
             if event_req.event_id in existing_ids:
                 continue
+            persisted_request_id = event_req.request_id or get_request_id()
             telemetry_rows.append(TelemetryEvent(
                 event_id=event_req.event_id,
                 device_id=event_req.device_id,
@@ -235,6 +256,11 @@ async def ingest_events(
                 similarity_score=event_req.similarity_score,
                 risk_score=event_req.risk_score,
                 session_duration_seconds=event_req.session_duration_seconds,
+                session_id=event_req.session_id,
+                request_id=persisted_request_id,
+                outbox_pending_count=event_req.outbox_pending_count,
+                dlq_count=event_req.dlq_count,
+                last_error_summary=event_req.last_error_summary,
                 audit_event_hash=event_req.audit_event_hash,
                 signature=event_req.signature,
             ))
@@ -273,6 +299,7 @@ async def ingest_events(
             events_duplicated,
             events_received,
         )
+        get_ingest_metrics().record_success(events_ingested=events_ingested)
 
         return IngestResponse(
             status="accepted",
@@ -285,10 +312,16 @@ async def ingest_events(
 
     except HTTPException:
         db.rollback()
+        get_ingest_metrics().record_failure()
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Ingest error: {str(e)}")
+        get_ingest_metrics().record_failure()
+        logger.error(
+            "Ingest error: %s",
+            str(e),
+            extra={"request_id": get_request_id(), "device_id": request.device_id},
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to ingest telemetry"

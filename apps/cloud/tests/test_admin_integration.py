@@ -110,6 +110,14 @@ class TestAdminEventsEndpoint:
         )
         assert response.status_code == 200
 
+    def test_events_request_and_session_filter_params_work(self, client, auth_headers):
+        """Request/session correlation filters are accepted."""
+        response = client.get(
+            "/v1/admin/events?request_id=req-123&session_id=sess-123",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
 
 class TestAdminStatsEndpoint:
     """Test /v1/admin/stats endpoint."""
@@ -136,7 +144,11 @@ class TestAdminStatsEndpoint:
             "allow_count",
             "deny_count",
             "error_count",
-            "liveness_failure_rate"
+            "liveness_failure_rate",
+            "ingest_success_count",
+            "ingest_fail_count",
+            "events_ingested_count",
+            "ingest_window_seconds",
         ]
         
         for field in required_fields:
@@ -150,3 +162,4 @@ class TestAdminStatsEndpoint:
         
         rate = data["liveness_failure_rate"]
         assert 0 <= rate <= 100, f"Invalid liveness rate: {rate}"
+        assert isinstance(data["device_health"], list)

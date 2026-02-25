@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ...core.config import settings
+from ...core.request_context import set_session_id
 from ...domain.reasons import ReasonCode
 from ...services.enrollment.sessions import (
     EnrollmentPipeline,
@@ -112,6 +113,7 @@ class CalibrateResponse(BaseModel):
 @router.post("/start", response_model=StartEnrollResponse)
 async def start_enrollment(request: StartEnrollRequest) -> StartEnrollResponse:
     session = _enroll_store.create_session(target_frames=request.target_frames)
+    set_session_id(session.session_id)
     return StartEnrollResponse(
         session_id=session.session_id,
         target_frames=session.target_frames,
@@ -120,6 +122,7 @@ async def start_enrollment(request: StartEnrollRequest) -> StartEnrollResponse:
 
 @router.post("/frame", response_model=EnrollFrameResponse)
 async def enroll_frame(request: EnrollFrameRequest) -> EnrollFrameResponse:
+    set_session_id(request.session_id)
     session = _enroll_store.get_session(request.session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment session not found")
@@ -147,6 +150,7 @@ async def enroll_frame(request: EnrollFrameRequest) -> EnrollFrameResponse:
 
 @router.post("/commit", response_model=CommitEnrollResponse)
 async def commit_enrollment(request: CommitEnrollRequest) -> CommitEnrollResponse:
+    set_session_id(request.session_id)
     session = _enroll_store.get_session(request.session_id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment session not found")
@@ -175,6 +179,7 @@ async def commit_enrollment(request: CommitEnrollRequest) -> CommitEnrollRespons
 
 @router.post("/reset", response_model=ResetEnrollResponse)
 async def reset_enrollment(request: ResetEnrollRequest) -> ResetEnrollResponse:
+    set_session_id(request.session_id)
     _enroll_store.delete_session(request.session_id)
     return ResetEnrollResponse(status="reset", session_id=request.session_id)
 

@@ -1,4 +1,4 @@
-"""Structured logging configuration for edge service."""
+"""Structured logging configuration for cloud service."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from .request_context import get_request_id, get_session_id
+from request_context import get_request_id
 
 _SECRET_KEY_PATTERN = re.compile(
     r"(?i)\b(authorization|token|x-admin-token|edge_auth_token|signature|batch_signature)\b"
@@ -17,19 +17,18 @@ _BEARER_PATTERN = re.compile(r"(?i)(Bearer\s+)[A-Za-z0-9\-._~+/]+=*")
 
 
 def _sanitize_text(value: str) -> str:
-    text = _BEARER_PATTERN.sub(r"\1[REDACTED]", str(value))
-    return text
+    return _BEARER_PATTERN.sub(r"\1[REDACTED]", str(value))
 
 
 def _sanitize_value(value: Any) -> Any:
     if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for key, item in value.items():
             if _SECRET_KEY_PATTERN.search(str(key)):
-                redacted[str(key)] = "[REDACTED]"
+                out[str(key)] = "[REDACTED]"
             else:
-                redacted[str(key)] = _sanitize_value(item)
-        return redacted
+                out[str(key)] = _sanitize_value(item)
+        return out
     if isinstance(value, list):
         return [_sanitize_value(item) for item in value]
     if isinstance(value, tuple):
@@ -47,7 +46,7 @@ class _ContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.service = getattr(record, "service", self._service)
         record.request_id = getattr(record, "request_id", None) or get_request_id()
-        record.session_id = getattr(record, "session_id", None) or get_session_id()
+        record.session_id = getattr(record, "session_id", None)
         record.device_id = getattr(record, "device_id", None)
         record.event_id = getattr(record, "event_id", None)
         return True
@@ -58,7 +57,7 @@ class _JsonFormatter(logging.Formatter):
         payload = {
             "ts": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
             "level": record.levelname.lower(),
-            "service": getattr(record, "service", "edge"),
+            "service": getattr(record, "service", "cloud"),
             "request_id": getattr(record, "request_id", None),
             "session_id": getattr(record, "session_id", None),
             "device_id": getattr(record, "device_id", None),
@@ -77,7 +76,7 @@ class _TextFormatter(logging.Formatter):
         fields = [
             f"ts={ts}",
             f"level={record.levelname.lower()}",
-            f"service={getattr(record, 'service', 'edge')}",
+            f"service={getattr(record, 'service', 'cloud')}",
             f"request_id={getattr(record, 'request_id', '-') or '-'}",
             f"session_id={getattr(record, 'session_id', '-') or '-'}",
             f"device_id={getattr(record, 'device_id', '-') or '-'}",
@@ -90,19 +89,9 @@ class _TextFormatter(logging.Formatter):
         return " ".join(fields)
 
 
-def configure_logging(
-    service_name: str = "edge",
-    log_level: str | None = None,
-    log_format: str | None = None,
-) -> None:
-    """
-    Configure root logger with structured output and redaction.
-
-    LOG_FORMAT supports: json|text
-    LOG_LEVEL supports standard Python logging levels.
-    """
-    resolved_level = (log_level or os.getenv("LOG_LEVEL", "INFO")).upper()
-    resolved_format = (log_format or os.getenv("LOG_FORMAT", "text")).strip().lower()
+def configure_logging(service_name: str = "cloud") -> None:
+    resolved_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    resolved_format = os.environ.get("LOG_FORMAT", "text").strip().lower()
     formatter: logging.Formatter = _JsonFormatter() if resolved_format == "json" else _TextFormatter()
 
     handler = logging.StreamHandler()
@@ -114,7 +103,6 @@ def configure_logging(
     root.addHandler(handler)
     root.setLevel(getattr(logging, resolved_level, logging.INFO))
 
-    # Keep uvicorn logs flowing through the same formatter.
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         target = logging.getLogger(logger_name)
         target.handlers.clear()

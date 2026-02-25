@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from datetime import datetime
 
 # Use absolute imports for compatibility with uvicorn
@@ -18,6 +18,7 @@ sys.path.insert(0, parent_dir)
 
 from models import get_db, TelemetryEvent, Device
 from api.admin_auth import verify_admin_token
+from api.ingest_metrics import get_ingest_metrics
 
 router = APIRouter(tags=["Admin"])
 
@@ -35,6 +36,11 @@ class EventResponse(BaseModel):
     similarity_score: Optional[float] = None
     risk_score: Optional[float] = None
     session_duration_seconds: Optional[int] = None
+    session_id: Optional[str] = None
+    request_id: Optional[str] = None
+    outbox_pending_count: Optional[int] = None
+    dlq_count: Optional[int] = None
+    last_error_summary: Optional[str] = None
     audit_event_hash: Optional[str] = None
     ingested_at: datetime
 
@@ -75,6 +81,17 @@ class DevicesResponse(BaseModel):
     has_next: bool
 
 
+class DeviceHealthResponse(BaseModel):
+    device_id: str
+    last_seen: datetime
+    event_count: int
+    outbox_pending_count: Optional[int] = None
+    dlq_count: Optional[int] = None
+    last_error_summary: Optional[str] = None
+    last_request_id: Optional[str] = None
+    last_session_id: Optional[str] = None
+
+
 class StatsResponse(BaseModel):
     """Statistics response."""
 
@@ -87,7 +104,12 @@ class StatsResponse(BaseModel):
     liveness_failure_rate: float = 0.0
     latency_p50_ms: Optional[float] = None
     latency_p95_ms: Optional[float] = None
+    ingest_success_count: int
+    ingest_fail_count: int
+    events_ingested_count: int
+    ingest_window_seconds: int
     risk_distribution: Dict[str, int]
+    device_health: List[DeviceHealthResponse]
 
 
 @router.get("/admin/events", response_model=EventsResponse)
@@ -95,6 +117,8 @@ async def get_events(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     device_id: Optional[str] = Query(None),
+    request_id: Optional[str] = Query(None),
+    session_id: Optional[str] = Query(None),
     outcome: Optional[str] = Query(None),
     admin_token: str = Depends(verify_admin_token),
     db: Session = Depends(get_db)
@@ -116,6 +140,10 @@ async def get_events(
     # Apply filters
     if device_id:
         query = query.filter(TelemetryEvent.device_id == device_id)
+    if request_id:
+        query = query.filter(TelemetryEvent.request_id == request_id)
+    if session_id:
+        query = query.filter(TelemetryEvent.session_id == session_id)
 
     if outcome:
         query = query.filter(TelemetryEvent.outcome == outcome)
@@ -147,6 +175,11 @@ async def get_events(
             similarity_score=event.similarity_score,
             risk_score=event.risk_score,
             session_duration_seconds=event.session_duration_seconds,
+            session_id=event.session_id,
+            request_id=event.request_id,
+            outbox_pending_count=event.outbox_pending_count,
+            dlq_count=event.dlq_count,
+            last_error_summary=event.last_error_summary,
             audit_event_hash=event.audit_event_hash,
             ingested_at=event.ingested_at
         ))
@@ -211,6 +244,52 @@ async def get_stats(
         else:
             risk_distribution["high"] += 1
 
+    ingest_metrics = get_ingest_metrics().snapshot(window_seconds=3600)
+
+    counts = (
+        db.query(TelemetryEvent.device_id, func.count(TelemetryEvent.id))
+        .group_by(TelemetryEvent.device_id)
+        .all()
+    )
+    count_map = {device_id: int(count) for device_id, count in counts}
+
+    latest_subq = (
+        db.query(
+            TelemetryEvent.device_id.label("device_id"),
+            func.max(TelemetryEvent.ingested_at).label("max_ingested_at"),
+        )
+        .group_by(TelemetryEvent.device_id)
+        .subquery()
+    )
+    latest_rows = (
+        db.query(TelemetryEvent)
+        .join(
+            latest_subq,
+            and_(
+                TelemetryEvent.device_id == latest_subq.c.device_id,
+                TelemetryEvent.ingested_at == latest_subq.c.max_ingested_at,
+            ),
+        )
+        .all()
+    )
+    latest_map = {row.device_id: row for row in latest_rows}
+
+    device_health: List[DeviceHealthResponse] = []
+    for device in db.query(Device).order_by(Device.last_seen.desc()).all():
+        latest = latest_map.get(device.device_id)
+        device_health.append(
+            DeviceHealthResponse(
+                device_id=device.device_id,
+                last_seen=device.last_seen,
+                event_count=count_map.get(device.device_id, 0),
+                outbox_pending_count=getattr(latest, "outbox_pending_count", None),
+                dlq_count=getattr(latest, "dlq_count", None),
+                last_error_summary=getattr(latest, "last_error_summary", None),
+                last_request_id=getattr(latest, "request_id", None),
+                last_session_id=getattr(latest, "session_id", None),
+            )
+        )
+
     return StatsResponse(
         total_devices=total_devices,
         active_devices=active_devices,
@@ -221,7 +300,12 @@ async def get_stats(
         liveness_failure_rate=liveness_failure_rate,
         latency_p50_ms=latency_p50_ms,
         latency_p95_ms=latency_p95_ms,
+        ingest_success_count=int(ingest_metrics["ingest_success_count"]),
+        ingest_fail_count=int(ingest_metrics["ingest_fail_count"]),
+        events_ingested_count=int(ingest_metrics["events_ingested_count"]),
+        ingest_window_seconds=int(ingest_metrics["ingest_window_seconds"]),
         risk_distribution=risk_distribution,
+        device_health=device_health,
     )
 
 

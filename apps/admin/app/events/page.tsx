@@ -14,6 +14,10 @@ export default function EventsPage() {
   const [hasNext, setHasNext] = useState(false);
   const [deviceFilterInput, setDeviceFilterInput] = useState('');
   const [deviceFilter, setDeviceFilter] = useState('');
+  const [requestIdFilterInput, setRequestIdFilterInput] = useState('');
+  const [requestIdFilter, setRequestIdFilter] = useState('');
+  const [sessionIdFilterInput, setSessionIdFilterInput] = useState('');
+  const [sessionIdFilter, setSessionIdFilter] = useState('');
   const [outcomeFilterInput, setOutcomeFilterInput] = useState<string>('');
   const [outcomeFilter, setOutcomeFilter] = useState<string>('');
 
@@ -26,6 +30,8 @@ export default function EventsPage() {
           limit,
           offset,
           device_id: deviceFilter || undefined,
+          request_id: requestIdFilter || undefined,
+          session_id: sessionIdFilter || undefined,
           outcome: outcomeFilter || undefined,
         });
         setEvents(response.events);
@@ -39,7 +45,7 @@ export default function EventsPage() {
     }
 
     loadEvents();
-  }, [limit, offset, deviceFilter, outcomeFilter]);
+  }, [limit, offset, deviceFilter, requestIdFilter, sessionIdFilter, outcomeFilter]);
 
   const handlePreviousPage = () => {
     setOffset(Math.max(0, offset - limit));
@@ -53,14 +59,20 @@ export default function EventsPage() {
 
   const applyFilters = () => {
     setDeviceFilter(deviceFilterInput.trim());
+    setRequestIdFilter(requestIdFilterInput.trim());
+    setSessionIdFilter(sessionIdFilterInput.trim());
     setOutcomeFilter(outcomeFilterInput);
     setOffset(0);
   };
 
   const clearFilters = () => {
     setDeviceFilterInput('');
+    setRequestIdFilterInput('');
+    setSessionIdFilterInput('');
     setOutcomeFilterInput('');
     setDeviceFilter('');
+    setRequestIdFilter('');
+    setSessionIdFilter('');
     setOutcomeFilter('');
     setOffset(0);
   };
@@ -95,6 +107,20 @@ export default function EventsPage() {
           placeholder="Filter by device ID..."
           value={deviceFilterInput}
           onChange={(e) => setDeviceFilterInput(e.target.value)}
+          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+        />
+        <input
+          type="text"
+          placeholder="Filter by request ID..."
+          value={requestIdFilterInput}
+          onChange={(e) => setRequestIdFilterInput(e.target.value)}
+          style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+        />
+        <input
+          type="text"
+          placeholder="Filter by session ID..."
+          value={sessionIdFilterInput}
+          onChange={(e) => setSessionIdFilterInput(e.target.value)}
           style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
         />
 
@@ -167,6 +193,12 @@ export default function EventsPage() {
                     Device ID
                   </th>
                   <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Request ID
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
+                    Session ID
+                  </th>
+                  <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
                     Outcome
                   </th>
                   <th style={{ padding: '10px', textAlign: 'left', border: '1px solid #ddd' }}>
@@ -191,6 +223,12 @@ export default function EventsPage() {
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
                       {event.device_id.substring(0, 8)}...
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {event.request_id ? `${event.request_id.substring(0, 12)}...` : '-'}
+                    </td>
+                    <td style={{ padding: '10px', border: '1px solid #ddd', fontSize: '12px' }}>
+                      {event.session_id ? `${event.session_id.substring(0, 12)}...` : '-'}
                     </td>
                     <td style={{ padding: '10px', border: '1px solid #ddd' }}>
                       <span

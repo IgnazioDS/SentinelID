@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: SentinelID Cloud API
-  version: 0.3.0
+  version: 0.6.0
   description: Cloud telemetry ingest and admin endpoints
 
 paths:
@@ -54,6 +54,14 @@ paths:
             type: integer
             default: 0
         - name: device_id
+          in: query
+          schema:
+            type: string
+        - name: request_id
+          in: query
+          schema:
+            type: string
+        - name: session_id
           in: query
           schema:
             type: string

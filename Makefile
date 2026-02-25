@@ -16,6 +16,7 @@
 	smoke-desktop \
 	smoke-bundling \
 	perf-edge \
+	support-bundle \
 	release-check \
 	clean
 
@@ -43,6 +44,7 @@ help:
 	@echo "  make smoke-desktop       Run desktop launcher smoke script"
 	@echo "  make smoke-bundling      Validate bundled desktop runtime (no Poetry at runtime)"
 	@echo "  make perf-edge           Run edge benchmark (writes scripts/perf/out/*.json)"
+	@echo "  make support-bundle      Generate sanitized support bundle artifact"
 	@echo "  make release-check       Run full release checklist"
 	@echo ""
 	@echo "Docs"
@@ -98,6 +100,9 @@ smoke-bundling:
 
 perf-edge:
 	@python3 scripts/perf/bench_edge.py --base-url http://127.0.0.1:8787 --token devtoken --attempts 8 --frames 12
+
+support-bundle:
+	@./scripts/support_bundle.sh
 
 release-check:
 	@./scripts/release/checklist.sh

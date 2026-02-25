@@ -2,6 +2,24 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.9.0 (2026-02-26)
+
+### Desktop UX Polish
+- Replaced the single-screen desktop experience with explicit `Login`, `Enroll`, and `Settings` tabs.
+- Added a persistent bottom status strip with service status, camera status, and diagnostics-driven last sync information.
+- Added a clear step-up handoff view (`Additional check required`) before automatic continuation of secondary challenges.
+
+### Flow Clarity and Error Handling
+- Improved login and enrollment states with progress bars, challenge instructions, quality feedback, and result summaries.
+- Added centralized reason-code to user-message mapping for auth/enrollment outcomes and quality gates.
+- Added guarded runtime handling so browser-opened UI shows a friendly desktop-runtime-required message instead of raw Tauri internals errors.
+- Standardized desktop API error handling into network/auth/config/server classes with actionable user-facing copy.
+
+### Settings and Supportability
+- Expanded Settings tab with Demo Mode, telemetry toggle/status, outbox/DLQ counters, last export error summary, and identity reset flow.
+- Added desktop-triggered support bundle download action against cloud admin endpoint (when desktop env vars are configured).
+- Added optional desktop support env vars and screenshot placeholder documentation for release QA.
+
 ## v1.8.0 (2026-02-26)
 
 ### Developer Experience Stability

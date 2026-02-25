@@ -1,11 +1,12 @@
 {
   "name": "sentinelid-desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "cd src-tauri && ../node_modules/.bin/tauri dev --config tauri.conf.json",

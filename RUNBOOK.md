@@ -107,6 +107,26 @@ Terminal 3: Desktop app
 make dev-desktop
 ```
 
+## Desktop UX (v1.9.0)
+
+Primary tabs in the desktop UI:
+
+- `Login`: live preview, challenge instructions, challenge progress, and explicit step-up handoff.
+- `Enroll`: wizard (`Start -> Capture -> Commit`) with quality feedback mapped from reason codes.
+- `Settings`: Demo Mode, telemetry status, outbox/DLQ counters, identity reset, support bundle generation.
+
+Bottom status strip:
+
+- Service status (`Running/Starting/Stopped`) with restart action when stopped.
+- Camera status (`Ready/Error`).
+- Last sync time from diagnostics telemetry fields.
+
+Screenshot placeholders (capture and attach during release QA):
+
+- `docs/images/desktop-login-placeholder.png`
+- `docs/images/desktop-enroll-placeholder.png`
+- `docs/images/desktop-settings-placeholder.png`
+
 Optional preflight helpers:
 
 ```bash
@@ -154,6 +174,7 @@ make test
 Build checks:
 
 ```bash
+make check-desktop-ts
 make build-desktop-web
 make check-desktop-rust
 make docker-build

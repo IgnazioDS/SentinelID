@@ -13,6 +13,18 @@ fi
 
 echo "Running cloud smoke test against ${CLOUD_URL}"
 
+for _ in $(seq 1 60); do
+  if curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
+
+if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
+  echo "Cloud service did not become healthy at ${CLOUD_URL}/health"
+  exit 1
+fi
+
 "${PYTHON_BIN}" - "${REPO_ROOT}" "${CLOUD_URL}" "${ADMIN_TOKEN}" <<'PY'
 from __future__ import annotations
 

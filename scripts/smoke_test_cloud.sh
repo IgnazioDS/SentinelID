@@ -20,6 +20,7 @@ import json
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import uuid
 from pathlib import Path
@@ -45,9 +46,15 @@ def request(method: str, path: str, payload: dict | None = None, headers: dict |
         data=data,
         headers=req_headers,
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        body = resp.read().decode("utf-8")
-        return json.loads(body) if body else {}
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8")
+            return json.loads(body) if body else {}
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        raise AssertionError(
+            f"{method} {path} failed with HTTP {exc.code}: {error_body}"
+        ) from exc
 
 
 with tempfile.TemporaryDirectory(prefix="sentinelid_smoke_cloud_") as keychain_dir:
@@ -100,6 +107,10 @@ with tempfile.TemporaryDirectory(prefix="sentinelid_smoke_cloud_") as keychain_d
 
     ingest = request("POST", "/v1/ingest/events", ingest_payload)
     assert ingest.get("status") == "accepted", f"Ingest failed: {ingest}"
+    events_ingested = int(ingest.get("events_ingested", 0))
+    assert events_ingested > 0, (
+        f"Ingest accepted but persisted zero events: {ingest}"
+    )
 
 stats = request("GET", "/v1/admin/stats", headers={"X-Admin-Token": admin_token})
 events = request("GET", "/v1/admin/events?limit=1", headers={"X-Admin-Token": admin_token})

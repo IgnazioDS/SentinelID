@@ -9,12 +9,12 @@ Features:
 - Dead Letter Queue (DLQ) for undeliverable events
 - Restart-safe: resumes from outbox on startup
 """
-import json
 import logging
-from typing import List, Optional
-from datetime import datetime
+from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from uuid import uuid4
 import httpx
-from .event import TelemetryEvent, TelemetryBatch, TelemetryMapper
+from .event import TelemetryEvent, TelemetryMapper
 from .signer import TelemetrySigner
 from ..storage.repo_outbox import OutboxRepository, OutboxEvent
 
@@ -69,17 +69,18 @@ class TelemetryExporter:
         Args:
             event: Telemetry event to export
         """
+        # Enforce exporter/device identity consistency.
+        device_id = self.signer.get_device_id()
+        if event.device_id != device_id:
+            logger.warning(
+                "Telemetry event device_id mismatch detected; normalizing event_id=%s",
+                event.event_id,
+            )
+            event.device_id = device_id
+
         # Sign the event
         signed_event = self.signer.sign_event(event)
-
-        # Create payload for single event
-        payload = {
-            'event': TelemetryMapper.to_dict(signed_event),
-            'signature': signed_event.signature,
-            'device_id': self.signer.get_device_id(),
-            'device_public_key': self.signer.get_public_key(),
-            'timestamp': int(datetime.utcnow().timestamp())
-        }
+        payload = TelemetryMapper.to_dict(signed_event)
 
         # Store in durable outbox
         self.outbox.add_event(payload)
@@ -125,84 +126,122 @@ class TelemetryExporter:
         if not events:
             return True
 
-        all_success = True
-
-        # Try to export each event
-        for event in events:
-            success = await self._export_with_retry(event)
-
-            if success:
-                self.outbox.mark_sent(event.id)
-            else:
+        batch_payload = self._build_ingest_batch(events)
+        if batch_payload is None:
+            for outbox_event in events:
                 self.outbox.mark_failed_with_error(
-                    event.id,
-                    self.last_export_error or "Unknown error",
+                    outbox_event.id,
+                    self.last_export_error or "Invalid outbox payload",
                     self.max_retries,
-                    self.initial_backoff_seconds
+                    self.initial_backoff_seconds,
                 )
-                all_success = False
-
-        return all_success
-
-    async def _export_with_retry(self, event: OutboxEvent) -> bool:
-        """
-        Export event with single attempt.
-
-        Note: Retry backoff is managed by OutboxRepository; this method
-        just attempts once and returns success/failure.
-
-        Args:
-            event: Outbox event to export
-
-        Returns:
-            True if export succeeded, False otherwise
-        """
-        try:
-            success = await self._send_event(event)
-            if success:
-                self.last_export_attempt_time = datetime.utcnow()
-                self.last_export_error = None
-                return True
-            else:
-                self.last_export_attempt_time = datetime.utcnow()
-                self.last_export_error = "HTTP error response"
-                return False
-
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Telemetry export error: {error_msg}")
-            self.last_export_attempt_time = datetime.utcnow()
-            self.last_export_error = error_msg
             return False
 
-    async def _send_event(self, event: OutboxEvent) -> bool:
-        """
-        Send individual event to cloud ingest endpoint.
+        success = await self._send_batch(batch_payload)
+        if success:
+            self.last_export_attempt_time = datetime.now(timezone.utc)
+            self.last_export_error = None
+            for outbox_event in events:
+                self.outbox.mark_sent(outbox_event.id)
+            return True
 
-        Args:
-            event: Outbox event to send
+        self.last_export_attempt_time = datetime.now(timezone.utc)
+        for outbox_event in events:
+            self.outbox.mark_failed_with_error(
+                outbox_event.id,
+                self.last_export_error or "HTTP error response",
+                self.max_retries,
+                self.initial_backoff_seconds,
+            )
+        return False
 
-        Returns:
-            True if HTTP 2xx response, False otherwise
+    def _extract_event_payload(self, outbox_payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
+        Extract event payload from outbox row.
+
+        Supports legacy rows stored as {"event": {...}} and current rows
+        stored directly as event payload objects.
+        """
+        if isinstance(outbox_payload.get("event"), dict):
+            payload = dict(outbox_payload["event"])
+        else:
+            payload = dict(outbox_payload)
+        if "event_id" not in payload or "signature" not in payload:
+            return None
+        return payload
+
+    def _build_ingest_batch(self, events: List[OutboxEvent]) -> Optional[Dict[str, Any]]:
+        """Build canonical cloud ingest batch from pending outbox rows."""
+        device_id = self.signer.get_device_id()
+        event_payloads: List[Dict[str, Any]] = []
+        for outbox_event in events:
+            payload = self._extract_event_payload(outbox_event.payload)
+            if payload is None:
+                self.last_export_error = f"Invalid outbox payload for id={outbox_event.id}"
+                return None
+            if payload.get("device_id") != device_id:
+                self.last_export_error = (
+                    f"event.device_id mismatch for event_id={payload.get('event_id')}"
+                )
+                return None
+            event_payloads.append(payload)
+
+        timestamp = int(datetime.now(timezone.utc).timestamp())
+        batch_id = str(uuid4())
+        batch_signable_payload = self.signer.batch_payload_for_signature(
+            batch_id=batch_id,
+            device_id=device_id,
+            timestamp=timestamp,
+            events=event_payloads,
+        )
+        batch_signature = self.signer.sign_batch_payload(batch_signable_payload)
+        return {
+            "batch_id": batch_id,
+            "device_id": device_id,
+            "timestamp": timestamp,
+            "device_public_key": self.signer.get_public_key(),
+            "batch_signature": batch_signature,
+            "events": event_payloads,
+        }
+
+    async def _send_batch(self, payload: Dict[str, Any]) -> bool:
+        """Send one telemetry batch to cloud ingest endpoint."""
         try:
             async with httpx.AsyncClient(timeout=self.http_timeout_seconds) as client:
                 response = await client.post(
                     self.cloud_ingest_url,
-                    json=event.payload,
-                    headers={'Content-Type': 'application/json'}
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
                 )
-
                 success = response.status_code >= 200 and response.status_code < 300
                 if not success:
                     logger.warning(
-                        f"Telemetry export failed with status {response.status_code}: "
-                        f"{response.text}"
+                        "Telemetry export failed with status %s: %s",
+                        response.status_code,
+                        response.text,
                     )
+                    self.last_export_error = f"status={response.status_code}"
+                    return False
+
+                data = response.json() if response.content else {}
+                ingested = int(data.get("events_ingested", 0))
+                expected = len(payload["events"])
+                if ingested != expected:
+                    logger.warning(
+                        "Telemetry batch ingest mismatch events_ingested=%s expected=%s body=%s",
+                        ingested,
+                        expected,
+                        data,
+                    )
+                    self.last_export_error = (
+                        f"events_ingested_mismatch ingested={ingested} expected={expected}"
+                    )
+                    return False
                 return success
 
         except Exception as e:
             logger.error(f"Failed to send telemetry event: {str(e)}")
+            self.last_export_error = str(e)
             return False
 
     async def flush(self) -> bool:

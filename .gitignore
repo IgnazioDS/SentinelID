@@ -72,6 +72,7 @@ htmlcov/
 scripts/eval/out/*.json
 scripts/perf/out/*.json
 scripts/perf/out/*.log
+scripts/support/out/*.tar.gz
 
 # Docker
 /.dockerignore

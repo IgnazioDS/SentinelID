@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient, { DiagnosticsResponse } from '../../lib/apiClient';
 import { ApiClientError, toUserFacingError } from '../../lib/apiErrors';
+import { enrollmentPercent, extractProgressParts } from '../../lib/progress';
 import { reasonCodesToMessages, summarizeDecision } from '../../lib/reasonMessages';
 import './CameraView.css';
 
@@ -72,19 +73,6 @@ function getInstructionForChallenge(challenge?: string): string {
     default:
       return 'Follow the on-screen challenge prompt.';
   }
-}
-
-function extractProgressParts(progressText?: string): { done: number; total: number; percent: number } | null {
-  if (!progressText) return null;
-  const match = progressText.match(/(\d+)\s*\/\s*(\d+)/);
-  if (!match) return null;
-  const done = Number(match[1]);
-  const total = Number(match[2]);
-  if (!Number.isFinite(done) || !Number.isFinite(total) || total <= 0) {
-    return null;
-  }
-  const percent = Math.min(100, Math.max(0, (done / total) * 100));
-  return { done, total, percent };
 }
 
 function qualityFeedback(reasonCodes: string[] | undefined): string {
@@ -576,7 +564,7 @@ const CameraView: React.FC<CameraViewProps> = ({
     if (!enrollSession || enrollSession.target_frames <= 0) {
       return 0;
     }
-    return Math.min(100, (enrollSession.accepted_frames / enrollSession.target_frames) * 100);
+    return enrollmentPercent(enrollSession.accepted_frames, enrollSession.target_frames);
   }, [enrollSession]);
 
   const authQualityMessage = useMemo(

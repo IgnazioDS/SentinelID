@@ -8,8 +8,9 @@ from typing import Iterable, Optional
 import cv2
 import numpy as np
 
+from ...core.config import settings
 from .align import align_face_crop
-from .detector import DetectedFace, FaceDetector
+from .detector import DetectedFace, FaceDetector, ModelUnavailableError
 
 
 def l2_normalize(vector: np.ndarray) -> np.ndarray:
@@ -49,8 +50,19 @@ class FaceEmbedder:
     statistics for local dev/test workflows.
     """
 
-    def __init__(self, detector: Optional[FaceDetector] = None) -> None:
+    def __init__(
+        self,
+        detector: Optional[FaceDetector] = None,
+        allow_fallback: Optional[bool] = None,
+    ) -> None:
         self._detector = detector or FaceDetector()
+        self._allow_fallback_override = allow_fallback
+        self.last_fallback_used: bool = False
+
+    def _fallback_allowed(self) -> bool:
+        if self._allow_fallback_override is not None:
+            return bool(self._allow_fallback_override)
+        return settings.EDGE_ENV.lower() == "dev" and bool(settings.ALLOW_FALLBACK_EMBEDDINGS)
 
     def extract_embedding(
         self,
@@ -58,6 +70,8 @@ class FaceEmbedder:
         face: Optional[DetectedFace] = None,
         image_bgr: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
+        self.last_fallback_used = False
+
         if face is not None and face.embedding is not None:
             return l2_normalize(face.embedding)
 
@@ -65,10 +79,15 @@ class FaceEmbedder:
         if image is None:
             return None
         if face is None:
-            faces, _meta = self._detector.detect_faces(frame_data)
+            faces, meta = self._detector.detect_faces(frame_data)
             if len(faces) != 1:
+                if meta.get("model_unavailable"):
+                    raise ModelUnavailableError("Face model unavailable for embedding extraction")
                 return None
             face = faces[0]
+        if not self._fallback_allowed():
+            raise ModelUnavailableError("Face model unavailable for embedding extraction")
+        self.last_fallback_used = True
         return self._fallback_embedding(image, face)
 
     def _fallback_embedding(self, image_bgr: np.ndarray, face: DetectedFace) -> Optional[np.ndarray]:

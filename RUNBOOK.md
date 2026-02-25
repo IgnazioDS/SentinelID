@@ -47,6 +47,19 @@ Cloud/Admin runtime is Docker-first (recommended). This avoids local Python vers
 
 Local cloud development without Docker is optional and requires Python `3.11` to `3.13`.
 
+## Cloud DB Migrations (Alembic)
+
+Docker Compose path runs migrations automatically (`alembic upgrade head`) before cloud startup.
+
+Manual commands (from `apps/cloud`):
+
+```bash
+alembic upgrade head
+alembic revision --autogenerate -m "describe schema change"
+```
+
+If you use local cloud runtime without Docker, run `alembic upgrade head` before starting uvicorn.
+
 ## Recommended Local Run (3 Terminals)
 
 Terminal 1: Cloud + Admin (Docker)

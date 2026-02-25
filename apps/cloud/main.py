@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Add current directory to path to enable absolute imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import init_db
+from migrations import run_migrations
 from api.ingest_router import router as ingest_router_router
 from api.admin_router import router as admin_router_router
 
@@ -61,8 +61,8 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
-    logger.info("Initializing cloud database...")
-    init_db()
+    logger.info("Applying cloud database migrations...")
+    run_migrations()
     if not os.environ.get("ADMIN_API_TOKEN"):
         logger.warning("ADMIN_API_TOKEN is not set; admin endpoints will reject requests")
     logger.info("Cloud service ready")
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SentinelID Cloud",
-    version="0.9.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 

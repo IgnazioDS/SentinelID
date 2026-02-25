@@ -14,8 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime
 
 
@@ -77,11 +76,6 @@ class TelemetryEvent(Base):
         Index("ix_events_risk_score", "risk_score"),
         Index("ix_events_session_duration", "session_duration_seconds"),
     )
-
-
-def init_db():
-    """Initialize database tables."""
-    Base.metadata.create_all(bind=engine)
 
 
 def get_db():

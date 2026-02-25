@@ -20,6 +20,7 @@ services:
     build:
       context: ./apps/cloud
     container_name: sentinelid_cloud
+    command: ["./scripts/start_cloud.sh"]
     ports:
       - "8000:8000"
     depends_on:

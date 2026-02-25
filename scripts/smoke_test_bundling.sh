@@ -81,7 +81,7 @@ for _ in $(seq 1 "${MAX_POLLS}"); do
 done
 
 if ! curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then
-  echo "Bundled edge failed health check at ${BASE_URL}/health"
+  echo "Bundled edge failed health check at ${BASE_URL}/health within ${HEALTH_TIMEOUT_SEC}s"
   tail -n 120 "${EDGE_LOG}" || true
   exit 1
 fi

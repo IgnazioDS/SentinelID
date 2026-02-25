@@ -13,7 +13,7 @@ from ...domain.reasons import ReasonCode
 from ..storage.repo_templates import TemplateRepository
 from ..vision.embedder import FaceEmbedder, aggregate_embeddings
 from ..vision.quality import FaceQualityGate
-from ..vision.detector import FaceDetector
+from ..vision.detector import FaceDetector, ModelUnavailableError
 
 
 @dataclass
@@ -82,6 +82,17 @@ class EnrollmentPipeline:
     def process_frame(self, session: EnrollmentSession, frame_data: str) -> dict:
         faces, meta = self.detector.detect_faces(frame_data)
         image = meta.get("image_bgr")
+        if meta.get("model_unavailable"):
+            session.last_reason_codes = [ReasonCode.MODEL_UNAVAILABLE]
+            session.last_quality_metrics = {"num_faces": 0}
+            return {
+                "accepted": False,
+                "reason_codes": session.last_reason_codes,
+                "quality": session.last_quality_metrics,
+                "accepted_frames": session.accepted_frames,
+                "target_frames": session.target_frames,
+            }
+
         if image is None:
             session.last_reason_codes = [ReasonCode.NO_FACE]
             session.last_quality_metrics = {"num_faces": 0}
@@ -105,11 +116,22 @@ class EnrollmentPipeline:
                 "target_frames": session.target_frames,
             }
 
-        embedding = self.embedder.extract_embedding(
-            frame_data,
-            face=faces[0],
-            image_bgr=image,
-        )
+        try:
+            embedding = self.embedder.extract_embedding(
+                frame_data,
+                face=faces[0],
+                image_bgr=image,
+            )
+        except ModelUnavailableError:
+            session.last_reason_codes = [ReasonCode.MODEL_UNAVAILABLE]
+            session.last_quality_metrics = dict(quality.metrics)
+            return {
+                "accepted": False,
+                "reason_codes": session.last_reason_codes,
+                "quality": session.last_quality_metrics,
+                "accepted_frames": session.accepted_frames,
+                "target_frames": session.target_frames,
+            }
         if embedding is None:
             session.last_reason_codes = [ReasonCode.LOW_QUALITY]
             session.last_quality_metrics = dict(quality.metrics)
@@ -122,11 +144,14 @@ class EnrollmentPipeline:
             }
 
         session.embeddings.append(np.asarray(embedding, dtype=np.float32))
-        session.last_reason_codes = []
+        if getattr(self.embedder, "last_fallback_used", False):
+            session.last_reason_codes = [ReasonCode.FALLBACK_EMBEDDING_USED]
+        else:
+            session.last_reason_codes = []
         session.last_quality_metrics = dict(quality.metrics)
         return {
             "accepted": True,
-            "reason_codes": [],
+            "reason_codes": list(session.last_reason_codes),
             "quality": session.last_quality_metrics,
             "accepted_frames": session.accepted_frames,
             "target_frames": session.target_frames,

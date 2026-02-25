@@ -2,6 +2,24 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v1.1.0 (2026-02-25)
+
+### Cloud Schema Management
+- Replaced cloud startup `Base.metadata.create_all()` path with Alembic migrations.
+- Added cloud Alembic scaffolding under `apps/cloud/alembic/` plus baseline schema migration.
+- Added cloud migration helper (`apps/cloud/migrations.py`) and startup migration execution via `alembic upgrade head`.
+
+### Operations
+- Updated cloud container startup to wait for Postgres readiness, run migrations, then launch uvicorn (`apps/cloud/scripts/start_cloud.sh`).
+- Wired Docker Compose cloud service to use migration-aware startup command.
+
+### Tests
+- Added migration regression coverage to ensure startup never calls `Base.metadata.create_all`.
+- Added migration bootstrapping test on a fresh sqlite database and idempotent re-run check.
+
+### Documentation
+- Updated `RUNBOOK.md` with manual Alembic migration commands and migration workflow guidance.
+
 ## v1.0.2 (2026-02-25)
 
 ### Security

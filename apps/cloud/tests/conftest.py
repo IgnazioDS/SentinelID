@@ -15,4 +15,22 @@ for path in (_cloud_dir, _edge_dir):
 
 # Test-safe defaults.
 os.environ.setdefault("ADMIN_API_TOKEN", "dev-admin-token")
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{_cloud_dir / 'test_cloud.db'}")
+_test_db_path = _cloud_dir / "test_cloud.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_test_db_path}")
+
+
+def _reset_test_db_file() -> None:
+    if _test_db_path.exists():
+        _test_db_path.unlink()
+
+
+def pytest_sessionstart(session) -> None:
+    """Bootstrap schema through Alembic, never through create_all."""
+    _reset_test_db_file()
+    from migrations import run_migrations
+
+    run_migrations(database_url=os.environ["DATABASE_URL"])
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    _reset_test_db_file()

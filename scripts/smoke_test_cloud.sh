@@ -52,7 +52,12 @@ from sentinelid_edge.services.telemetry.event import TelemetryBatch, TelemetryEv
 from sentinelid_edge.services.telemetry.signer import TelemetrySigner
 
 
-def request(method: str, path: str, payload: dict | None = None, headers: dict | None = None) -> dict:
+def request(
+    method: str,
+    path: str,
+    payload: dict | None = None,
+    headers: dict | None = None,
+) -> tuple[dict, str]:
     req_headers = {"Content-Type": "application/json"}
     if headers:
         req_headers.update(headers)
@@ -65,8 +70,11 @@ def request(method: str, path: str, payload: dict | None = None, headers: dict |
     )
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
+            request_id = resp.headers.get("X-Request-Id") or resp.headers.get("X-Request-ID")
+            assert request_id, f"Missing X-Request-Id header for {method} {path}"
             body = resp.read().decode("utf-8")
-            return json.loads(body) if body else {}
+            print(f"request_id[{method} {path}]={request_id}")
+            return (json.loads(body) if body else {}), request_id
     except urllib.error.HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="replace")
         raise AssertionError(
@@ -122,14 +130,14 @@ with tempfile.TemporaryDirectory(prefix="sentinelid_smoke_cloud_") as keychain_d
         ],
     }
 
-    ingest = request("POST", "/v1/ingest/events", ingest_payload)
+    ingest, _ = request("POST", "/v1/ingest/events", ingest_payload)
     assert ingest.get("status") == "accepted", f"Ingest failed: {ingest}"
     events_ingested = int(ingest.get("events_ingested", 0))
     assert events_ingested > 0, f"Ingest accepted but persisted zero events: {ingest}"
 
-stats = request("GET", "/v1/admin/stats", headers={"X-Admin-Token": admin_token})
-events = request("GET", "/v1/admin/events?limit=1", headers={"X-Admin-Token": admin_token})
-devices = request("GET", "/v1/admin/devices?limit=1", headers={"X-Admin-Token": admin_token})
+stats, _ = request("GET", "/v1/admin/stats", headers={"X-Admin-Token": admin_token})
+events, _ = request("GET", "/v1/admin/events?limit=1", headers={"X-Admin-Token": admin_token})
+devices, _ = request("GET", "/v1/admin/devices?limit=1", headers={"X-Admin-Token": admin_token})
 
 assert "total_events" in stats, f"Stats missing fields: {stats}"
 assert "latency_p50_ms" in stats, f"Latency metrics missing: {stats}"

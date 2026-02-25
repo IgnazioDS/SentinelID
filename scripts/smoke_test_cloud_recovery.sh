@@ -108,6 +108,13 @@ if ! curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
   exit 1
 fi
 
+EDGE_REQ_ID="$(curl -sS -D - -o /dev/null "${EDGE_URL}/api/v1/health" | tr -d '\r' | awk 'tolower($1)=="x-request-id:"{print $2}' | tail -n 1)"
+if [[ -z "${EDGE_REQ_ID}" ]]; then
+  echo "Missing X-Request-Id in edge health response"
+  exit 1
+fi
+echo "[recovery] edge request_id=${EDGE_REQ_ID}"
+
 echo "[recovery] running local auth while cloud is down"
 python3 - "${EDGE_URL}" "${EDGE_TOKEN}" <<'PY'
 from __future__ import annotations
@@ -205,6 +212,13 @@ if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
   echo "Cloud did not become healthy"
   exit 1
 fi
+
+CLOUD_REQ_ID="$(curl -sS -D - -o /dev/null "${CLOUD_URL}/health" | tr -d '\r' | awk 'tolower($1)=="x-request-id:"{print $2}' | tail -n 1)"
+if [[ -z "${CLOUD_REQ_ID}" ]]; then
+  echo "Missing X-Request-Id in cloud health response"
+  exit 1
+fi
+echo "[recovery] cloud request_id=${CLOUD_REQ_ID}"
 
 for _ in $(seq 1 120); do
   counts="$(python3 - "${EDGE_URL}" "${EDGE_TOKEN}" <<'PY'

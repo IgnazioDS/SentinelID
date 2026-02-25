@@ -174,6 +174,7 @@ make test
 Build checks:
 
 ```bash
+make check-desktop-ts
 make build-desktop-web
 make check-desktop-rust
 make docker-build

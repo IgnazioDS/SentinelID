@@ -5,6 +5,7 @@
 	dev-edge \
 	check-tauri-config \
 	dev-desktop \
+	check-desktop-ts \
 	build-desktop-web \
 	check-desktop-rust \
 	build-desktop \
@@ -32,6 +33,7 @@ help:
 	@echo "  make edge-shell          Open a shell inside edge Poetry environment"
 	@echo "  make dev-edge            Run edge API locally (foreground)"
 	@echo "  make check-tauri-config  Validate required Tauri config keys"
+	@echo "  make check-desktop-ts    Run desktop TypeScript checks"
 	@echo "  make build-desktop-web   Build desktop frontend"
 	@echo "  make check-desktop-rust  Cargo check for Tauri runtime"
 	@echo "  make build-desktop       Produce desktop distribution bundle (bundled edge runner)"
@@ -74,6 +76,9 @@ check-tauri-config:
 dev-desktop:
 	@make check-tauri-config
 	@cd apps/desktop && npm run tauri:dev
+
+check-desktop-ts:
+	@cd apps/desktop && npm run typecheck
 
 build-desktop-web:
 	@cd apps/desktop && npm run build

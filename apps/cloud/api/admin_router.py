@@ -8,12 +8,12 @@ import json
 import os
 import platform
 import tarfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
@@ -73,8 +73,7 @@ class EventResponse(BaseModel):
     audit_event_hash: Optional[str] = None
     ingested_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EventsResponse(BaseModel):
@@ -101,8 +100,7 @@ class DeviceResponse(BaseModel):
     last_request_id: Optional[str] = None
     last_session_id: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DevicesResponse(BaseModel):
@@ -186,7 +184,11 @@ def _window_to_seconds(window: str) -> int:
 def _ts_to_datetime(value: Optional[int]) -> Optional[datetime]:
     if value is None:
         return None
-    return datetime.utcfromtimestamp(value)
+    return datetime.fromtimestamp(value, tz=UTC).replace(tzinfo=None)
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _datetime_floor(value: datetime, bucket: str) -> datetime:
@@ -274,7 +276,7 @@ def _build_latest_map(db: Session):
 
 
 def _build_stats(db: Session, window: str) -> StatsResponse:
-    now = datetime.utcnow()
+    now = _utc_now_naive()
     window_seconds = _window_to_seconds(window)
     window_started_at = now - timedelta(seconds=window_seconds)
 
@@ -461,7 +463,7 @@ async def get_events_series(
 ) -> EventSeriesResponse:
     """Return a chart-ready event series with outcome and lag trends."""
     _ = admin_token
-    now = datetime.utcnow()
+    now = _utc_now_naive()
     default_start = now - timedelta(seconds=_window_to_seconds(window))
     start_dt = _ts_to_datetime(start_ts) or default_start
     end_dt = _ts_to_datetime(end_ts) or now
@@ -707,7 +709,7 @@ async def generate_support_bundle(
         .all()
     )
 
-    created_at = datetime.utcnow().replace(microsecond=0)
+    created_at = _utc_now_naive().replace(microsecond=0)
     bundle_name_ts = created_at.strftime("%Y%m%dT%H%M%SZ")
 
     payloads = {

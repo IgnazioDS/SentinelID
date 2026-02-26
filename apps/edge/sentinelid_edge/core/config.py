@@ -1,7 +1,9 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(case_sensitive=True)
+
     PROJECT_NAME: str = "SentinelID Edge"
     API_V1_STR: str = "/api/v1"
     EDGE_ENV: str = os.getenv("EDGE_ENV", "dev")
@@ -74,8 +76,5 @@ class Settings(BaseSettings):
 
     # Perf window for p50/p95 diagnostics
     PERF_WINDOW_SIZE: int = int(os.getenv("PERF_WINDOW_SIZE", "300"))
-
-    class Config:
-        case_sensitive = True
 
 settings = Settings()

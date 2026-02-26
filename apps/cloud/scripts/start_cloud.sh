@@ -3,6 +3,7 @@ set -eu
 
 MAX_ATTEMPTS="${DB_WAIT_MAX_ATTEMPTS:-40}"
 SLEEP_SECONDS="${DB_WAIT_SLEEP_SECONDS:-2}"
+HOST="${CLOUD_BIND_HOST:-0.0.0.0}"
 ATTEMPT=1
 
 until python - <<'PY'
@@ -24,4 +25,4 @@ do
 done
 
 alembic upgrade head
-exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
+exec python -m uvicorn main:app --host "${HOST}" --port 8000

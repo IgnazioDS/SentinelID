@@ -3,7 +3,7 @@ Tests for outbox repository with DLQ pattern.
 """
 import pytest
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from sentinelid_edge.services.storage.repo_outbox import OutboxRepository
 
 
@@ -90,7 +90,7 @@ class TestOutboxRepository:
         repo = OutboxRepository(temp_db)
         event_id = repo.add_event({'event_id': 'abc'})
 
-        before = datetime.utcnow()
+        before = datetime.now(UTC).replace(tzinfo=None)
         repo.mark_failed(event_id, max_attempts=5, initial_backoff_seconds=2.0, jitter_ratio=0.2)
 
         row = repo.db.connect().cursor().execute(

@@ -2,6 +2,8 @@
 
 For environment setup and baseline run commands, use `RUNBOOK.md`.
 
+For presenter-facing scripted walkthrough, use `docs/DEMO_CHECKLIST.md`.
+
 ## Purpose
 
 SentinelID desktop packaging bundles the edge runtime into the Tauri application so production builds do not depend on Poetry or source-tree edge startup.
@@ -34,6 +36,14 @@ Validation:
 ```bash
 ./scripts/smoke_test_bundling.sh
 ./scripts/smoke_test_desktop.sh
+```
+
+Demo runtime helpers:
+
+```bash
+make demo-up
+make demo-desktop
+make demo-down
 ```
 
 ## Clean-Machine Runtime Verification

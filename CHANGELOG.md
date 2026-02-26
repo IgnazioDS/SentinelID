@@ -2,6 +2,44 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.1.0 (2026-02-26)
+
+### Admin Security Hardening
+- Replaced public-token admin proxy model with server-side session authentication.
+- Added admin session routes: `POST /api/admin/session/login`, `POST /api/admin/session/logout`, and `GET /api/admin/session/me`.
+- Added middleware protection for admin routes and cloud proxy routes.
+- Updated proxy behavior to reject unauthenticated access, strip browser-provided `X-Admin-Token`, and inject server-side `ADMIN_API_TOKEN`.
+- Added login page and shell sign-out action for authenticated admin access.
+
+### Runtime and Config Contract Updates
+- Removed `NEXT_PUBLIC_ADMIN_TOKEN` from runtime config paths.
+- Added server-only admin auth env vars: `ADMIN_UI_USERNAME`, `ADMIN_UI_PASSWORD_HASH`, `ADMIN_UI_SESSION_SECRET`, and `ADMIN_UI_SESSION_TTL_MINUTES`.
+- Added `CLOUD_BIND_HOST` support with safer local default (`127.0.0.1`) and explicit container bind override (`0.0.0.0`).
+
+### Release Integrity and Automation
+- Added `scripts/release/check_version_consistency.sh` and integrated it into `make release-check`.
+- Added reusable support bundle sanitization validator: `scripts/check_support_bundle_sanitization.sh`.
+- Added release-path wrapper `scripts/release/check_no_orphan_edge.sh` for consistent orphan-check invocation.
+- Added client bundle exposure check: `scripts/release/check_no_public_admin_token_bundle.sh`.
+- Hardened release checklist to enforce:
+  - no `NEXT_PUBLIC_ADMIN_TOKEN` in runtime config
+  - no admin token leakage in client build artifacts
+  - compose admin auth wiring
+  - reliability SLO report generation
+
+### CI Parity
+- Added `.github/workflows/release-parity.yml` for PR + `main` release-hardening parity.
+- Release parity workflow now executes full `make release-check` and uploads evidence artifacts.
+
+### Reliability and Deprecation Cleanup
+- Removed deprecated `datetime.utcnow()` usage in edge/cloud runtime paths.
+- Migrated Pydantic v2 config patterns from legacy `class Config` to `ConfigDict`/`SettingsConfigDict`.
+
+### Documentation
+- Updated runbook env/auth guidance for session-based admin auth.
+- Replaced outdated release guide content with v2.1.0 release process and required evidence model.
+- Added non-interactive `make demo-verify` flow and explicit `make demo` close semantics in docs.
+
 ## v2.0.0 (2026-02-26)
 
 ### Demo Mode and Operator Flow

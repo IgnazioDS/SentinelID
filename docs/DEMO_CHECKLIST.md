@@ -1,6 +1,10 @@
-# SentinelID Demo Checklist (v2.0.0)
+# SentinelID Demo Checklist (v2.1.0)
 
 Target runtime: under 10 minutes for a full manual pass.
+
+Non-interactive verification alternative:
+
+- `make demo-verify` runs smoke/recovery/support-bundle/admin checks without launching the desktop UI.
 
 ## Preconditions
 
@@ -54,7 +58,8 @@ Target runtime: under 10 minutes for a full manual pass.
 10. Desktop exit process hygiene
 - Close desktop app.
 - Verify no orphan edge process remains:
-  - `pgrep -fl "run_edge.sh|sentinelid_edge.main:app"` should return no process.
+  - `make check-no-orphans`
+  - Canonical script path: `scripts/check_no_orphan_edge.sh`
 
 ## Exit
 

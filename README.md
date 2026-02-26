@@ -56,6 +56,13 @@ One command from repo root:
 make demo
 ```
 
+`make demo` is interactive and blocks until the desktop app is closed.
+For CI-like non-interactive validation, use:
+
+```bash
+make demo-verify
+```
+
 Expected demo flow:
 
 1. Enroll template in Desktop `Enroll` tab.
@@ -93,6 +100,7 @@ GitHub Actions runs the following on PRs and `main` pushes:
 - cloud pytest
 - desktop web build + cargo check
 - docker compose build (cloud + admin)
+- release parity gate (`make release-check` hardening equivalent)
 
 ## Documentation
 

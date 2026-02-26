@@ -1,4 +1,4 @@
-# SentinelID Runbook (v2.0.0)
+# SentinelID Runbook (v2.1.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -33,8 +33,16 @@ Required values:
 
 - `EDGE_AUTH_TOKEN`
 - `ADMIN_API_TOKEN`
-- `NEXT_PUBLIC_ADMIN_TOKEN` (must match `ADMIN_API_TOKEN`)
-- `NEXT_PUBLIC_CLOUD_BASE_URL` (`http://127.0.0.1:8000` for host-local runs; Docker sets `http://cloud:8000`)
+- `ADMIN_UI_USERNAME`
+- `ADMIN_UI_PASSWORD_HASH` (bcrypt hash, not plaintext)
+- `ADMIN_UI_SESSION_SECRET`
+
+Optional values:
+
+- `ADMIN_UI_SESSION_TTL_MINUTES` (default `480`)
+- `ADMIN_UI_SESSION_SECURE` (default `0`; set `1` only behind HTTPS)
+- `CLOUD_BIND_HOST` (default `127.0.0.1` for non-container local runs; Docker uses `0.0.0.0`)
+- `ADMIN_UI_PASSWORD` (dev/smoke helper for scripted admin login only)
 
 Optional verification fallback toggle (dev only):
 
@@ -120,11 +128,14 @@ What `make demo` does:
 - starts cloud/admin/postgres (`make demo-up`) and waits for health.
 - launches desktop with demo-oriented env defaults (`make demo-desktop`).
 - keeps local auth functional even if cloud telemetry is temporarily unavailable.
+- `make demo` is interactive and blocks until desktop closes.
+- closing desktop (or Ctrl+C) exits successfully by default in demo mode.
 
 Demo controls:
 
 ```bash
 make demo-checklist
+make demo-verify
 make demo-down
 make demo-down V=1
 ```
@@ -173,7 +184,13 @@ Cloud/Admin checks:
 curl http://127.0.0.1:8000/health
 curl -H "X-Admin-Token: ${ADMIN_API_TOKEN}" http://127.0.0.1:8000/v1/admin/stats
 curl http://127.0.0.1:3000
-curl http://127.0.0.1:3000/api/cloud/v1/admin/stats?window=24h
+COOKIE_JAR="$(mktemp)"
+curl -sS -c "${COOKIE_JAR}" -H "Content-Type: application/json" \
+  -X POST \
+  -d "{\"username\":\"${ADMIN_UI_USERNAME}\",\"password\":\"${ADMIN_UI_PASSWORD}\"}" \
+  http://127.0.0.1:3000/api/admin/session/login >/dev/null
+curl -b "${COOKIE_JAR}" http://127.0.0.1:3000/api/cloud/v1/admin/stats?window=24h
+rm -f "${COOKIE_JAR}"
 ```
 
 Admin UI routes:
@@ -293,6 +310,7 @@ CI enforces on PRs and `main` pushes:
 - cloud pytest
 - desktop web build + cargo check
 - docker compose build (cloud + admin)
+- release parity gate (`make release-check` equivalent hardening path)
 
 Workflow files:
 
@@ -300,6 +318,7 @@ Workflow files:
 - `.github/workflows/cloud-tests.yml`
 - `.github/workflows/desktop-build.yml`
 - `.github/workflows/docker-build.yml`
+- `.github/workflows/release-parity.yml`
 
 ## Release
 

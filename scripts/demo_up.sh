@@ -6,11 +6,26 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-dev-admin-token}}"
+DEMO_FORCE_BUILD="${DEMO_FORCE_BUILD:-0}"
 
 cd "${REPO_ROOT}"
 
 echo "[demo-up] starting docker compose stack (postgres/cloud/admin)"
-docker compose up -d --build postgres cloud admin
+compose_args=(up -d postgres cloud admin)
+if [[ "${DEMO_FORCE_BUILD}" == "1" ]]; then
+  compose_args=(up -d --build postgres cloud admin)
+fi
+
+attempt=1
+until docker compose "${compose_args[@]}"; do
+  if [[ "${attempt}" -ge 3 ]]; then
+    echo "[demo-up] docker compose failed after ${attempt} attempts"
+    exit 1
+  fi
+  echo "[demo-up] docker compose failed (attempt ${attempt}); retrying..."
+  attempt=$((attempt + 1))
+  sleep 2
+done
 
 echo "[demo-up] waiting for cloud health"
 for _ in $(seq 1 160); do

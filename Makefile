@@ -4,6 +4,7 @@
 	demo \
 	demo-down \
 	demo-checklist \
+	check-no-orphans \
 	bundle-edge \
 	check-edge-preflight \
 	edge-shell \
@@ -38,6 +39,7 @@ help:
 	@echo "  make demo                Run demo-up then demo-desktop"
 	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
+	@echo "  make check-no-orphans    Verify no orphan edge process is running"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
@@ -92,6 +94,9 @@ demo-checklist:
 		else echo "No opener found. Open docs/DEMO_CHECKLIST.md manually."; \
 		fi; \
 	fi
+
+check-no-orphans:
+	@./scripts/check_no_orphan_edge.sh
 
 check-edge-preflight:
 	@./scripts/dev/edge_env.sh preflight

@@ -189,5 +189,6 @@ PY
 run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
+run_step "demo readiness: no orphan edge process" ./scripts/check_no_orphan_edge.sh
 
 FAILED_STEP=""

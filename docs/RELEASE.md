@@ -23,6 +23,7 @@ make release-check
 - admin session-auth smoke
 - orphan-edge process checks
 - reliability SLO report export (`output/ci/reliability_slo.json`)
+- release evidence pack generation (`output/release/evidence_pack_<timestamp>.tar.gz`)
 
 ## CI Parity
 
@@ -104,9 +105,17 @@ Before publishing a stable release, confirm these artifacts exist and are attach
 
 - `output/ci/reliability_slo.json`
 - `scripts/perf/out/*.json` (edge perf evidence)
+- `scripts/support/out/support_bundle_*.tar.gz`
+- `output/release/evidence_pack_<timestamp>.tar.gz`
 - support bundle sanitization pass logs
 - cloud recovery smoke pass logs
 - admin smoke pass logs
+
+Build evidence pack manually (optional, outside full release-check):
+
+```bash
+make release-evidence
+```
 
 ## Post-Release
 

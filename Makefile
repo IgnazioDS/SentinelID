@@ -28,6 +28,7 @@
 	smoke-bundling \
 	perf-edge \
 	support-bundle \
+	release-evidence \
 	release-check \
 	clean
 
@@ -69,6 +70,7 @@ help:
 	@echo "  make smoke-bundling      Validate bundled desktop runtime (no Poetry at runtime)"
 	@echo "  make perf-edge           Run edge benchmark (writes scripts/perf/out/*.json)"
 	@echo "  make support-bundle      Generate sanitized support bundle artifact"
+	@echo "  make release-evidence    Build release evidence pack under output/release/"
 	@echo "  make release-check       Run full release checklist"
 	@echo ""
 	@echo "Docs"
@@ -178,6 +180,9 @@ perf-edge:
 
 support-bundle:
 	@./scripts/support_bundle.sh
+
+release-evidence:
+	@./scripts/release/build_evidence_pack.sh
 
 release-check:
 	@./scripts/release/checklist.sh

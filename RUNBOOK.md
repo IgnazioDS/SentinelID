@@ -229,6 +229,7 @@ make smoke-admin
 make smoke-desktop
 make smoke-bundling
 make support-bundle
+make release-evidence
 ```
 
 Perf check:

@@ -21,11 +21,13 @@ All notable changes to SentinelID are documented in this file.
 - Added reusable support bundle sanitization validator: `scripts/check_support_bundle_sanitization.sh`.
 - Added release-path wrapper `scripts/release/check_no_orphan_edge.sh` for consistent orphan-check invocation.
 - Added client bundle exposure check: `scripts/release/check_no_public_admin_token_bundle.sh`.
+- Added release evidence pack builder: `scripts/release/build_evidence_pack.sh` and `make release-evidence`.
 - Hardened release checklist to enforce:
   - no `NEXT_PUBLIC_ADMIN_TOKEN` in runtime config
   - no admin token leakage in client build artifacts
   - compose admin auth wiring
   - reliability SLO report generation
+  - support bundle artifact capture and evidence pack generation
 
 ### CI Parity
 - Added `.github/workflows/release-parity.yml` for PR + `main` release-hardening parity.

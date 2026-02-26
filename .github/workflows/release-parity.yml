@@ -86,6 +86,9 @@ jobs:
           name: release-parity-artifacts
           path: |
             output/ci/*.json
+            output/release/**/*.json
+            output/release/**/*.txt
+            output/release/*.tar.gz
             scripts/perf/out/*.json
             scripts/perf/out/*.log
             scripts/support/out/*.tar.gz

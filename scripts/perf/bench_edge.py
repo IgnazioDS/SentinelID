@@ -19,10 +19,25 @@ FRAME_DATA_URL = (
     "AAER/8QAFgEBAQEAAAAAAAAAAAAAAAAAAgAB/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwD"
     "AQACEQMRAD8A0wD/AP/Z"
 )
+RETRYABLE_HTTP_CODES = {429, 502, 503, 504}
+RETRYABLE_NETWORK_ERRORS = (TimeoutError, ConnectionError)
 
 
-def post_json(base_url: str, token: str, path: str, payload: dict) -> tuple[dict, float]:
-    for retry in range(6):
+def _http_error_body(exc: urllib.error.HTTPError) -> str:
+    try:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        return ""
+    return body[:240]
+
+
+def post_json(
+    base_url: str, token: str, path: str, payload: dict, max_retries: int
+) -> tuple[dict, float]:
+    if max_retries < 1:
+        raise ValueError("max_retries must be >= 1")
+
+    for retry in range(max_retries):
         req = urllib.request.Request(
             f"{base_url}{path}",
             method="POST",
@@ -38,11 +53,26 @@ def post_json(base_url: str, token: str, path: str, payload: dict) -> tuple[dict
                 body = json.loads(resp.read().decode("utf-8"))
             return body, (time.perf_counter() - started) * 1000.0
         except urllib.error.HTTPError as exc:
-            if exc.code == 429 and retry < 5:
-                time.sleep(0.5 + retry * 0.5)
+            if exc.code in RETRYABLE_HTTP_CODES and retry < (max_retries - 1):
+                time.sleep(min(3.0, 0.4 * (2**retry)))
                 continue
-            raise
-    raise RuntimeError(f"Failed request for {path}: retries exhausted")
+            body_excerpt = _http_error_body(exc)
+            detail = (
+                f"{path} failed with HTTP {exc.code} after {retry + 1}/{max_retries} attempts"
+            )
+            if body_excerpt:
+                detail = f"{detail}; body={body_excerpt}"
+            raise RuntimeError(detail) from exc
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            retryable = isinstance(reason, RETRYABLE_NETWORK_ERRORS)
+            if retryable and retry < (max_retries - 1):
+                time.sleep(min(3.0, 0.4 * (2**retry)))
+                continue
+            raise RuntimeError(
+                f"{path} failed after {retry + 1}/{max_retries} attempts; network error: {reason}"
+            ) from exc
+    raise RuntimeError(f"{path} failed after {max_retries} attempts: retries exhausted")
 
 
 def percentile(values: list[float], p: float) -> float:
@@ -64,6 +94,7 @@ def main() -> None:
     parser.add_argument("--token", default="devtoken")
     parser.add_argument("--attempts", type=int, default=8)
     parser.add_argument("--frames", type=int, default=12)
+    parser.add_argument("--max-retries", type=int, default=6)
     parser.add_argument("--out", default="")
     args = parser.parse_args()
 
@@ -73,7 +104,9 @@ def main() -> None:
 
     for attempt in range(args.attempts):
         started = time.perf_counter()
-        start_payload, _ = post_json(args.base_url, args.token, "/api/v1/auth/start", {})
+        start_payload, _ = post_json(
+            args.base_url, args.token, "/api/v1/auth/start", {}, args.max_retries
+        )
         session_id = start_payload["session_id"]
 
         for _ in range(args.frames):
@@ -82,12 +115,17 @@ def main() -> None:
                 args.token,
                 "/api/v1/auth/frame",
                 {"session_id": session_id, "frame": FRAME_DATA_URL},
+                args.max_retries,
             )
             frame_latencies.append(latency)
             time.sleep(0.10)
 
         finish_payload, finish_latency = post_json(
-            args.base_url, args.token, "/api/v1/auth/finish", {"session_id": session_id}
+            args.base_url,
+            args.token,
+            "/api/v1/auth/finish",
+            {"session_id": session_id},
+            args.max_retries,
         )
         if finish_payload.get("decision") == "step_up":
             for _ in range(args.frames):
@@ -96,11 +134,16 @@ def main() -> None:
                     args.token,
                     "/api/v1/auth/frame",
                     {"session_id": session_id, "frame": FRAME_DATA_URL},
+                    args.max_retries,
                 )
                 frame_latencies.append(latency)
                 time.sleep(0.10)
             _, finish_latency = post_json(
-                args.base_url, args.token, "/api/v1/auth/finish", {"session_id": session_id}
+                args.base_url,
+                args.token,
+                "/api/v1/auth/finish",
+                {"session_id": session_id},
+                args.max_retries,
             )
         finish_latencies.append(finish_latency)
         total_latencies.append((time.perf_counter() - started) * 1000.0)

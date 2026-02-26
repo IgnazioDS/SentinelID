@@ -7,6 +7,8 @@ cd "${ROOT_DIR}"
 EDGE_URL="${EDGE_URL:-http://127.0.0.1:8787}"
 EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-devtoken}}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-dev-admin-token}}"
+ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME:-admin}"
+ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD:-admin123!}"
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
 
@@ -64,21 +66,46 @@ run_step() {
 }
 
 run_step "edge preflight imports" make check-edge-preflight
+run_step "version consistency" ./scripts/release/check_version_consistency.sh
 run_step "edge tests" make test-edge
 run_step "cloud tests" make test-cloud
+run_step "warning budget" ./scripts/ci/check_warning_budget.sh
 run_step "tauri config validation" make check-tauri-config
 run_step "desktop web build" make build-desktop-web
 run_step "desktop cargo check" make check-desktop-rust
+run_step "security: no admin token in client bundle" ./scripts/release/check_no_public_admin_token_bundle.sh
 run_step "compose admin env wiring" bash -c '
   cfg="$(docker compose config)"
-  echo "$cfg" | grep -q "NEXT_PUBLIC_CLOUD_BASE_URL: http://cloud:8000" || {
-    echo "docker compose config missing NEXT_PUBLIC_CLOUD_BASE_URL=http://cloud:8000"
+  echo "$cfg" | grep -q "CLOUD_BASE_URL: http://cloud:8000" || {
+    echo "docker compose config missing CLOUD_BASE_URL=http://cloud:8000"
     exit 1
   }
-  echo "$cfg" | grep -q "NEXT_PUBLIC_ADMIN_TOKEN:" || {
-    echo "docker compose config missing NEXT_PUBLIC_ADMIN_TOKEN"
+  echo "$cfg" | grep -q "ADMIN_API_TOKEN:" || {
+    echo "docker compose config missing ADMIN_API_TOKEN"
     exit 1
   }
+  echo "$cfg" | grep -q "ADMIN_UI_USERNAME:" || {
+    echo "docker compose config missing ADMIN_UI_USERNAME"
+    exit 1
+  }
+  echo "$cfg" | grep -q "ADMIN_UI_PASSWORD_HASH:" || {
+    echo "docker compose config missing ADMIN_UI_PASSWORD_HASH"
+    exit 1
+  }
+  echo "$cfg" | grep -q "ADMIN_UI_SESSION_SECRET:" || {
+    echo "docker compose config missing ADMIN_UI_SESSION_SECRET"
+    exit 1
+  }
+  echo "$cfg" | grep -q "ADMIN_UI_SESSION_SECURE:" || {
+    echo "docker compose config missing ADMIN_UI_SESSION_SECURE"
+    exit 1
+  }
+'
+run_step "security: no public admin token config" bash -c '
+  if rg -n "NEXT_PUBLIC_ADMIN_TOKEN" .env.example docker-compose.yml >/dev/null 2>&1; then
+    echo "NEXT_PUBLIC_ADMIN_TOKEN is still present in runtime config"
+    exit 1
+  fi
 '
 run_step "docker build (cloud/admin)" make docker-build
 
@@ -123,74 +150,12 @@ run_step "demo readiness: demo-up" make demo-up
 SERVICES_STARTED=1
 
 run_step "cloud smoke" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud.sh
+run_step "demo readiness: reliability SLO report" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" OUT="output/ci/reliability_slo.json" ./scripts/ci/export_reliability_slo.py
 run_step "demo readiness: cloud recovery smoke" env CLOUD_URL="${CLOUD_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud_recovery.sh
-run_step "demo readiness: support bundle sanitized" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" bash -c '
-  tmp_bundle="$(mktemp -t sentinelid_release_bundle.XXXXXX.tar.gz)"
-  trap "rm -f \"$tmp_bundle\"" EXIT
-  curl -fsS -H "X-Admin-Token: ${ADMIN_TOKEN}" -X POST \
-    "${CLOUD_URL}/v1/admin/support-bundle?window=24h&events_limit=50" \
-    -o "$tmp_bundle"
-  python3 - "$tmp_bundle" <<'"'"'PY'"'"'
-from __future__ import annotations
-
-import json
-import tarfile
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-if not path.exists() or path.stat().st_size == 0:
-    raise SystemExit("support bundle download is empty")
-
-forbidden_fragments = ("token", "signature", "embedding", "frame", "image")
-allowed_redacted = {"[REDACTED]", "", None}
-value_violations = []
-
-def inspect(value, ctx: str) -> None:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            lower = str(key).lower()
-            if any(fragment in lower for fragment in forbidden_fragments):
-                if isinstance(child, (dict, list)) and child not in ({}, []):
-                    value_violations.append(f"{ctx}.{key} non-empty structured sensitive field")
-                elif child not in allowed_redacted:
-                    value_violations.append(f"{ctx}.{key}={child!r}")
-            inspect(child, f"{ctx}.{key}")
-    elif isinstance(value, list):
-        for idx, child in enumerate(value):
-            inspect(child, f"{ctx}[{idx}]")
-    elif isinstance(value, str):
-        lower = value.lower()
-        if lower.startswith("bearer ") and value != "Bearer [REDACTED]":
-            value_violations.append(f"{ctx} has non-redacted bearer token")
-        if lower.startswith("data:image/"):
-            value_violations.append(f"{ctx} has raw image data")
-
-json_count = 0
-with tarfile.open(path, mode="r:gz") as archive:
-    members = [member for member in archive.getmembers() if member.isfile()]
-    if not members:
-        raise SystemExit("support bundle has no files")
-    for member in members:
-        if not member.name.endswith(".json"):
-            continue
-        payload = archive.extractfile(member)
-        if payload is None:
-            continue
-        data = json.loads(payload.read().decode("utf-8"))
-        inspect(data, member.name)
-        json_count += 1
-
-if json_count == 0:
-    raise SystemExit("support bundle missing json payloads")
-if value_violations:
-    raise SystemExit("support bundle sanitization violations: " + "; ".join(value_violations[:8]))
-print("support bundle sanitization check passed")
-PY
-'
-run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_admin.sh
+run_step "demo readiness: support bundle sanitized" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/check_support_bundle_sanitization.sh
+run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME}" ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
-run_step "demo readiness: no orphan edge process" env ORPHAN_BASELINE_PIDS="${ORPHAN_BASELINE_PIDS}" ./scripts/check_no_orphan_edge.sh
+run_step "demo readiness: no orphan edge process" env ORPHAN_BASELINE_PIDS="${ORPHAN_BASELINE_PIDS}" ./scripts/release/check_no_orphan_edge.sh
 
 FAILED_STEP=""

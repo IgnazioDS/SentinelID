@@ -2,6 +2,7 @@
 	demo-up \
 	demo-desktop \
 	demo \
+	demo-verify \
 	demo-down \
 	demo-checklist \
 	check-no-orphans \
@@ -31,12 +32,13 @@
 	clean
 
 help:
-	@echo "SentinelID v2.0.0 Commands"
+	@echo "SentinelID v2.1.0 Commands"
 	@echo ""
 	@echo "Demo"
 	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"
 	@echo "  make demo-desktop        Launch desktop in demo mode (edge dev env + telemetry)"
 	@echo "  make demo                Run demo-up then demo-desktop"
+	@echo "  make demo-verify         Run non-interactive demo verification suite"
 	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
@@ -82,6 +84,9 @@ demo-desktop:
 	@./scripts/demo_desktop.sh
 
 demo: demo-up demo-desktop
+
+demo-verify:
+	@./scripts/demo_verify.sh
 
 demo-down:
 	@./scripts/demo_down.sh $(if $(V),--volumes,)

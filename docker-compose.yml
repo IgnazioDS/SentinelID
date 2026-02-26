@@ -53,6 +53,7 @@ services:
     environment:
       - NEXT_PUBLIC_CLOUD_BASE_URL=http://cloud:8000
       - NEXT_PUBLIC_ADMIN_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token}
+      - NEXT_PUBLIC_DEMO_MODE=${NEXT_PUBLIC_DEMO_MODE:-1}
     healthcheck:
       test:
         [

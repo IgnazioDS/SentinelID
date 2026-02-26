@@ -33,6 +33,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const query = searchParams.get('q') || '';
 
   const [searchInput, setSearchInput] = useState(query);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     setSearchInput(query);
@@ -123,6 +124,21 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           {pathname === '/events' ? (
             <span className="topbar-hint">Tip: Use request_id and session_id filters for exact trace lookup.</span>
           ) : null}
+          <button
+            type="button"
+            className="button subtle"
+            disabled={loggingOut}
+            onClick={async () => {
+              setLoggingOut(true);
+              try {
+                await fetch('/api/admin/session/logout', { method: 'POST' });
+              } finally {
+                router.replace('/login');
+              }
+            }}
+          >
+            {loggingOut ? 'Signing out...' : 'Sign out'}
+          </button>
         </header>
 
         <main className="admin-content">{children}</main>

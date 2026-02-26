@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
-import AdminShell from './components/admin-shell';
+import LayoutShell from './components/layout-shell';
 
 export const metadata: Metadata = {
   title: 'SentinelID Admin Ops',
@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <AdminShell>{children}</AdminShell>
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

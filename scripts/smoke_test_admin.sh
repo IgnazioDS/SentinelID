@@ -4,6 +4,8 @@ set -euo pipefail
 API_URL="${API_URL:-http://127.0.0.1:8000}"
 ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
+ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME:-admin}"
+ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD:-admin123!}"
 
 if [[ -z "${ADMIN_TOKEN}" ]]; then
   echo "ADMIN_TOKEN (or ADMIN_API_TOKEN) is required"
@@ -36,17 +38,21 @@ if ! curl -fsS "${ADMIN_UI_URL}/" >/dev/null 2>&1; then
   exit 1
 fi
 
-python3 - "${API_URL}" "${ADMIN_UI_URL}" "${ADMIN_TOKEN}" <<'PY'
+python3 - "${API_URL}" "${ADMIN_UI_URL}" "${ADMIN_TOKEN}" "${ADMIN_UI_USERNAME}" "${ADMIN_UI_PASSWORD}" <<'PY'
 from __future__ import annotations
 
 import json
 import sys
 import urllib.error
 import urllib.request
+import http.cookiejar
 
 api_url = sys.argv[1].rstrip("/")
 admin_ui_url = sys.argv[2].rstrip("/")
 admin_token = sys.argv[3]
+admin_ui_username = sys.argv[4]
+admin_ui_password = sys.argv[5]
+authed_opener = urllib.request.build_opener()
 
 
 def request(path: str, token: str | None = None) -> tuple[int, dict | str]:
@@ -58,6 +64,28 @@ def request(path: str, token: str | None = None) -> tuple[int, dict | str]:
         with urllib.request.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
             parsed = json.loads(body) if body else {}
+            return resp.status, parsed
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            parsed = json.loads(body)
+        except Exception:
+            parsed = body
+        return exc.code, parsed
+
+
+def ui_request(path: str, method: str = "GET", payload: dict | None = None, with_cookie: bool = True):
+    headers = {}
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(f"{admin_ui_url}{path}", headers=headers, data=data, method=method)
+    opener = authed_opener if with_cookie else urllib.request.build_opener()
+    try:
+        with opener.open(req, timeout=20) as resp:
+            body = resp.read()
+            parsed = json.loads(body.decode("utf-8")) if body else {}
             return resp.status, parsed
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
@@ -119,12 +147,32 @@ assert status == 401, f"/devices without token expected 401, got {status}: {no_a
 status, bad_auth = request("/v1/admin/devices", "invalid-token")
 assert status == 401, f"/devices invalid token expected 401, got {status}: {bad_auth}"
 
-# Verify the admin UI proxy can reach cloud with docker-network URL wiring.
-proxy_req = urllib.request.Request(f"{admin_ui_url}/api/cloud/v1/admin/stats?window=24h")
-with urllib.request.urlopen(proxy_req, timeout=20) as proxy_resp:
-    assert proxy_resp.status == 200, f"admin proxy status unexpected: {proxy_resp.status}"
-    proxy_data = json.loads(proxy_resp.read().decode("utf-8"))
-    assert "total_events" in proxy_data, f"admin proxy payload invalid: {proxy_data}"
+# Verify admin proxy requires auth.
+status, unauth_proxy = ui_request("/api/cloud/v1/admin/stats?window=24h", with_cookie=False)
+assert status == 401, f"Unauthenticated admin proxy expected 401, got {status}: {unauth_proxy}"
+
+cookie_jar = http.cookiejar.CookieJar()
+authed_opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
+
+status, login_body = ui_request(
+    "/api/admin/session/login",
+    method="POST",
+    payload={"username": admin_ui_username, "password": admin_ui_password},
+)
+assert status == 200, f"admin login failed with status {status}: {login_body}"
+
+status, me_body = ui_request("/api/admin/session/me")
+assert status == 200, f"admin session probe failed with status {status}: {me_body}"
+assert me_body.get("username") == admin_ui_username, f"admin session user mismatch: {me_body}"
+
+status, proxy_data = ui_request("/api/cloud/v1/admin/stats?window=24h")
+assert status == 200, f"admin proxy status unexpected: {status}: {proxy_data}"
+assert "total_events" in proxy_data, f"admin proxy payload invalid: {proxy_data}"
+
+status, logout_body = ui_request("/api/admin/session/logout", method="POST")
+assert status == 200, f"admin logout failed with status {status}: {logout_body}"
+status, post_logout_proxy = ui_request("/api/cloud/v1/admin/stats?window=24h")
+assert status == 401, f"post-logout admin proxy expected 401, got {status}: {post_logout_proxy}"
 
 print("Admin smoke test passed")
 PY

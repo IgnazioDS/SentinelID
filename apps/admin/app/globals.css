@@ -42,8 +42,26 @@ a {
 
 .admin-brand {
   font-weight: 700;
-  margin-bottom: 22px;
   letter-spacing: 0.03em;
+}
+
+.admin-brand-wrap {
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-badge {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
 }
 
 .nav-link {
@@ -94,6 +112,11 @@ a {
   display: flex;
   gap: 8px;
   width: min(480px, 100%);
+}
+
+.topbar-hint {
+  font-size: 12px;
+  color: var(--ink-dim);
 }
 
 .input,
@@ -238,6 +261,13 @@ tr:last-child td {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 8px;
   margin: 16px 0;
+}
+
+.button-group-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .pagination {

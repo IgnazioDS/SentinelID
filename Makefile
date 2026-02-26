@@ -1,4 +1,10 @@
 .PHONY: help \
+	demo-up \
+	demo-desktop \
+	demo \
+	demo-down \
+	demo-checklist \
+	check-no-orphans \
 	bundle-edge \
 	check-edge-preflight \
 	edge-shell \
@@ -25,7 +31,15 @@
 	clean
 
 help:
-	@echo "SentinelID v1.9.0 Commands"
+	@echo "SentinelID v2.0.0 Commands"
+	@echo ""
+	@echo "Demo"
+	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"
+	@echo "  make demo-desktop        Launch desktop in demo mode (edge dev env + telemetry)"
+	@echo "  make demo                Run demo-up then demo-desktop"
+	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"
+	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
+	@echo "  make check-no-orphans    Verify no orphan edge process is running"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
@@ -60,6 +74,29 @@ help:
 
 bundle-edge:
 	@./scripts/bundle_edge_venv.sh
+
+demo-up:
+	@./scripts/demo_up.sh
+
+demo-desktop:
+	@./scripts/demo_desktop.sh
+
+demo: demo-up demo-desktop
+
+demo-down:
+	@./scripts/demo_down.sh $(if $(V),--volumes,)
+
+demo-checklist:
+	@echo "$(PWD)/docs/DEMO_CHECKLIST.md"
+	@if [ "$(OPEN)" = "1" ]; then \
+		if command -v open >/dev/null 2>&1; then open "$(PWD)/docs/DEMO_CHECKLIST.md"; \
+		elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$(PWD)/docs/DEMO_CHECKLIST.md"; \
+		else echo "No opener found. Open docs/DEMO_CHECKLIST.md manually."; \
+		fi; \
+	fi
+
+check-no-orphans:
+	@./scripts/check_no_orphan_edge.sh
 
 check-edge-preflight:
 	@./scripts/dev/edge_env.sh preflight
@@ -100,7 +137,18 @@ test-cloud:
 test: test-edge test-cloud
 
 docker-build:
-	@docker compose build cloud admin
+	@attempt=1; \
+	pull_flag=""; \
+	if [ "$${DOCKER_BUILD_PULL:-0}" = "1" ]; then pull_flag="--pull"; fi; \
+	until docker compose build $${pull_flag} cloud admin; do \
+		if [ "$$attempt" -ge 3 ]; then \
+			echo "docker compose build failed after $$attempt attempts"; \
+			exit 1; \
+		fi; \
+		echo "docker compose build failed (attempt $$attempt), retrying..."; \
+		attempt=$$((attempt + 1)); \
+		sleep 2; \
+	done
 
 smoke-edge:
 	@./scripts/smoke_test_edge.sh

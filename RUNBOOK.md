@@ -1,4 +1,4 @@
-# SentinelID Runbook (v1.8.0)
+# SentinelID Runbook (v2.0.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -105,6 +105,28 @@ Terminal 3: Desktop app
 
 ```bash
 make dev-desktop
+```
+
+## Quick Demo (One Command)
+
+For portfolio/demo presentation path:
+
+```bash
+make demo
+```
+
+What `make demo` does:
+
+- starts cloud/admin/postgres (`make demo-up`) and waits for health.
+- launches desktop with demo-oriented env defaults (`make demo-desktop`).
+- keeps local auth functional even if cloud telemetry is temporarily unavailable.
+
+Demo controls:
+
+```bash
+make demo-checklist
+make demo-down
+make demo-down V=1
 ```
 
 ## Desktop UX (v1.9.0)

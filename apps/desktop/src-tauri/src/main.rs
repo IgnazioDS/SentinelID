@@ -2,14 +2,13 @@
 
 use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
+use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::Manager;
 use uuid::Uuid;
 
-#[cfg(not(debug_assertions))]
-use std::path::PathBuf;
 #[cfg(not(debug_assertions))]
 use std::process::Stdio;
 
@@ -149,22 +148,36 @@ fn build_edge_command(_app: &tauri::AppHandle, port: u16, token: &str) -> Result
 
     #[cfg(debug_assertions)]
     {
-        // In dev we still use source Edge for faster iteration.
-        let mut cmd = Command::new("python");
-        cmd.arg("-m")
-            .arg("uvicorn")
-            .arg("sentinelid_edge.main:app")
-            .arg("--host")
-            .arg("127.0.0.1")
-            .arg("--port")
-            .arg(port.to_string())
+        // In dev, route through edge_env.sh to avoid wrong-venv leakage.
+        let repo_root = resolve_repo_root()?;
+        let launcher = repo_root.join("scripts").join("dev").join("edge_env.sh");
+        if !launcher.exists() {
+            return Err(format!(
+                "Failed to resolve edge launcher script at {}",
+                launcher.display()
+            ));
+        }
+
+        let mut cmd = Command::new(launcher);
+        cmd.arg("run")
             .env("EDGE_HOST", "127.0.0.1")
             .env("EDGE_PORT", port.to_string())
             .env("EDGE_AUTH_TOKEN", token)
             .env("EDGE_ENV", "dev")
-            .current_dir("./apps/edge");
+            .current_dir(repo_root);
         Ok(cmd)
     }
+}
+
+#[cfg(debug_assertions)]
+fn resolve_repo_root() -> Result<PathBuf, String> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let repo_root = manifest_dir
+        .parent()
+        .and_then(|path| path.parent())
+        .and_then(|path| path.parent())
+        .ok_or_else(|| "Failed to compute repository root from CARGO_MANIFEST_DIR".to_string())?;
+    Ok(repo_root.to_path_buf())
 }
 
 #[cfg(not(debug_assertions))]

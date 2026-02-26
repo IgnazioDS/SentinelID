@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/devices', label: 'Devices' },
   { href: '/support', label: 'Support' },
 ];
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== '0';
 
 function withQuery(path: string, range: string, q: string): string {
   const params = new URLSearchParams();
@@ -56,7 +57,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="admin-shell">
       <aside className="admin-sidebar">
-        <div className="admin-brand">SentinelID Ops</div>
+        <div className="admin-brand-wrap">
+          <div className="admin-brand">SentinelID Ops</div>
+          {DEMO_MODE ? <span className="demo-badge">Demo</span> : null}
+        </div>
         <nav>
           {navLinks.map((item) => (
             <Link
@@ -116,6 +120,9 @@ export default function AdminShell({ children }: { children: ReactNode }) {
               Search
             </button>
           </form>
+          {pathname === '/events' ? (
+            <span className="topbar-hint">Tip: Use request_id and session_id filters for exact trace lookup.</span>
+          ) : null}
         </header>
 
         <main className="admin-content">{children}</main>

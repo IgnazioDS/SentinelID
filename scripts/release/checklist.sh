@@ -9,7 +9,6 @@ EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-devtoken}}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-dev-admin-token}}"
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
-RUN_CLOUD_RECOVERY_SMOKE="${RUN_CLOUD_RECOVERY_SMOKE:-0}"
 
 PASSED_STEPS=()
 FAILED_STEP=""
@@ -117,20 +116,79 @@ run_step "edge perf" env EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" make 
 cleanup
 EDGE_PID=""
 
-echo "[run] start cloud/admin for smoke"
-docker compose up -d postgres cloud admin >/dev/null
+echo "[section] demo readiness"
+run_step "demo readiness: demo-up" make demo-up
 SERVICES_STARTED=1
-PASSED_STEPS+=("start cloud/admin for smoke")
 
 run_step "cloud smoke" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud.sh
-if [[ "${RUN_CLOUD_RECOVERY_SMOKE}" == "1" ]]; then
-  run_step "cloud recovery smoke" env CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud_recovery.sh
-else
-  echo "[skip] cloud recovery smoke (set RUN_CLOUD_RECOVERY_SMOKE=1 to enable)"
-  PASSED_STEPS+=("cloud recovery smoke (skipped)")
-fi
+run_step "demo readiness: cloud recovery smoke" env CLOUD_URL="${CLOUD_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud_recovery.sh
+run_step "demo readiness: support bundle sanitized" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" bash -c '
+  tmp_bundle="$(mktemp -t sentinelid_release_bundle.XXXXXX.tar.gz)"
+  trap "rm -f \"$tmp_bundle\"" EXIT
+  curl -fsS -H "X-Admin-Token: ${ADMIN_TOKEN}" -X POST \
+    "${CLOUD_URL}/v1/admin/support-bundle?window=24h&events_limit=50" \
+    -o "$tmp_bundle"
+  python3 - "$tmp_bundle" <<'"'"'PY'"'"'
+from __future__ import annotations
+
+import json
+import tarfile
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists() or path.stat().st_size == 0:
+    raise SystemExit("support bundle download is empty")
+
+forbidden_fragments = ("token", "signature", "embedding", "frame", "image")
+allowed_redacted = {"[REDACTED]", "", None}
+value_violations = []
+
+def inspect(value, ctx: str) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            lower = str(key).lower()
+            if any(fragment in lower for fragment in forbidden_fragments):
+                if isinstance(child, (dict, list)) and child not in ({}, []):
+                    value_violations.append(f"{ctx}.{key} non-empty structured sensitive field")
+                elif child not in allowed_redacted:
+                    value_violations.append(f"{ctx}.{key}={child!r}")
+            inspect(child, f"{ctx}.{key}")
+    elif isinstance(value, list):
+        for idx, child in enumerate(value):
+            inspect(child, f"{ctx}[{idx}]")
+    elif isinstance(value, str):
+        lower = value.lower()
+        if lower.startswith("bearer ") and value != "Bearer [REDACTED]":
+            value_violations.append(f"{ctx} has non-redacted bearer token")
+        if lower.startswith("data:image/"):
+            value_violations.append(f"{ctx} has raw image data")
+
+json_count = 0
+with tarfile.open(path, mode="r:gz") as archive:
+    members = [member for member in archive.getmembers() if member.isfile()]
+    if not members:
+        raise SystemExit("support bundle has no files")
+    for member in members:
+        if not member.name.endswith(".json"):
+            continue
+        payload = archive.extractfile(member)
+        if payload is None:
+            continue
+        data = json.loads(payload.read().decode("utf-8"))
+        inspect(data, member.name)
+        json_count += 1
+
+if json_count == 0:
+    raise SystemExit("support bundle missing json payloads")
+if value_violations:
+    raise SystemExit("support bundle sanitization violations: " + "; ".join(value_violations[:8]))
+print("support bundle sanitization check passed")
+PY
+'
 run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
-run_step "bundling smoke" ./scripts/smoke_test_bundling.sh
+run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
+run_step "demo readiness: no orphan edge process" ./scripts/check_no_orphan_edge.sh
 
 FAILED_STEP=""

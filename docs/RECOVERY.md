@@ -2,6 +2,8 @@
 
 For environment setup and service startup commands, use `RUNBOOK.md`.
 
+For a full operator pass that includes outage/recovery, use `docs/DEMO_CHECKLIST.md`.
+
 ## Scope
 
 This guide covers recovery of telemetry delivery using the edge outbox and DLQ model.
@@ -57,6 +59,11 @@ SELECT status, COUNT(*) FROM outbox_events GROUP BY status;
 - Keep edge running.
 - Restore cloud service.
 - Pending events retry automatically.
+- In demo mode, validate this with:
+
+```bash
+./scripts/smoke_test_cloud_recovery.sh
+```
 
 ### DLQ growth after transient outage
 

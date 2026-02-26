@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { adminAPI, Event } from '../../lib/api';
 import { copyToClipboard, normalizeRange, rangeStartEpoch, shortId } from '../../lib/time';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui-state';
@@ -68,8 +68,11 @@ function EventDrawer({ event, onClose }: { event: Event; onClose: () => void }) 
 }
 
 export default function EventsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const range = normalizeRange(searchParams.get('range'));
+  const quickWindow = searchParams.get('quick') === '15m' ? '15m' : '';
   const topSearch = (searchParams.get('q') || '').trim();
 
   const [events, setEvents] = useState<Event[]>([]);
@@ -79,6 +82,7 @@ export default function EventsPage() {
   const [limit, setLimit] = useState(50);
   const [offset, setOffset] = useState(0);
   const [hasNext, setHasNext] = useState(false);
+  const [currentDeviceId, setCurrentDeviceId] = useState<string>('');
 
   const [deviceId, setDeviceId] = useState('');
   const [requestId, setRequestId] = useState('');
@@ -98,7 +102,25 @@ export default function EventsPage() {
 
   useEffect(() => {
     setOffset(0);
-  }, [range, topSearch]);
+  }, [range, topSearch, quickWindow]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadCurrentDevice() {
+      try {
+        const stats = await adminAPI.getStats(range);
+        if (!mounted) return;
+        setCurrentDeviceId(stats.device_health?.[0]?.device_id ?? '');
+      } catch {
+        if (!mounted) return;
+        setCurrentDeviceId('');
+      }
+    }
+    loadCurrentDevice();
+    return () => {
+      mounted = false;
+    };
+  }, [range]);
 
   useEffect(() => {
     let mounted = true;
@@ -108,7 +130,9 @@ export default function EventsPage() {
         setLoading(true);
         setError(null);
 
-        const startTs = rangeStartEpoch(range);
+        const startTs = quickWindow === '15m'
+          ? Math.floor(Date.now() / 1000) - 15 * 60
+          : rangeStartEpoch(range);
         const endTs = Math.floor(Date.now() / 1000);
         const response = await adminAPI.getEvents({
           limit,
@@ -141,7 +165,7 @@ export default function EventsPage() {
     return () => {
       mounted = false;
     };
-  }, [limit, offset, range, topSearch, appliedFilters]);
+  }, [limit, offset, range, topSearch, appliedFilters, quickWindow]);
 
   const currentPage = Math.floor(offset / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -160,6 +184,47 @@ export default function EventsPage() {
       <p className="page-subtitle">
         Filter telemetry events by correlation IDs, outcome, and reason codes. Window: {range}
       </p>
+      <p className="muted">
+        Correlation lookup: put exact values in request_id/session_id filters and click Apply.
+      </p>
+
+      <div className="button-group-row">
+        <button
+          className={`button ${quickWindow === '15m' ? 'primary' : ''}`}
+          onClick={() => {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set('quick', '15m');
+            params.set('range', range);
+            router.replace(`${pathname}?${params.toString()}`);
+            setOffset(0);
+          }}
+        >
+          Last 15 min
+        </button>
+        <button
+          className={`button ${quickWindow === '' ? 'primary' : ''}`}
+          onClick={() => {
+            const params = new URLSearchParams(searchParams.toString());
+            params.delete('quick');
+            params.set('range', range);
+            router.replace(`${pathname}?${params.toString()}`);
+            setOffset(0);
+          }}
+        >
+          Use range window
+        </button>
+        <button
+          className="button subtle"
+          disabled={!currentDeviceId}
+          onClick={() => {
+            setDeviceId(currentDeviceId);
+            setAppliedFilters((prev) => ({ ...prev, deviceId: currentDeviceId }));
+            setOffset(0);
+          }}
+        >
+          {currentDeviceId ? `Current device: ${shortId(currentDeviceId, 10)}` : 'Current device unavailable'}
+        </button>
+      </div>
 
       <div className="filters">
         <input className="input" placeholder="Device ID" value={deviceId} onChange={(event) => setDeviceId(event.target.value)} />

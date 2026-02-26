@@ -4,6 +4,13 @@ import { ApiClientError, toUserFacingError } from '../../lib/apiErrors';
 import { recoveryHint } from '../../lib/errorHints';
 import { enrollmentPercent, extractProgressParts } from '../../lib/progress';
 import { reasonCodesToMessages, summarizeDecision } from '../../lib/reasonMessages';
+import {
+  AuthState,
+  EnrollState,
+  assertStateMachineRecoveryCoverage,
+  canRetryAuth,
+  canRetryEnroll,
+} from '../../lib/stateMachine';
 import './CameraView.css';
 
 export type DesktopTab = 'login' | 'enroll' | 'settings';
@@ -18,24 +25,6 @@ interface CameraViewProps {
   onCameraStatusChange: (status: CameraStatus) => void;
   onLastSyncChange: (lastSync: string | null) => void;
 }
-
-type AuthState =
-  | 'idle'
-  | 'starting'
-  | 'in_challenge'
-  | 'step_up_notice'
-  | 'step_up'
-  | 'finishing'
-  | 'success'
-  | 'error';
-
-type EnrollState =
-  | 'idle'
-  | 'starting'
-  | 'capturing'
-  | 'committing'
-  | 'success'
-  | 'error';
 
 interface AuthSession {
   session_id: string;
@@ -84,6 +73,30 @@ function qualityFeedback(reasonCodes: string[] | undefined): string {
   return messages.join(' | ');
 }
 
+function cameraErrorMessage(error: unknown): string {
+  if (error instanceof DOMException) {
+    switch (error.name) {
+      case 'NotAllowedError':
+      case 'PermissionDeniedError':
+        return 'Camera permission is blocked. Allow camera access in system settings and retry.';
+      case 'NotFoundError':
+      case 'DevicesNotFoundError':
+        return 'No camera device was found. Connect a camera and retry.';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'Camera is currently in use by another app. Close other camera apps and retry.';
+      case 'OverconstrainedError':
+        return 'Camera does not support required constraints. Retry with default camera settings.';
+      default:
+        return `Camera error (${error.name}). Retry after checking camera permissions.`;
+    }
+  }
+  if (error instanceof Error) {
+    return `Camera initialization failed: ${error.message}`;
+  }
+  return 'Camera initialization failed due to an unknown error.';
+}
+
 const CameraView: React.FC<CameraViewProps> = ({
   activeTab,
   edgeReady,
@@ -100,6 +113,7 @@ const CameraView: React.FC<CameraViewProps> = ({
   const lastFrameAtRef = useRef(0);
   const streamSessionIdRef = useRef<string | null>(null);
   const stepUpTimerRef = useRef<number | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
 
   const [authState, setAuthState] = useState<AuthState>('idle');
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -123,34 +137,65 @@ const CameraView: React.FC<CameraViewProps> = ({
 
   const [diagnostics, setDiagnostics] = useState<DiagnosticsResponse | null>(null);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
+  const [cameraIssue, setCameraIssue] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function getCamera() {
-      onCameraStatusChange('loading');
-      if (!navigator.mediaDevices?.getUserMedia) {
-        const message = 'Camera API is unavailable in this environment.';
-        setAuthError(message);
-        setEnrollError(message);
-        onCameraStatusChange('error');
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 } },
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-        onCameraStatusChange('ready');
-      } catch {
-        const message = 'Cannot access camera. Check camera permissions and retry.';
-        setAuthError(message);
-        setEnrollError(message);
-        onCameraStatusChange('error');
-      }
+  const initializeCamera = useCallback(async () => {
+    onCameraStatusChange('loading');
+    setCameraIssue(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const message = 'Camera API is unavailable in this environment.';
+      setCameraIssue(message);
+      setAuthError(message);
+      setEnrollError(message);
+      onCameraStatusChange('error');
+      return;
     }
 
-    getCamera().catch(() => undefined);
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+
+    try {
+      if (navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasVideoInput = devices.some((device) => device.kind === 'videoinput');
+        if (!hasVideoInput) {
+          const message = 'No camera device was found. Connect a camera and retry.';
+          setCameraIssue(message);
+          setAuthError(message);
+          setEnrollError(message);
+          onCameraStatusChange('error');
+          return;
+        }
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      cameraStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      onCameraStatusChange('ready');
+      setAuthError(null);
+      setEnrollError(null);
+    } catch (error) {
+      const message = cameraErrorMessage(error);
+      setCameraIssue(message);
+      setAuthError(message);
+      setEnrollError(message);
+      onCameraStatusChange('error');
+    }
+  }, [onCameraStatusChange]);
+
+  useEffect(() => {
+    assertStateMachineRecoveryCoverage();
+  }, []);
+
+  useEffect(() => {
+    initializeCamera().catch(() => undefined);
 
     return () => {
       streamingRef.current = false;
@@ -160,11 +205,12 @@ const CameraView: React.FC<CameraViewProps> = ({
       if (frameLoopRef.current !== null) {
         cancelAnimationFrame(frameLoopRef.current);
       }
-      if (videoRef.current?.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+        cameraStreamRef.current = null;
       }
     };
-  }, [onCameraStatusChange]);
+  }, [initializeCamera]);
 
   const refreshDiagnostics = useCallback(async () => {
     if (!edgeReady) {
@@ -186,7 +232,9 @@ const CameraView: React.FC<CameraViewProps> = ({
         null;
       onLastSyncChange(syncTime);
     } catch (error) {
-      setDiagnosticsError(toUserFacingError(error));
+      setDiagnosticsError(
+        `Telemetry degraded: ${toUserFacingError(error)} Local authentication remains available.`
+      );
     }
   }, [edgeReady, onLastSyncChange]);
 
@@ -329,6 +377,12 @@ const CameraView: React.FC<CameraViewProps> = ({
       setAuthState('error');
       return;
     }
+    if (cameraIssue) {
+      setAuthError(cameraIssue);
+      setAuthHint('Retry camera access before starting login.');
+      setAuthState('error');
+      return;
+    }
 
     try {
       setAuthState('starting');
@@ -412,6 +466,12 @@ const CameraView: React.FC<CameraViewProps> = ({
       setEnrollState('error');
       return;
     }
+    if (cameraIssue) {
+      setEnrollError(cameraIssue);
+      setEnrollHint('Retry camera access before starting enrollment.');
+      setEnrollState('error');
+      return;
+    }
 
     try {
       setEnrollState('starting');
@@ -438,6 +498,12 @@ const CameraView: React.FC<CameraViewProps> = ({
 
   const captureEnrollFrame = async () => {
     if (!enrollSession) {
+      return;
+    }
+    if (cameraIssue) {
+      setEnrollError(cameraIssue);
+      setEnrollHint('Retry camera access and capture again.');
+      setEnrollState('error');
       return;
     }
 
@@ -602,6 +668,23 @@ const CameraView: React.FC<CameraViewProps> = ({
   };
 
   const adminSupportUrl = (import.meta.env.VITE_ADMIN_UI_URL as string | undefined)?.trim() || 'http://127.0.0.1:3000/support';
+  const telemetryDegraded =
+    Boolean(diagnosticsError) ||
+    (telemetryEnabled && diagnostics?.telemetry_flags?.cloud_ingest_configured === false);
+
+  const renderCameraIssue = () => {
+    if (!cameraIssue) {
+      return null;
+    }
+    return (
+      <div className="camera-issue">
+        <p className="error-text">{cameraIssue}</p>
+        <button className="btn-secondary" onClick={() => initializeCamera().catch(() => undefined)}>
+          Retry Camera Access
+        </button>
+      </div>
+    );
+  };
 
   const renderLoginContent = () => {
     switch (authState) {
@@ -610,7 +693,8 @@ const CameraView: React.FC<CameraViewProps> = ({
           <section className="phase-card">
             <h2>Login</h2>
             <p>Start liveness verification and matching against the local enrolled template.</p>
-            <button className="btn-primary" onClick={startAuth} disabled={!edgeReady}>
+            {renderCameraIssue()}
+            <button className="btn-primary" onClick={startAuth} disabled={!edgeReady || Boolean(cameraIssue)}>
               Start Login Check
             </button>
           </section>
@@ -619,6 +703,11 @@ const CameraView: React.FC<CameraViewProps> = ({
         return (
           <section className="phase-card muted">
             <p>Creating secure verification session...</p>
+            {canRetryAuth(authState) && (
+              <button className="btn-secondary" onClick={resetAuth}>
+                Cancel
+              </button>
+            )}
           </section>
         );
       case 'in_challenge':
@@ -635,6 +724,7 @@ const CameraView: React.FC<CameraViewProps> = ({
             {renderProgressBar(verifyProgress?.percent ?? null)}
             <p className="frame-count">Frames analyzed: {frameCount}</p>
             <p className="quality-feedback">{authQualityMessage}</p>
+            {renderCameraIssue()}
             {demoMode && session?.risk_score !== undefined && (
               <p className="demo-note">
                 Demo metrics: risk {session.risk_score.toFixed(3)}
@@ -659,15 +749,25 @@ const CameraView: React.FC<CameraViewProps> = ({
             <p>
               Additional challenges: <strong>{session?.step_up_challenges?.length ?? 0}</strong>
             </p>
-            <button className="btn-primary" onClick={continueStepUp}>
-              Continue now
-            </button>
+            <div className="button-group">
+              <button className="btn-primary" onClick={continueStepUp}>
+                Continue now
+              </button>
+              <button className="btn-secondary" onClick={resetAuth}>
+                Cancel
+              </button>
+            </div>
           </section>
         );
       case 'finishing':
         return (
           <section className="phase-card muted">
             <p>Finalizing decision...</p>
+            {canRetryAuth(authState) && (
+              <button className="btn-secondary" onClick={resetAuth}>
+                Cancel
+              </button>
+            )}
           </section>
         );
       case 'success':
@@ -682,9 +782,11 @@ const CameraView: React.FC<CameraViewProps> = ({
             {authError && <p className="error-text">{authError}</p>}
             {authHint && <p className="hint-text">{authHint}</p>}
             {authReasonMessages.length > 0 && <p>Reasons: {authReasonMessages.join(' | ')}</p>}
-            <button className="btn-primary" onClick={resetAuth}>
-              Retry Login
-            </button>
+            {canRetryAuth(authState) && (
+              <button className="btn-primary" onClick={resetAuth}>
+                Retry Login
+              </button>
+            )}
           </section>
         );
       default:
@@ -699,6 +801,7 @@ const CameraView: React.FC<CameraViewProps> = ({
           <section className="phase-card">
             <h2>Enroll Face</h2>
             <p>Capture high-quality frames. Raw camera frames are never stored.</p>
+            {renderCameraIssue()}
             <div className="wizard-steps">
               <span className="active">1. Start</span>
               <span>2. Capture</span>
@@ -708,7 +811,7 @@ const CameraView: React.FC<CameraViewProps> = ({
               <span>Template label</span>
               <input value={enrollLabel} onChange={(event) => setEnrollLabel(event.target.value)} />
             </label>
-            <button className="btn-primary" onClick={startEnrollment} disabled={!edgeReady}>
+            <button className="btn-primary" onClick={startEnrollment} disabled={!edgeReady || Boolean(cameraIssue)}>
               Start Enrollment
             </button>
           </section>
@@ -717,6 +820,11 @@ const CameraView: React.FC<CameraViewProps> = ({
         return (
           <section className="phase-card muted">
             <p>Creating enrollment session...</p>
+            {canRetryEnroll(enrollState) && (
+              <button className="btn-secondary" onClick={() => resetEnrollment()}>
+                Cancel
+              </button>
+            )}
           </section>
         );
       case 'capturing':
@@ -733,8 +841,9 @@ const CameraView: React.FC<CameraViewProps> = ({
             </p>
             {renderProgressBar(enrollProgress)}
             <p className="quality-feedback">{enrollQualityMessage}</p>
+            {renderCameraIssue()}
             <div className="button-group">
-              <button className="btn-secondary" onClick={captureEnrollFrame}>
+              <button className="btn-secondary" onClick={captureEnrollFrame} disabled={Boolean(cameraIssue)}>
                 Capture Frame
               </button>
               <button
@@ -754,6 +863,11 @@ const CameraView: React.FC<CameraViewProps> = ({
         return (
           <section className="phase-card muted">
             <p>Creating encrypted template...</p>
+            {canRetryEnroll(enrollState) && (
+              <button className="btn-secondary" onClick={() => resetEnrollment()}>
+                Cancel
+              </button>
+            )}
           </section>
         );
       case 'success':
@@ -783,10 +897,10 @@ const CameraView: React.FC<CameraViewProps> = ({
             {enrollHint && <p className="hint-text">{enrollHint}</p>}
             {enrollReasonMessages.length > 0 && <p>Reasons: {enrollReasonMessages.join(' | ')}</p>}
             <div className="button-group">
-              <button className="btn-secondary" onClick={() => setEnrollState('capturing')}>
+              <button className="btn-secondary" onClick={() => setEnrollState('capturing')} disabled={!canRetryEnroll(enrollState)}>
                 Retry Capture
               </button>
-              <button className="btn-primary" onClick={() => resetEnrollment()}>
+              <button className="btn-primary" onClick={() => resetEnrollment()} disabled={!canRetryEnroll(enrollState)}>
                 Reset Session
               </button>
             </div>
@@ -833,6 +947,10 @@ const CameraView: React.FC<CameraViewProps> = ({
             <p>{telemetryEnabled ? 'Enabled' : 'Disabled'}</p>
           </div>
           <div>
+            <strong>Cloud telemetry</strong>
+            <p>{telemetryDegraded ? 'Degraded (local auth still functional)' : 'Healthy'}</p>
+          </div>
+          <div>
             <strong>Last error</strong>
             <p>{diagnostics?.last_error_summary ?? diagnostics?.telemetry?.last_export_error ?? 'none'}</p>
           </div>
@@ -869,7 +987,7 @@ const CameraView: React.FC<CameraViewProps> = ({
 
         {settingsMessage && <p className="settings-note">{settingsMessage}</p>}
         {supportMessage && <p className="settings-note">{supportMessage}</p>}
-        {diagnosticsError && <p className="error-text">{diagnosticsError}</p>}
+        {diagnosticsError && <p className="settings-note">{diagnosticsError}</p>}
       </section>
     );
   };

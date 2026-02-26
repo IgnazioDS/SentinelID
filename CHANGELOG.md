@@ -2,6 +2,29 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.0.0 (2026-02-26)
+
+### Demo Mode and Operator Flow
+- Added one-command demo targets: `make demo-up`, `make demo-desktop`, `make demo`, and `make demo-down`.
+- Added `docs/DEMO_CHECKLIST.md` with a strict 10-step operator regression flow for portfolio demos.
+- Added `make demo-checklist` to print/open the checklist quickly.
+
+### Release Gating Hardening
+- Extended `scripts/release/checklist.sh` with a mandatory demo-readiness section.
+- Demo gating now requires: demo stack health, cloud recovery smoke, support-bundle sanitization checks, and desktop bundling smoke.
+
+### Desktop Edge-Case Robustness
+- Hardened camera initialization handling with explicit paths for blocked permissions, missing camera devices, and device-in-use errors.
+- Added stronger retry/cancel paths across login/enroll state transitions to avoid deadlock states.
+- Added TypeScript state-machine recovery assertions and switched Tauri dev edge spawn to Poetry-backed `edge_env.sh` launcher to avoid wrong-venv leakage.
+
+### Admin Demo Ergonomics
+- Added admin demo badge and top-bar correlation-id usage hint.
+- Added events quick actions for `Last 15 min` and filtering by current device id.
+
+### Documentation Polish
+- Updated `README.md`, `RUNBOOK.md`, `docs/PACKAGING.md`, and `docs/RECOVERY.md` for demo-first onboarding.
+
 ## v1.9.0 (2026-02-26)
 
 ### Desktop UX Polish

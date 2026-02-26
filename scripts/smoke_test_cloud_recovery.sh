@@ -58,6 +58,7 @@ cleanup() {
     kill "${EDGE_PID}" >/dev/null 2>&1 || true
     wait "${EDGE_PID}" >/dev/null 2>&1 || true
   fi
+  pkill -f "sentinelid_edge.main:app --host ${EDGE_HOST} --port ${EDGE_PORT}" >/dev/null 2>&1 || true
   rm -rf "${STATE_DIR}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT

@@ -14,6 +14,7 @@ PASSED_STEPS=()
 FAILED_STEP=""
 EDGE_PID=""
 SERVICES_STARTED=0
+ORPHAN_BASELINE_PIDS="$(pgrep -f "run_edge.sh|sentinelid_edge.main:app" | tr '\n' ',' | sed 's/,$//' || true)"
 
 summary() {
   echo ""
@@ -37,6 +38,7 @@ cleanup() {
     kill "${EDGE_PID}" >/dev/null 2>&1 || true
     wait "${EDGE_PID}" >/dev/null 2>&1 || true
   fi
+  pkill -f "sentinelid_edge.main:app --host 127.0.0.1 --port 8787" >/dev/null 2>&1 || true
   if [[ "${SERVICES_STARTED}" == "1" && "${KEEP_SERVICES:-0}" != "1" ]]; then
     docker compose down >/dev/null 2>&1 || true
   fi
@@ -189,6 +191,6 @@ PY
 run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
-run_step "demo readiness: no orphan edge process" ./scripts/check_no_orphan_edge.sh
+run_step "demo readiness: no orphan edge process" env ORPHAN_BASELINE_PIDS="${ORPHAN_BASELINE_PIDS}" ./scripts/check_no_orphan_edge.sh
 
 FAILED_STEP=""

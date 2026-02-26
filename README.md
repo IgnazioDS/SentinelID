@@ -48,6 +48,27 @@ make docker-build
 make release-check
 ```
 
+## Quick Demo
+
+One command from repo root:
+
+```bash
+make demo
+```
+
+Expected demo flow:
+
+1. Enroll template in Desktop `Enroll` tab.
+2. Login in `Login` tab (normal ALLOW path).
+3. Trigger and complete STEP_UP path.
+4. Observe telemetry/admin data in `http://127.0.0.1:3000`.
+5. Generate sanitized support bundle from Desktop Settings or Admin Support page.
+
+Interactive operator checklist:
+
+- [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)
+- `make demo-checklist`
+
 ## Desktop UX (v1.9.0)
 
 The desktop app now follows a clear three-tab flow:
@@ -84,6 +105,7 @@ GitHub Actions runs the following on PRs and `main` pushes:
 - Evaluation: [`docs/evaluation.md`](docs/evaluation.md)
 - Packaging: [`docs/PACKAGING.md`](docs/PACKAGING.md)
 - Recovery: [`docs/RECOVERY.md`](docs/RECOVERY.md)
+- Demo checklist: [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md)
 - Key management: [`docs/KEY_MANAGEMENT.md`](docs/KEY_MANAGEMENT.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 

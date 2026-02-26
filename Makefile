@@ -37,7 +37,7 @@ help:
 	@echo ""
 	@echo "Demo"
 	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"
-	@echo "  make demo-desktop        Launch desktop in demo mode (edge dev env + telemetry)"
+	@echo "  make demo-desktop        Launch desktop in demo mode (set DEMO_AUTO_CLOSE_SECONDS for scripted close)"
 	@echo "  make demo                Run demo-up then demo-desktop"
 	@echo "  make demo-verify         Run non-interactive demo verification suite"
 	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"

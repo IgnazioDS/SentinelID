@@ -14,6 +14,8 @@ cd "${REPO_ROOT}"
 : "${ADMIN_UI_PASSWORD:=admin123!}"
 : "${DEMO_FORCE_BUILD:=0}"
 : "${DEMO_VERIFY_KEEP_STACK:=0}"
+: "${DEMO_VERIFY_DESKTOP:=0}"
+: "${DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS:=20}"
 
 cleanup() {
   if [[ "${DEMO_VERIFY_KEEP_STACK}" != "1" ]]; then
@@ -45,6 +47,13 @@ echo "[demo-verify] admin smoke"
 API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" \
   ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME}" ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD}" \
   "${REPO_ROOT}/scripts/smoke_test_admin.sh"
+
+if [[ "${DEMO_VERIFY_DESKTOP}" == "1" ]]; then
+  echo "[demo-verify] desktop launch/close semantics"
+  DEMO_ALLOW_SIGINT_EXIT=1 \
+    DEMO_AUTO_CLOSE_SECONDS="${DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS}" \
+    "${REPO_ROOT}/scripts/demo_desktop.sh"
+fi
 
 echo "[demo-verify] orphan check"
 "${REPO_ROOT}/scripts/release/check_no_orphan_edge.sh"

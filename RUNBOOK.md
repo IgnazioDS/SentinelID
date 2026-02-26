@@ -129,13 +129,16 @@ What `make demo` does:
 - launches desktop with demo-oriented env defaults (`make demo-desktop`).
 - keeps local auth functional even if cloud telemetry is temporarily unavailable.
 - `make demo` is interactive and blocks until desktop closes.
-- closing desktop (or Ctrl+C) exits successfully by default in demo mode.
+- expected demo close exits are `0` (normal close) and `130/143` (interrupt/terminate) by default.
+- set `DEMO_AUTO_CLOSE_SECONDS=<n>` for scriptable desktop timeout-close in automation runs.
 
 Demo controls:
 
 ```bash
 make demo-checklist
 make demo-verify
+DEMO_VERIFY_DESKTOP=1 DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS=20 make demo-verify
+DEMO_AUTO_CLOSE_SECONDS=30 make demo-desktop
 make demo-down
 make demo-down V=1
 ```

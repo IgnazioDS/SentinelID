@@ -36,11 +36,12 @@ All notable changes to SentinelID are documented in this file.
 ### Reliability and Deprecation Cleanup
 - Removed deprecated `datetime.utcnow()` usage in edge/cloud runtime paths.
 - Migrated Pydantic v2 config patterns from legacy `class Config` to `ConfigDict`/`SettingsConfigDict`.
+- Hardened `scripts/perf/bench_edge.py` with retry handling and deterministic diagnostics for transient `429/502/503/504` and retryable network failures.
 
 ### Documentation
 - Updated runbook env/auth guidance for session-based admin auth.
 - Replaced outdated release guide content with v2.1.0 release process and required evidence model.
-- Added non-interactive `make demo-verify` flow and explicit `make demo` close semantics in docs.
+- Added non-interactive `make demo-verify` flow, optional scripted desktop close verification, and explicit demo exit semantics in docs.
 
 ## v2.0.0 (2026-02-26)
 

@@ -46,29 +46,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
-REQ_FILE="${TMP_DIR}/edge_requirements.txt"
 WHEEL_DIR="${TMP_DIR}/wheelhouse"
 mkdir -p "${WHEEL_DIR}"
 
-echo "Exporting edge runtime dependencies from poetry.lock"
+echo "Installing edge runtime dependencies from poetry.lock"
+echo "  using Poetry lock install into bundled venv (plugin-free)"
 (
   cd "${EDGE_APP}"
-  "${POETRY_BIN}" export \
-    --format requirements.txt \
-    --without-hashes \
-    --only main \
-    --output "${REQ_FILE}"
+  VIRTUAL_ENV="${VENV_DIR}" \
+  PATH="${VENV_DIR}/bin:${PATH}" \
+  POETRY_VIRTUALENVS_CREATE=false \
+  "${POETRY_BIN}" install --only main --no-root --sync
 )
-
-# Desktop distribution is headless; keep opencv headless and drop GUI opencv wheels.
-if grep -q '^opencv-python-headless==' "${REQ_FILE}"; then
-  sed -i.bak '/^opencv-python==/d' "${REQ_FILE}"
-  rm -f "${REQ_FILE}.bak"
-fi
 
 echo "Installing dependencies into bundled venv"
 "${VENV_DIR}/bin/python" -m pip install --upgrade pip setuptools wheel
-"${VENV_DIR}/bin/pip" install -r "${REQ_FILE}"
+# Desktop distribution is headless; remove GUI opencv wheels if both are present.
+if "${VENV_DIR}/bin/pip" show opencv-python-headless >/dev/null 2>&1; then
+  "${VENV_DIR}/bin/pip" uninstall -y opencv-python >/dev/null 2>&1 || true
+  # Both OpenCV wheels share the cv2 package namespace. Reinstall headless after
+  # removing GUI wheel so cv2 files are guaranteed present.
+  OPENCV_HEADLESS_VER="$("${VENV_DIR}/bin/pip" show opencv-python-headless | awk '/^Version:/{print $2}')"
+  if [[ -n "${OPENCV_HEADLESS_VER}" ]]; then
+    "${VENV_DIR}/bin/pip" install --force-reinstall --no-deps "opencv-python-headless==${OPENCV_HEADLESS_VER}"
+  fi
+fi
+
 # poetry.lock is currently out of sync with pyproject (keyring omitted) and
 # cryptography is required by edge encryption code; install explicit runtime deps.
 "${VENV_DIR}/bin/pip" install keyring==24.3.1 cryptography==46.0.3 httpx==0.25.2

@@ -31,11 +31,16 @@ function App() {
   });
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('loading');
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const envDemoMode = import.meta.env.VITE_DEMO_MODE === '1';
   const [demoMode, setDemoMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') {
-      return false;
+      return envDemoMode;
     }
-    return window.localStorage.getItem('sentinelid_demo_mode') === '1';
+    const stored = window.localStorage.getItem('sentinelid_demo_mode');
+    if (stored === null) {
+      return envDemoMode;
+    }
+    return stored === '1';
   });
 
   useEffect(() => {

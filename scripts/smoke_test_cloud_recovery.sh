@@ -22,6 +22,7 @@ EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-devtoken}}"
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 CLOUD_INGEST_URL="${CLOUD_INGEST_URL:-${CLOUD_URL}/v1/ingest/events}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
+RECOVERY_CLOUD_BIND_HOST="${RECOVERY_CLOUD_BIND_HOST:-0.0.0.0}"
 
 if [[ -z "${EDGE_TOKEN}" ]]; then
   echo "EDGE_TOKEN (or EDGE_AUTH_TOKEN) is required"
@@ -220,7 +221,7 @@ if [[ "${PENDING_COUNT}" -le 0 && "${DLQ_COUNT}" -le 0 ]]; then
 fi
 
 echo "[recovery] starting cloud/admin and waiting for recovery"
-docker compose up -d cloud admin >/dev/null
+CLOUD_BIND_HOST="${RECOVERY_CLOUD_BIND_HOST}" docker compose up -d cloud admin >/dev/null
 
 for _ in $(seq 1 120); do
   if curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
@@ -231,6 +232,10 @@ done
 
 if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
   echo "Cloud did not become healthy"
+  echo "[recovery] docker compose ps"
+  docker compose ps || true
+  echo "[recovery] cloud logs (tail 120)"
+  docker compose logs --tail=120 cloud || true
   exit 1
 fi
 

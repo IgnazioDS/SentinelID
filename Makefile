@@ -1,7 +1,9 @@
 .PHONY: help \
 	demo-up \
 	demo-desktop \
+	demo-desktop-verify \
 	demo \
+	demo-verify \
 	demo-down \
 	demo-checklist \
 	check-no-orphans \
@@ -27,16 +29,20 @@
 	smoke-bundling \
 	perf-edge \
 	support-bundle \
+	release-evidence \
+	pilot-evidence \
 	release-check \
 	clean
 
 help:
-	@echo "SentinelID v2.0.0 Commands"
+	@echo "SentinelID v2.1.0 Commands"
 	@echo ""
 	@echo "Demo"
 	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"
-	@echo "  make demo-desktop        Launch desktop in demo mode (edge dev env + telemetry)"
+	@echo "  make demo-desktop        Launch desktop in demo mode (set DEMO_AUTO_CLOSE_SECONDS for scripted close)"
 	@echo "  make demo                Run demo-up then demo-desktop"
+	@echo "  make demo-verify         Run non-interactive demo verification suite"
+	@echo "  make demo-desktop-verify Launch desktop and auto-close (CI-friendly, no Docker)"
 	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
@@ -67,6 +73,8 @@ help:
 	@echo "  make smoke-bundling      Validate bundled desktop runtime (no Poetry at runtime)"
 	@echo "  make perf-edge           Run edge benchmark (writes scripts/perf/out/*.json)"
 	@echo "  make support-bundle      Generate sanitized support bundle artifact"
+	@echo "  make release-evidence    Build release evidence pack under output/release/"
+	@echo "  make pilot-evidence      Build pilot evidence index under output/release/"
 	@echo "  make release-check       Run full release checklist"
 	@echo ""
 	@echo "Docs"
@@ -81,7 +89,13 @@ demo-up:
 demo-desktop:
 	@./scripts/demo_desktop.sh
 
+demo-desktop-verify:
+	@DEMO_AUTO_CLOSE_SECONDS="$${DEMO_AUTO_CLOSE_SECONDS:-20}" TELEMETRY_ENABLED=0 ALLOW_FALLBACK_EMBEDDINGS=1 ./scripts/demo_desktop.sh
+
 demo: demo-up demo-desktop
+
+demo-verify:
+	@./scripts/demo_verify.sh
 
 demo-down:
 	@./scripts/demo_down.sh $(if $(V),--volumes,)
@@ -173,6 +187,12 @@ perf-edge:
 
 support-bundle:
 	@./scripts/support_bundle.sh
+
+release-evidence:
+	@./scripts/release/build_evidence_pack.sh
+
+pilot-evidence:
+	@./scripts/release/build_pilot_evidence_index.sh
 
 release-check:
 	@./scripts/release/checklist.sh

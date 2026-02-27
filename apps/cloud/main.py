@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SentinelID Cloud",
-    version="1.6.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -109,4 +109,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=os.environ.get("CLOUD_BIND_HOST", "127.0.0.1"), port=8000)

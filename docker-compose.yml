@@ -29,6 +29,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:password@postgres/sentinelid
       - ADMIN_API_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token}
+      - CLOUD_BIND_HOST=${CLOUD_BIND_HOST:-0.0.0.0}
     healthcheck:
       test:
         [
@@ -51,8 +52,13 @@ services:
       cloud:
         condition: service_healthy
     environment:
-      - NEXT_PUBLIC_CLOUD_BASE_URL=http://cloud:8000
-      - NEXT_PUBLIC_ADMIN_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token}
+      - CLOUD_BASE_URL=http://cloud:8000
+      - ADMIN_API_TOKEN=${ADMIN_API_TOKEN:-dev-admin-token}
+      - ADMIN_UI_USERNAME=${ADMIN_UI_USERNAME:-admin}
+      - ADMIN_UI_PASSWORD_HASH=${ADMIN_UI_PASSWORD_HASH:-$$2a$$12$$bBcV9Ds2tcdutyB7gyXLf.GGxhg0Fwgu.MnQ7EAdAqRqCPqjMRanu}
+      - ADMIN_UI_SESSION_SECRET=${ADMIN_UI_SESSION_SECRET:-dev-admin-session-secret-change-me}
+      - ADMIN_UI_SESSION_TTL_MINUTES=${ADMIN_UI_SESSION_TTL_MINUTES:-480}
+      - ADMIN_UI_SESSION_SECURE=${ADMIN_UI_SESSION_SECURE:-0}
       - NEXT_PUBLIC_DEMO_MODE=${NEXT_PUBLIC_DEMO_MODE:-1}
     healthcheck:
       test:

@@ -7,9 +7,13 @@ States: PENDING (new/retry), SENT (successful), DLQ (max retries exceeded)
 import json
 import sqlite3
 import random
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import List, Optional, Dict, Any
 from .db import get_database
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class OutboxEvent:
@@ -84,7 +88,7 @@ class OutboxRepository:
         conn = self.db.connect()
         cursor = conn.cursor()
 
-        now = datetime.utcnow().isoformat()
+        now = _utc_now_naive().isoformat()
         cursor.execute(
             """
             SELECT id, created_at, payload_json, attempts, next_attempt_at, status,
@@ -119,7 +123,7 @@ class OutboxRepository:
                 last_error_at = NULL
             WHERE id = ?
             """,
-            (datetime.utcnow().isoformat(), datetime.utcnow().isoformat(), event_id),
+            (_utc_now_naive().isoformat(), _utc_now_naive().isoformat(), event_id),
         )
         conn.commit()
 
@@ -157,7 +161,7 @@ class OutboxRepository:
 
         attempts, _ = row
         new_attempts = attempts + 1
-        now_iso = datetime.utcnow().isoformat()
+        now_iso = _utc_now_naive().isoformat()
 
         if new_attempts >= max_attempts:
             # Move to DLQ
@@ -177,7 +181,7 @@ class OutboxRepository:
             base_backoff_seconds = float(initial_backoff_seconds) * (2 ** (new_attempts - 1))
             jitter = random.uniform(-jitter_ratio, jitter_ratio) if jitter_ratio > 0 else 0.0
             backoff_seconds = max(0.1, base_backoff_seconds * (1.0 + jitter))
-            next_attempt = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+            next_attempt = _utc_now_naive() + timedelta(seconds=backoff_seconds)
 
             cursor.execute(
                 """
@@ -280,7 +284,7 @@ class OutboxRepository:
                 last_error_at = NULL
             WHERE id = ? AND status = 'DLQ'
             """,
-            (datetime.utcnow().isoformat(), event_id),
+            (_utc_now_naive().isoformat(), event_id),
         )
         conn.commit()
         return cursor.rowcount > 0
@@ -294,7 +298,7 @@ class OutboxRepository:
         """
         conn = self.db.connect()
         cursor = conn.cursor()
-        now_iso = datetime.utcnow().isoformat()
+        now_iso = _utc_now_naive().isoformat()
         cursor.execute(
             """
             UPDATE outbox_events

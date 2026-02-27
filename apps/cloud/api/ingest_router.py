@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import UTC, datetime
 
 # Use absolute imports for compatibility with uvicorn
 import sys
@@ -37,6 +37,10 @@ _FORBIDDEN_FIELDS = frozenset({
     "landmark", "landmarks", "face_data", "raw_face",
     "face_metadata", "face_image", "face_crop",
 })
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class TelemetryEventRequest(BaseModel):
@@ -203,8 +207,8 @@ async def ingest_events(
             device = Device(
                 device_id=request.device_id,
                 public_key=request.device_public_key,
-                registered_at=datetime.utcnow(),
-                last_seen=datetime.utcnow()
+                registered_at=_utc_now_naive(),
+                last_seen=_utc_now_naive()
             )
             db.add(device)
             device_registered = True
@@ -224,7 +228,7 @@ async def ingest_events(
                     detail="Device public key mismatch"
                 )
             # Update last_seen
-            device.last_seen = datetime.utcnow()
+            device.last_seen = _utc_now_naive()
 
         event_ids = [event_req.event_id for event_req in request.events]
         if len(set(event_ids)) != len(event_ids):

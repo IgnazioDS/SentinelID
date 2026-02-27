@@ -1,0 +1,95 @@
+name: release-parity
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  release-parity:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      ADMIN_API_TOKEN: dev-admin-token
+      ADMIN_UI_USERNAME: admin
+      ADMIN_UI_PASSWORD_HASH: '$2a$12$bBcV9Ds2tcdutyB7gyXLf.GGxhg0Fwgu.MnQ7EAdAqRqCPqjMRanu'
+      ADMIN_UI_PASSWORD: admin123!
+      ADMIN_UI_SESSION_SECRET: ci-admin-session-secret
+      ADMIN_UI_SESSION_TTL_MINUTES: '480'
+      EDGE_AUTH_TOKEN: devtoken
+      CLOUD_BIND_HOST: 0.0.0.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            apps/cloud/requirements-dev.txt
+            apps/edge/poetry.lock
+
+      - name: Install Poetry
+        run: python -m pip install --upgrade pip poetry==1.8.2
+
+      - name: Install edge dependencies
+        working-directory: apps/edge
+        env:
+          POETRY_VIRTUALENVS_IN_PROJECT: "true"
+        run: poetry install --no-interaction --no-ansi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            apps/admin/package-lock.json
+            apps/desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      - name: Install admin dependencies
+        working-directory: apps/admin
+        run: npm ci
+
+      - name: Install Linux deps for Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup2.4-dev \
+            libjavascriptcoregtk-4.0-dev \
+            libwebkit2gtk-4.0-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/desktop/src-tauri -> target
+
+      - name: Run release parity checklist
+        run: make release-check
+
+      - name: Upload parity artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-parity-artifacts
+          path: |
+            output/ci/*.json
+            output/release/**/*.json
+            output/release/**/*.txt
+            output/release/*.tar.gz
+            scripts/perf/out/*.json
+            scripts/perf/out/*.log
+            scripts/support/out/*.tar.gz

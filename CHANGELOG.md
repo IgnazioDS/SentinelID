@@ -2,6 +2,50 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.1.0 (2026-02-26)
+
+### Admin Security Hardening
+- Replaced public-token admin proxy model with server-side session authentication.
+- Added admin session routes: `POST /api/admin/session/login`, `POST /api/admin/session/logout`, and `GET /api/admin/session/me`.
+- Added middleware protection for admin routes and cloud proxy routes.
+- Updated proxy behavior to reject unauthenticated access, strip browser-provided `X-Admin-Token`, and inject server-side `ADMIN_API_TOKEN`.
+- Added login page and shell sign-out action for authenticated admin access.
+
+### Runtime and Config Contract Updates
+- Removed `NEXT_PUBLIC_ADMIN_TOKEN` from runtime config paths.
+- Added server-only admin auth env vars: `ADMIN_UI_USERNAME`, `ADMIN_UI_PASSWORD_HASH`, `ADMIN_UI_SESSION_SECRET`, and `ADMIN_UI_SESSION_TTL_MINUTES`.
+- Added `CLOUD_BIND_HOST` support with safer local default (`127.0.0.1`) and explicit container bind override (`0.0.0.0`).
+
+### Release Integrity and Automation
+- Added `scripts/release/check_version_consistency.sh` and integrated it into `make release-check`.
+- Added reusable support bundle sanitization validator: `scripts/check_support_bundle_sanitization.sh`.
+- Added release-path wrapper `scripts/release/check_no_orphan_edge.sh` for consistent orphan-check invocation.
+- Added client bundle exposure check: `scripts/release/check_no_public_admin_token_bundle.sh`.
+- Added release evidence pack builder: `scripts/release/build_evidence_pack.sh` and `make release-evidence`.
+- Added pilot evidence index builder: `scripts/release/build_pilot_evidence_index.sh` and `make pilot-evidence`.
+- Hardened release checklist to enforce:
+  - no `NEXT_PUBLIC_ADMIN_TOKEN` in runtime config
+  - no admin token leakage in client build artifacts
+  - compose admin auth wiring
+  - reliability SLO report generation
+  - support bundle artifact capture and evidence pack generation
+
+### CI Parity
+- Added `.github/workflows/release-parity.yml` for PR + `main` release-hardening parity.
+- Release parity workflow now executes full `make release-check` and uploads evidence artifacts.
+- Added manual `demo-desktop-verify` workflow for GUI-capable runners to validate scripted demo close behavior.
+
+### Reliability and Deprecation Cleanup
+- Removed deprecated `datetime.utcnow()` usage in edge/cloud runtime paths.
+- Migrated Pydantic v2 config patterns from legacy `class Config` to `ConfigDict`/`SettingsConfigDict`.
+- Hardened `scripts/perf/bench_edge.py` with retry handling and deterministic diagnostics for transient `429/502/503/504` and retryable network failures.
+
+### Documentation
+- Updated runbook env/auth guidance for session-based admin auth.
+- Replaced outdated release guide content with v2.1.0 release process and required evidence model.
+- Added non-interactive `make demo-verify` flow, optional scripted desktop close verification, and explicit demo exit semantics in docs.
+- Added pilot readiness freeze guide and pilot evidence index instructions.
+
 ## v2.0.0 (2026-02-26)
 
 ### Demo Mode and Operator Flow

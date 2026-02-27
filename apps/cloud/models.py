@@ -2,6 +2,7 @@
 Database models for cloud telemetry storage.
 """
 import os
+from datetime import UTC, datetime
 from sqlalchemy import (
     create_engine,
     Column,
@@ -15,8 +16,8 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
-from datetime import datetime
-
+def _utc_now_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 # Database setup
 DATABASE_URL = os.environ.get(
@@ -36,8 +37,8 @@ class Device(Base):
 
     device_id = Column(String, primary_key=True, index=True)
     public_key = Column(Text, nullable=False)
-    registered_at = Column(DateTime, default=datetime.utcnow)
-    last_seen = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    registered_at = Column(DateTime, default=_utc_now_naive)
+    last_seen = Column(DateTime, default=_utc_now_naive, onupdate=_utc_now_naive)
     is_active = Column(Boolean, default=True)
 
     telemetry_events = relationship("TelemetryEvent", back_populates="device")
@@ -70,7 +71,7 @@ class TelemetryEvent(Base):
     last_error_summary = Column(Text, nullable=True)
     audit_event_hash = Column(String, nullable=True)
     signature = Column(Text, nullable=False)
-    ingested_at = Column(DateTime, default=datetime.utcnow, index=True)
+    ingested_at = Column(DateTime, default=_utc_now_naive, index=True)
 
     device = relationship("Device", back_populates="telemetry_events")
 

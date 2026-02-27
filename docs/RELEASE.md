@@ -1,31 +1,39 @@
-# Release Guide (v1.0.0)
+# Release Guide (v2.1.0)
 
 ## Scope
 
-This guide defines the reproducible release process for SentinelID.
+This guide defines the reproducible release process for SentinelID, including security, reliability, and evidence generation gates.
 
-## Pre-Tag Checklist
+## Canonical Preflight
 
 Run from repository root:
 
 ```bash
-make test
-make build-desktop-web
-make check-desktop-rust
-make docker-build
-make smoke-edge
-make smoke-cloud
-make smoke-admin
-make smoke-desktop
-make smoke-bundling
-make perf-edge
-```
-
-One-command equivalent:
-
-```bash
 make release-check
 ```
+
+`make release-check` is the source-of-truth gate and includes:
+
+- version consistency checks
+- edge/cloud test suites
+- desktop build checks
+- docker build checks
+- outage recovery smoke
+- support bundle sanitization validation
+- admin session-auth smoke
+- orphan-edge process checks
+- reliability SLO report export (`output/ci/reliability_slo.json`)
+- release evidence pack generation (`output/release/evidence_pack_<timestamp>.tar.gz`)
+
+## CI Parity
+
+The repository includes a parity workflow:
+
+- `.github/workflows/release-parity.yml`
+
+It runs on PRs and `main` pushes and executes the full release checklist.
+
+Repository maintainers must set **`release-parity` as a required branch protection check**.
 
 ## Packaging Validation
 
@@ -39,14 +47,16 @@ make build-desktop
 When cutting a new release, review/update:
 
 - `CHANGELOG.md` (new version section)
+- `RUNBOOK.md` header version
+- `docs/RELEASE.md` header version
+- `Makefile` help banner version
 - `apps/desktop/src-tauri/tauri.conf.json` (`package.version`)
-- Any release references in docs (for example `RUNBOOK.md`, `README.md`)
 
 ## Tagging Rules
 
 - Pre-release tag format: `vX.Y.Z-rc.N`
 - Stable tag format: `vX.Y.Z`
-- Tag on the merge commit in `main` for stable releases.
+- Stable tags are created from the merge commit in `main`.
 
 ## Release Cut Commands
 
@@ -55,38 +65,78 @@ When cutting a new release, review/update:
 ```bash
 git switch main
 git pull
-git switch -c branch/feat/release-v1.0.0
+git switch -c branch/feat/release-vX.Y.Z
 ```
 
-### 2) Push branch and pre-release tag
+### 2) Run preflight and push branch
 
 ```bash
-git push -u origin branch/feat/release-v1.0.0
-git tag -a v1.0.0-rc.1 -m "SentinelID v1.0.0 release candidate 1"
-git push origin v1.0.0-rc.1
+make release-check
+git push -u origin branch/feat/release-vX.Y.Z
 ```
 
-### 3) Merge to main (no squash)
+### 3) Optional release-candidate tag
+
+```bash
+git tag -a vX.Y.Z-rc.1 -m "SentinelID vX.Y.Z release candidate 1"
+git push origin vX.Y.Z-rc.1
+```
+
+### 4) Merge to main (no squash)
 
 ```bash
 git switch main
 git pull
-git merge --no-ff branch/feat/release-v1.0.0
+git merge --no-ff branch/feat/release-vX.Y.Z
 git push origin main
 ```
 
-### 4) Create stable release tag
+### 5) Create stable release tag
 
 ```bash
-git tag -a v1.0.0 -m "SentinelID v1.0.0"
-git push origin v1.0.0
-git show --no-patch --decorate v1.0.0
+git tag -a vX.Y.Z -m "SentinelID vX.Y.Z"
+git push origin vX.Y.Z
+git show --no-patch --decorate vX.Y.Z
 ```
 
-## Artifacts
+## Required Evidence Artifacts
 
-Expected release artifacts:
+Before publishing a stable release, confirm these artifacts exist and are attached/stored:
 
-- Desktop bundle from `make build-desktop`
-- Cloud and admin images from `make docker-build`
-- Smoke and benchmark outputs from `scripts/eval/out/`
+- `output/ci/reliability_slo.json`
+- `scripts/perf/out/*.json` (edge perf evidence)
+- `scripts/support/out/support_bundle_*.tar.gz`
+- `output/release/evidence_pack_<timestamp>.tar.gz`
+- support bundle sanitization pass logs
+- cloud recovery smoke pass logs
+- admin smoke pass logs
+
+Build evidence pack manually (optional, outside full release-check):
+
+```bash
+make release-evidence
+```
+
+## Pilot Readiness Evidence (v2.3.1 target)
+
+Build pilot evidence index (aggregates latest release evidence, docs snapshot, and checklist):
+
+```bash
+make pilot-evidence
+```
+
+Optional CI URL capture:
+
+```bash
+CI_PARITY_PR_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+CI_PARITY_MAIN_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+make pilot-evidence
+```
+
+Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
+
+## Post-Release
+
+- Record final notes in `CHANGELOG.md`
+- Ensure runbook/version headers stay aligned
+- Keep release evidence linked from release notes

@@ -4,10 +4,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LAUNCHER="${REPO_ROOT}/apps/desktop/resources/edge/run_edge.sh"
+VENV_PYTHON="${REPO_ROOT}/apps/desktop/resources/edge/pyvenv/bin/python"
 
-if [[ ! -x "${LAUNCHER}" ]]; then
-  echo "Bundled launcher not found. Building bundle runtime first..."
+if [[ ! -x "${LAUNCHER}" || ! -x "${VENV_PYTHON}" ]]; then
+  echo "Bundled desktop runtime missing launcher or python. Building bundle runtime first..."
   "${REPO_ROOT}/scripts/bundle_edge_venv.sh"
+fi
+
+if [[ ! -x "${LAUNCHER}" || ! -x "${VENV_PYTHON}" ]]; then
+  echo "Bundled desktop runtime still incomplete after bundling."
+  echo "launcher=${LAUNCHER}"
+  echo "python=${VENV_PYTHON}"
+  exit 1
 fi
 
 PORT="${EDGE_PORT:-8891}"

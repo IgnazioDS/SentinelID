@@ -43,6 +43,7 @@ Demo runtime helpers:
 ```bash
 make demo-up
 make demo-desktop
+make demo-verify
 make demo-down
 ```
 

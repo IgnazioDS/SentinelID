@@ -1,37 +1,47 @@
 import { NextRequest } from 'next/server';
+import { getAdminServerConfig } from '../../../../lib/server-env';
+import { readSessionFromRequest } from '../../../../lib/session';
 
-const CLOUD_BASE_URL = process.env.NEXT_PUBLIC_CLOUD_BASE_URL?.trim();
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_ADMIN_TOKEN?.trim();
+export const runtime = 'nodejs';
 
 function configErrorResponse() {
   return Response.json(
     {
       detail:
-        'Admin configuration missing NEXT_PUBLIC_CLOUD_BASE_URL. Set it in environment and restart the admin container.',
+        'Admin configuration missing CLOUD_BASE_URL (or NEXT_PUBLIC_CLOUD_BASE_URL fallback). Set it and restart admin.',
     },
     { status: 500 }
   );
 }
 
-function buildUpstreamUrl(path: string[], request: NextRequest): string {
-  const base = (CLOUD_BASE_URL || '').replace(/\/+$/, '');
+function buildUpstreamUrl(baseUrl: string, path: string[], request: NextRequest): string {
+  const base = (baseUrl || '').replace(/\/+$/, '');
   const suffix = path.join('/');
   const query = request.nextUrl.search;
   return `${base}/${suffix}${query}`;
 }
 
 async function proxyRequest(request: NextRequest, context: { params: { path: string[] } }) {
-  if (!CLOUD_BASE_URL) {
+  let config;
+  try {
+    config = getAdminServerConfig();
+  } catch {
     return configErrorResponse();
   }
 
+  const session = readSessionFromRequest(request, config.adminUiSessionSecret);
+  if (!session) {
+    return Response.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
   const path = context.params.path || [];
-  const upstreamUrl = buildUpstreamUrl(path, request);
+  const upstreamUrl = buildUpstreamUrl(config.cloudBaseUrl, path, request);
 
   const headers = new Headers(request.headers);
   headers.delete('host');
-  if (ADMIN_TOKEN && !headers.has('X-Admin-Token')) {
-    headers.set('X-Admin-Token', ADMIN_TOKEN);
+  headers.delete('x-admin-token');
+  if (config.adminApiToken) {
+    headers.set('X-Admin-Token', config.adminApiToken);
   }
 
   const init: RequestInit = {

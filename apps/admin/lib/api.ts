@@ -1,25 +1,12 @@
 /**
- * Cloud API client with admin token support.
+ * Cloud API client through same-origin admin proxy.
  */
 
-const CLOUD_BASE_URL = process.env.NEXT_PUBLIC_CLOUD_BASE_URL?.trim();
 const API_PROXY_BASE = '/api/cloud';
-const MISSING_CONFIG_ERROR =
-  'Admin configuration missing NEXT_PUBLIC_CLOUD_BASE_URL. Set it and restart admin.';
-
-interface FetchOptions extends RequestInit {
-  includeToken?: boolean;
-}
-
-function ensureCloudBaseConfigured() {
-  if (!CLOUD_BASE_URL) {
-    throw new Error(MISSING_CONFIG_ERROR);
-  }
-}
+interface FetchOptions extends RequestInit {}
 
 async function fetchWithAuth(endpoint: string, options: FetchOptions = {}) {
-  const { includeToken: _includeToken = true, ...fetchOptions } = options;
-  ensureCloudBaseConfigured();
+  const fetchOptions = options;
 
   const headers = new Headers(fetchOptions.headers);
   headers.set('Content-Type', 'application/json');
@@ -38,8 +25,7 @@ async function fetchWithAuth(endpoint: string, options: FetchOptions = {}) {
 }
 
 async function fetchBlobWithAuth(endpoint: string, options: FetchOptions = {}) {
-  const { includeToken: _includeToken = true, ...fetchOptions } = options;
-  ensureCloudBaseConfigured();
+  const fetchOptions = options;
 
   const headers = new Headers(fetchOptions.headers);
   const response = await fetch(`${API_PROXY_BASE}${endpoint}`, {

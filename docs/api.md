@@ -40,6 +40,19 @@ Auth:
 - Ingest routes verify device signatures and reject forbidden telemetry fields.
 - Admin stats include latency percentiles (`latency_p50_ms`, `latency_p95_ms`) and `risk_distribution`.
 
+## Admin App Internal API (`/api/admin/session`)
+
+Base URL (local admin): `http://127.0.0.1:3000`
+
+- `POST /api/admin/session/login`
+- `POST /api/admin/session/logout`
+- `GET /api/admin/session/me`
+
+Auth:
+- Login issues an HttpOnly session cookie.
+- `/api/cloud/*` proxy routes require a valid session cookie.
+- Browser-provided `X-Admin-Token` is ignored by proxy; server injects `ADMIN_API_TOKEN`.
+
 ## Contracts
 
 - Shared schemas and OpenAPI artifacts live in `packages/shared-contracts/`.

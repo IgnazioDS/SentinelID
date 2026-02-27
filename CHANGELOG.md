@@ -2,6 +2,16 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.2.0 (2026-02-27)
+
+### CI Parity Hardening
+- Hardened `.github/workflows/release-parity.yml` with explicit read-only workflow permissions and branch/ref concurrency control.
+- Added retry-aware parity runner `scripts/ci/run_release_parity.sh` to rerun `make release-check` once after a failed attempt, with compose cleanup between attempts.
+- Updated parity workflow to collect and upload deterministic diagnostics (`output/ci/logs/release_check_attempt_*.log`, compose `ps` and compose logs) alongside existing release artifacts.
+
+### Merge Gate Policy
+- Documented and enforced `release-parity` as the required release-integrity gate while preserving existing fast CI workflows (`edge-tests`, `cloud-tests`, `desktop-build`, `docker-build`) for rapid feedback.
+
 ## v2.1.1 (2026-02-27)
 
 ### Release Integrity + Doc Alignment

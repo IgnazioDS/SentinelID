@@ -125,6 +125,14 @@ Build pilot evidence index (aggregates latest release evidence, docs snapshot, a
 make pilot-evidence
 ```
 
+Optional CI URL capture:
+
+```bash
+CI_PARITY_PR_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+CI_PARITY_MAIN_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+make pilot-evidence
+```
+
 Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
 
 ## Post-Release

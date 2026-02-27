@@ -12,6 +12,8 @@ TARBALL_PATH="${EVIDENCE_DIR}/pilot_evidence_${STAMP}.tar.gz"
 RELIABILITY_FILE="${ROOT_DIR}/output/ci/reliability_slo.json"
 PERF_DIR="${ROOT_DIR}/scripts/perf/out"
 SUPPORT_DIR="${ROOT_DIR}/scripts/support/out"
+CI_PARITY_PR_URL="${CI_PARITY_PR_URL:-}"
+CI_PARITY_MAIN_URL="${CI_PARITY_MAIN_URL:-}"
 
 mkdir -p "${WORK_DIR}/docs"
 
@@ -71,7 +73,7 @@ SentinelID Pilot Readiness Checklist (v2.3.1 target)
 - [ ] Known-good runbook archived
 CHECKLIST
 
-python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" "${LATEST_RELEASE_EVIDENCE}" <<'PY'
+python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" "${LATEST_RELEASE_EVIDENCE}" "${CI_PARITY_PR_URL}" "${CI_PARITY_MAIN_URL}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -84,6 +86,8 @@ work_dir = Path(sys.argv[1])
 latest_perf = Path(sys.argv[2])
 latest_support = Path(sys.argv[3])
 release_pack = Path(sys.argv[4])
+ci_parity_pr_url = sys.argv[5]
+ci_parity_main_url = sys.argv[6]
 
 
 def cmd(*args: str) -> str:
@@ -117,7 +121,9 @@ manifest = {
     },
     "notes": {
         "release_check_log": "release_check.log" if (work_dir / "release_check.log").exists() else "",
-        "ci_parity_proof": "Attach CI run URLs for PR + main.",
+        "ci_parity_proof_pr": ci_parity_pr_url,
+        "ci_parity_proof_main": ci_parity_main_url,
+        "ci_parity_note": "If empty, capture URLs after CI completes on PR/main.",
     },
 }
 

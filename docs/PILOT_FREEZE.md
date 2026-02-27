@@ -20,6 +20,14 @@ make pilot-evidence
 - `output/release/pilot_evidence_<timestamp>.tar.gz`
 - CI parity run URLs (PR + main)
 
+When generating pilot evidence, embed CI links directly in `manifest.json`:
+
+```bash
+CI_PARITY_PR_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+CI_PARITY_MAIN_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+make pilot-evidence
+```
+
 ## Manual Pilot Dry-Run
 
 - Fresh machine setup from `RUNBOOK.md`

@@ -10,17 +10,19 @@ ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME:-admin}"
 ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD:-admin123!}"
 DEMO_FORCE_BUILD="${DEMO_FORCE_BUILD:-0}"
 DEMO_HEALTH_TIMEOUT_SECONDS="${DEMO_HEALTH_TIMEOUT_SECONDS:-180}"
+DEMO_CLOUD_BIND_HOST="${DEMO_CLOUD_BIND_HOST:-0.0.0.0}"
 
 cd "${REPO_ROOT}"
 
 echo "[demo-up] starting docker compose stack (postgres/cloud/admin)"
+echo "[demo-up] cloud bind host for compose runtime: ${DEMO_CLOUD_BIND_HOST}"
 compose_args=(up -d postgres cloud admin)
 if [[ "${DEMO_FORCE_BUILD}" == "1" ]]; then
   compose_args=(up -d --build postgres cloud admin)
 fi
 
 attempt=1
-until docker compose "${compose_args[@]}"; do
+until CLOUD_BIND_HOST="${DEMO_CLOUD_BIND_HOST}" docker compose "${compose_args[@]}"; do
   if [[ "${attempt}" -ge 3 ]]; then
     echo "[demo-up] docker compose failed after ${attempt} attempts"
     exit 1

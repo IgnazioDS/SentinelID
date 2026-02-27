@@ -1,4 +1,4 @@
-# Release Guide (v2.1.0)
+# Release Guide (v2.1.1)
 
 ## Scope
 
@@ -14,7 +14,7 @@ make release-check
 
 `make release-check` is the source-of-truth gate and includes:
 
-- version consistency checks
+- version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/DEMO_CHECKLIST.md`, Makefile help banner)
 - edge/cloud test suites
 - desktop build checks
 - docker build checks
@@ -49,8 +49,16 @@ When cutting a new release, review/update:
 - `CHANGELOG.md` (new version section)
 - `RUNBOOK.md` header version
 - `docs/RELEASE.md` header version
+- `docs/DEMO_CHECKLIST.md` header version
 - `Makefile` help banner version
 - `apps/desktop/src-tauri/tauri.conf.json` (`package.version`)
+
+Use `./scripts/release/check_version_consistency.sh` before tagging to enforce alignment.
+
+## Canonical Orphan-Check Command
+
+- Canonical path: `scripts/check_no_orphan_edge.sh`
+- `scripts/release/check_no_orphan_edge.sh` remains as a compatibility wrapper for legacy references.
 
 ## Tagging Rules
 

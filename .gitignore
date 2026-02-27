@@ -20,6 +20,8 @@ apps/admin/tsconfig 2.json
 # Bundled desktop runtime virtualenv is reproducible and should stay local-only.
 apps/desktop/resources/edge/pyvenv/
 apps/desktop/resources/edge/app/
+# Guard against accidental nested duplicate project copies.
+apps/desktop/apps/
 
 # Rust/Tauri
 target/

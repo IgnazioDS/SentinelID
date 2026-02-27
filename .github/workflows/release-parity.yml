@@ -17,7 +17,7 @@ jobs:
       ADMIN_UI_SESSION_SECRET: ci-admin-session-secret
       ADMIN_UI_SESSION_TTL_MINUTES: '480'
       EDGE_AUTH_TOKEN: devtoken
-      CLOUD_BIND_HOST: 127.0.0.1
+      CLOUD_BIND_HOST: 0.0.0.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4

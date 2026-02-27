@@ -3,10 +3,24 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+function sanitizeNextTarget(nextParam: string | null): string {
+  if (!nextParam || !nextParam.startsWith('/') || nextParam.startsWith('//')) {
+    return '/';
+  }
+
+  try {
+    const parsed = new URL(nextParam, 'http://sentinelid.local');
+    if (parsed.origin !== 'http://sentinelid.local') return '/';
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return '/';
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextTarget = useMemo(() => searchParams.get('next') || '/', [searchParams]);
+  const nextTarget = useMemo(() => sanitizeNextTarget(searchParams.get('next')), [searchParams]);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

@@ -1,4 +1,4 @@
-# Release Guide (v2.2.0)
+# Release Guide (v2.2.1)
 
 ## Scope
 
@@ -42,6 +42,7 @@ Parity workflow controls:
 - compose cleanup between retry attempts
 - uploaded parity diagnostics (`output/ci/logs/release_check_attempt_*.log`, compose `ps`, compose logs)
 - retained release parity artifacts for 14 days
+- release and smoke failure diagnostics exported to `output/ci/logs/` (`release_check_failure_*`, `cloud_smoke_failure_*`, `cloud_recovery_failure_*`)
 
 ## Packaging Validation
 

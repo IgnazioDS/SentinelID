@@ -2,6 +2,18 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.2.1 (2026-02-27)
+
+### Reliability Control Hardening
+- Tightened cloud bind defaults in `apps/cloud/scripts/start_cloud.sh`:
+  - uses `127.0.0.1` for non-container local runs when `CLOUD_BIND_HOST` is unset
+  - uses `0.0.0.0` for container runtime (`/.dockerenv` or `CONTAINER_RUNTIME=1`)
+  - still respects explicit `CLOUD_BIND_HOST` overrides
+
+### Deterministic Failure Diagnostics
+- Added release-check failure diagnostic capture in `scripts/release/checklist.sh`, including summary metadata, edge log tails, and docker compose state/log snapshots under `output/ci/logs/`.
+- Added cloud smoke and recovery smoke diagnostic exports under `output/ci/logs/` for failed health/recovery runs.
+
 ## v2.2.0 (2026-02-27)
 
 ### CI Parity Hardening

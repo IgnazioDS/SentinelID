@@ -23,6 +23,7 @@ CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 CLOUD_INGEST_URL="${CLOUD_INGEST_URL:-${CLOUD_URL}/v1/ingest/events}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
 RECOVERY_CLOUD_BIND_HOST="${RECOVERY_CLOUD_BIND_HOST:-0.0.0.0}"
+DIAG_DIR="${SMOKE_RECOVERY_DIAG_DIR:-${REPO_ROOT}/output/ci/logs}"
 
 if [[ -z "${EDGE_TOKEN}" ]]; then
   echo "EDGE_TOKEN (or EDGE_AUTH_TOKEN) is required"
@@ -63,6 +64,27 @@ cleanup() {
   rm -rf "${STATE_DIR}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
+
+dump_recovery_diagnostics() {
+  mkdir -p "${DIAG_DIR}"
+  local ts
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  local prefix="${DIAG_DIR}/cloud_recovery_failure_${ts}"
+  echo "[recovery] writing failure diagnostics to ${prefix}_*.txt"
+  {
+    echo "edge_url=${EDGE_URL}"
+    echo "cloud_url=${CLOUD_URL}"
+    echo "cloud_ingest_url=${CLOUD_INGEST_URL}"
+    echo "recovery_cloud_bind_host=${RECOVERY_CLOUD_BIND_HOST}"
+  } > "${prefix}_summary.txt"
+  if [[ -f "${EDGE_LOG}" ]]; then
+    tail -n 200 "${EDGE_LOG}" > "${prefix}_edge_tail.log" 2>&1 || true
+  fi
+  docker compose ps > "${prefix}_compose_ps.txt" 2>&1 || true
+  docker compose logs --no-color > "${prefix}_compose.log" 2>&1 || true
+}
+
+trap dump_recovery_diagnostics ERR
 
 echo "[recovery] stopping cloud/admin to simulate outage"
 docker compose stop cloud admin >/dev/null 2>&1 || true

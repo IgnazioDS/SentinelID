@@ -3,8 +3,25 @@ set -eu
 
 MAX_ATTEMPTS="${DB_WAIT_MAX_ATTEMPTS:-40}"
 SLEEP_SECONDS="${DB_WAIT_SLEEP_SECONDS:-2}"
-HOST="${CLOUD_BIND_HOST:-0.0.0.0}"
 ATTEMPT=1
+
+detect_bind_host() {
+  if [ -n "${CLOUD_BIND_HOST:-}" ]; then
+    printf "%s" "${CLOUD_BIND_HOST}"
+    return
+  fi
+
+  # Container runtime needs external bind for service networking.
+  if [ -f "/.dockerenv" ] || [ "${CONTAINER_RUNTIME:-0}" = "1" ]; then
+    printf "0.0.0.0"
+    return
+  fi
+
+  # Local non-container runs should default to loopback.
+  printf "127.0.0.1"
+}
+
+HOST="$(detect_bind_host)"
 
 until python - <<'PY'
 import os

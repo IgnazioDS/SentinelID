@@ -15,6 +15,27 @@ SUPPORT_DIR="${ROOT_DIR}/scripts/support/out"
 CI_PARITY_PR_URL="${CI_PARITY_PR_URL:-}"
 CI_PARITY_MAIN_URL="${CI_PARITY_MAIN_URL:-}"
 
+autodetect_ci_url() {
+  local event="$1"
+  if ! command -v gh >/dev/null 2>&1; then
+    return
+  fi
+
+  gh run list \
+    --workflow release-parity.yml \
+    --limit 30 \
+    --json event,status,conclusion,url,createdAt \
+    --jq "map(select(.event == \"${event}\" and .status == \"completed\" and .conclusion == \"success\")) | sort_by(.createdAt) | reverse | .[0].url // \"\"" \
+    2>/dev/null || true
+}
+
+if [[ -z "${CI_PARITY_PR_URL}" ]]; then
+  CI_PARITY_PR_URL="$(autodetect_ci_url "pull_request")"
+fi
+if [[ -z "${CI_PARITY_MAIN_URL}" ]]; then
+  CI_PARITY_MAIN_URL="$(autodetect_ci_url "push")"
+fi
+
 mkdir -p "${WORK_DIR}/docs"
 
 if [[ ! -f "${RELIABILITY_FILE}" ]]; then

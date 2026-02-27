@@ -15,8 +15,10 @@ ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
 PASSED_STEPS=()
 FAILED_STEP=""
 EDGE_PID=""
+EDGE_LOG=""
 SERVICES_STARTED=0
 ORPHAN_BASELINE_PIDS="$(pgrep -f "run_edge.sh|sentinelid_edge.main:app" | tr '\n' ',' | sed 's/,$//' || true)"
+DIAG_DIR="${RELEASE_CHECK_DIAG_DIR:-output/ci/logs}"
 
 summary() {
   echo ""
@@ -46,7 +48,37 @@ cleanup() {
   fi
 }
 
+dump_failure_diagnostics() {
+  if [[ -z "${FAILED_STEP}" ]]; then
+    return
+  fi
+
+  mkdir -p "${DIAG_DIR}"
+  local ts
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  local prefix="${DIAG_DIR}/release_check_failure_${ts}"
+
+  {
+    echo "failed_step=${FAILED_STEP}"
+    echo "cloud_url=${CLOUD_URL}"
+    echo "admin_ui_url=${ADMIN_UI_URL}"
+    echo "edge_url=${EDGE_URL}"
+  } | tee "${prefix}_summary.txt"
+
+  if [[ -n "${EDGE_LOG}" && -f "${EDGE_LOG}" ]]; then
+    echo "[diag] writing edge log tail: ${prefix}_edge_tail.log"
+    tail -n 200 "${EDGE_LOG}" | tee "${prefix}_edge_tail.log" >/dev/null
+  fi
+
+  echo "[diag] writing docker compose ps: ${prefix}_compose_ps.txt"
+  docker compose ps > "${prefix}_compose_ps.txt" 2>&1 || true
+
+  echo "[diag] writing docker compose logs: ${prefix}_compose.log"
+  docker compose logs --no-color > "${prefix}_compose.log" 2>&1 || true
+}
+
 on_exit() {
+  dump_failure_diagnostics
   cleanup
   summary
 }

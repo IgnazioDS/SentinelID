@@ -6,6 +6,22 @@ ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-${REPO_ROOT}/apps/edge/.venv/bin/python}"
+DIAG_DIR="${SMOKE_CLOUD_DIAG_DIR:-${REPO_ROOT}/output/ci/logs}"
+
+dump_cloud_diagnostics() {
+  mkdir -p "${DIAG_DIR}"
+  local ts
+  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+  local prefix="${DIAG_DIR}/cloud_smoke_failure_${ts}"
+  echo "[cloud-smoke] writing diagnostics to ${prefix}_*.txt"
+  {
+    echo "cloud_url=${CLOUD_URL}"
+    echo "python_bin=${PYTHON_BIN}"
+  } > "${prefix}_summary.txt"
+  curl -sS -i "${CLOUD_URL}/health" > "${prefix}_health_http.txt" 2>&1 || true
+  docker compose ps > "${prefix}_compose_ps.txt" 2>&1 || true
+  docker compose logs --no-color cloud > "${prefix}_cloud.log" 2>&1 || true
+}
 
 if [[ -z "${ADMIN_TOKEN}" ]]; then
   echo "ADMIN_TOKEN (or ADMIN_API_TOKEN) is required"
@@ -27,6 +43,7 @@ done
 
 if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
   echo "Cloud service did not become healthy at ${CLOUD_URL}/health"
+  dump_cloud_diagnostics
   exit 1
 fi
 

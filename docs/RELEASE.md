@@ -117,6 +117,16 @@ Build evidence pack manually (optional, outside full release-check):
 make release-evidence
 ```
 
+## Pilot Readiness Evidence (v2.3.1 target)
+
+Build pilot evidence index (aggregates latest release evidence, docs snapshot, and checklist):
+
+```bash
+make pilot-evidence
+```
+
+Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
+
 ## Post-Release
 
 - Record final notes in `CHANGELOG.md`

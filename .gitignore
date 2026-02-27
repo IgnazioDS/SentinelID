@@ -46,6 +46,7 @@ venv/
 *.exe
 dist/
 build/
+output/
 *.egg-info/
 
 # Database & Temporary Files

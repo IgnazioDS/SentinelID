@@ -1,0 +1,39 @@
+name: demo-desktop-verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner label (use self-hosted for GUI if needed)"
+        required: false
+        default: "macos-latest"
+      timeout_seconds:
+        description: "Auto-close timeout in seconds"
+        required: false
+        default: "20"
+
+jobs:
+  demo-desktop:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install desktop deps
+        run: cd apps/desktop && npm ci --no-audit --no-fund
+
+      - name: Demo desktop auto-close verification
+        env:
+          DEMO_AUTO_CLOSE_SECONDS: ${{ inputs.timeout_seconds }}
+          TELEMETRY_ENABLED: "0"
+          ALLOW_FALLBACK_EMBEDDINGS: "1"
+        run: make demo-desktop-verify

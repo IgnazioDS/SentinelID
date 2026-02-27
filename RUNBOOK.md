@@ -139,6 +139,7 @@ make demo-checklist
 make demo-verify
 DEMO_VERIFY_DESKTOP=1 DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS=20 make demo-verify
 DEMO_AUTO_CLOSE_SECONDS=30 make demo-desktop
+make demo-desktop-verify
 make demo-down
 make demo-down V=1
 ```
@@ -233,6 +234,7 @@ make smoke-desktop
 make smoke-bundling
 make support-bundle
 make release-evidence
+make pilot-evidence
 ```
 
 Perf check:
@@ -246,6 +248,8 @@ make perf-edge
 ```bash
 make release-check
 ```
+
+Pilot readiness checklist: `docs/PILOT_FREEZE.md`.
 
 ## Packaging
 

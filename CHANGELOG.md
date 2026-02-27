@@ -22,6 +22,7 @@ All notable changes to SentinelID are documented in this file.
 - Added release-path wrapper `scripts/release/check_no_orphan_edge.sh` for consistent orphan-check invocation.
 - Added client bundle exposure check: `scripts/release/check_no_public_admin_token_bundle.sh`.
 - Added release evidence pack builder: `scripts/release/build_evidence_pack.sh` and `make release-evidence`.
+- Added pilot evidence index builder: `scripts/release/build_pilot_evidence_index.sh` and `make pilot-evidence`.
 - Hardened release checklist to enforce:
   - no `NEXT_PUBLIC_ADMIN_TOKEN` in runtime config
   - no admin token leakage in client build artifacts
@@ -32,6 +33,7 @@ All notable changes to SentinelID are documented in this file.
 ### CI Parity
 - Added `.github/workflows/release-parity.yml` for PR + `main` release-hardening parity.
 - Release parity workflow now executes full `make release-check` and uploads evidence artifacts.
+- Added manual `demo-desktop-verify` workflow for GUI-capable runners to validate scripted demo close behavior.
 
 ### Reliability and Deprecation Cleanup
 - Removed deprecated `datetime.utcnow()` usage in edge/cloud runtime paths.
@@ -42,6 +44,7 @@ All notable changes to SentinelID are documented in this file.
 - Updated runbook env/auth guidance for session-based admin auth.
 - Replaced outdated release guide content with v2.1.0 release process and required evidence model.
 - Added non-interactive `make demo-verify` flow, optional scripted desktop close verification, and explicit demo exit semantics in docs.
+- Added pilot readiness freeze guide and pilot evidence index instructions.
 
 ## v2.0.0 (2026-02-26)
 

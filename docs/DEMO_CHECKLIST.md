@@ -60,6 +60,7 @@ Non-interactive verification alternative:
 10. Desktop exit process hygiene
 - Close desktop app.
 - Optional scripted close path: `DEMO_AUTO_CLOSE_SECONDS=30 make demo-desktop`
+- CI-friendly scripted close path (no Docker): `make demo-desktop-verify`
 - Expected close statuses: `0` (app close), `130` (Ctrl+C), or `143` (terminate) unless strict mode is set.
 - Verify no orphan edge process remains:
   - `make check-no-orphans`

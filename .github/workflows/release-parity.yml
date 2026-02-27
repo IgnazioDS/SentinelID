@@ -7,7 +7,7 @@ on:
 
 jobs:
   release-parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:
       ADMIN_API_TOKEN: dev-admin-token

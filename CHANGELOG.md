@@ -2,6 +2,13 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.1 (2026-02-27)
+
+### Pilot Readiness Freeze
+- Completed pilot freeze runbook alignment and evidence workflow for Docker-first self-hosted validation.
+- Hardened `scripts/release/build_pilot_evidence_index.sh` to auto-detect latest successful `release-parity` run URLs for pull requests and `main` pushes when not provided explicitly.
+- Standardized release-facing version headers to `v2.3.1` for pilot tag readiness.
+
 ## v2.3.0 (2026-02-27)
 
 ### DX / Forward Compatibility

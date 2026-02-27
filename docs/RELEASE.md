@@ -157,3 +157,8 @@ Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
 - Record final notes in `CHANGELOG.md`
 - Ensure runbook/version headers stay aligned
 - Keep release evidence linked from release notes
+- Optional manual release-pipeline validation without creating a new tag:
+
+```bash
+gh workflow run release-tag.yml --ref main
+```

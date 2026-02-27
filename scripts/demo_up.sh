@@ -9,6 +9,7 @@ ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-dev-admin-token}}"
 ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME:-admin}"
 ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD:-admin123!}"
 DEMO_FORCE_BUILD="${DEMO_FORCE_BUILD:-0}"
+DEMO_HEALTH_TIMEOUT_SECONDS="${DEMO_HEALTH_TIMEOUT_SECONDS:-180}"
 
 cd "${REPO_ROOT}"
 
@@ -30,7 +31,7 @@ until docker compose "${compose_args[@]}"; do
 done
 
 echo "[demo-up] waiting for cloud health"
-for _ in $(seq 1 160); do
+for _ in $(seq 1 $((DEMO_HEALTH_TIMEOUT_SECONDS * 2))); do
   if curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
     break
   fi
@@ -38,11 +39,15 @@ for _ in $(seq 1 160); do
 done
 if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
   echo "Cloud health check failed: ${CLOUD_URL}/health"
+  echo "[demo-up] docker compose ps"
+  docker compose ps || true
+  echo "[demo-up] cloud logs (tail 120)"
+  docker compose logs --tail=120 cloud || true
   exit 1
 fi
 
 echo "[demo-up] waiting for admin ui"
-for _ in $(seq 1 160); do
+for _ in $(seq 1 $((DEMO_HEALTH_TIMEOUT_SECONDS * 2))); do
   if curl -fsS "${ADMIN_UI_URL}" >/dev/null 2>&1; then
     break
   fi
@@ -50,6 +55,10 @@ for _ in $(seq 1 160); do
 done
 if ! curl -fsS "${ADMIN_UI_URL}" >/dev/null 2>&1; then
   echo "Admin UI health check failed: ${ADMIN_UI_URL}"
+  echo "[demo-up] docker compose ps"
+  docker compose ps || true
+  echo "[demo-up] admin logs (tail 120)"
+  docker compose logs --tail=120 admin || true
   exit 1
 fi
 
@@ -59,7 +68,7 @@ cleanup_cookie() {
   rm -f "${COOKIE_JAR}" >/dev/null 2>&1 || true
 }
 trap cleanup_cookie EXIT
-for _ in $(seq 1 160); do
+for _ in $(seq 1 $((DEMO_HEALTH_TIMEOUT_SECONDS * 2))); do
   if curl -fsS -c "${COOKIE_JAR}" \
       -H "Content-Type: application/json" \
       -X POST \

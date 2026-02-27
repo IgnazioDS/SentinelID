@@ -56,6 +56,6 @@ if [[ "${DEMO_VERIFY_DESKTOP}" == "1" ]]; then
 fi
 
 echo "[demo-verify] orphan check"
-"${REPO_ROOT}/scripts/release/check_no_orphan_edge.sh"
+"${REPO_ROOT}/scripts/check_no_orphan_edge.sh"
 
 echo "[demo-verify] completed successfully"

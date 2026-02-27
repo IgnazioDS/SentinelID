@@ -2,6 +2,16 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.1.1 (2026-02-27)
+
+### Release Integrity + Doc Alignment
+- Updated release-facing version headers to `v2.1.1` across `RUNBOOK.md`, `docs/RELEASE.md`, `docs/DEMO_CHECKLIST.md`, and the Makefile help banner.
+- Extended `scripts/release/check_version_consistency.sh` to enforce version alignment for `docs/DEMO_CHECKLIST.md` in addition to changelog/runbook/release guide/Make help text.
+- Updated release documentation to explicitly define the canonical orphan check command path (`scripts/check_no_orphan_edge.sh`) and retain the release-path wrapper as compatibility-only.
+
+### Script Path Consistency
+- Switched `scripts/release/checklist.sh` and `scripts/demo_verify.sh` to invoke the canonical orphan check path directly to avoid operator ambiguity.
+
 ## v2.1.0 (2026-02-26)
 
 ### Admin Security Hardening

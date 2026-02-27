@@ -2,7 +2,7 @@
 name = "sentinelid-edge"
 version = "0.6.0"
 description = "SentinelID Edge Service for Face Authentication"
-authors = ["Your Name <you@example.com>"]
+authors = ["Ignazio De Santis <ignaziodesantisofficial@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -20,7 +20,7 @@ alembic = "^1.13.1"
 python-multipart = "^0.0.7" # for file uploads
 keyring = "^24.0.0" # OS keychain access for master key storage
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"
 httpx = "^0.25.0"
 black = "^23.12.0"

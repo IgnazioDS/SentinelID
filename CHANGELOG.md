@@ -2,6 +2,16 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.0 (2026-02-27)
+
+### DX / Forward Compatibility
+- Migrated edge Poetry config from deprecated `[tool.poetry.dev-dependencies]` to `[tool.poetry.group.dev.dependencies]` to remove Poetry deprecation warnings in local/CI runs.
+- Added targeted pytest warning filters for third-party `asyncio.iscoroutinefunction` deprecation noise emitted by current FastAPI/Starlette internals on newer Python runtimes.
+
+### Drift Cleanup
+- Replaced placeholder edge package author metadata with the project maintainer identity.
+- Updated cloud service API metadata version to `2.3.0` to match current release line and reduce release/docs drift.
+
 ## v2.2.1 (2026-02-27)
 
 ### Reliability Control Hardening

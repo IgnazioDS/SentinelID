@@ -5,6 +5,13 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-parity-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release-parity:
     runs-on: ubuntu-22.04
@@ -77,16 +84,30 @@ jobs:
           workspaces: |
             apps/desktop/src-tauri -> target
 
-      - name: Run release parity checklist
-        run: make release-check
+      - name: Run release parity checklist (with retry)
+        timeout-minutes: 100
+        env:
+          RELEASE_PARITY_ATTEMPTS: '2'
+        run: ./scripts/ci/run_release_parity.sh
+
+      - name: Collect parity diagnostics
+        if: always()
+        run: |
+          mkdir -p output/ci/logs
+          docker compose ps -a > output/ci/logs/docker_compose_ps.txt || true
+          docker compose logs --no-color > output/ci/logs/docker_compose.log || true
 
       - name: Upload parity artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: release-parity-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
           path: |
             output/ci/*.json
+            output/ci/logs/*.txt
+            output/ci/logs/*.log
             output/release/**/*.json
             output/release/**/*.txt
             output/release/*.tar.gz

@@ -1,4 +1,4 @@
-# Release Guide (v2.1.1)
+# Release Guide (v2.2.0)
 
 ## Scope
 
@@ -34,6 +34,14 @@ The repository includes a parity workflow:
 It runs on PRs and `main` pushes and executes the full release checklist.
 
 Repository maintainers must set **`release-parity` as a required branch protection check**.
+Fast workflows (`edge-tests`, `cloud-tests`, `desktop-build`, `docker-build`) remain enabled for quick feedback but do not replace parity gating.
+
+Parity workflow controls:
+
+- retried parity execution (`scripts/ci/run_release_parity.sh`, default 2 attempts)
+- compose cleanup between retry attempts
+- uploaded parity diagnostics (`output/ci/logs/release_check_attempt_*.log`, compose `ps`, compose logs)
+- retained release parity artifacts for 14 days
 
 ## Packaging Validation
 

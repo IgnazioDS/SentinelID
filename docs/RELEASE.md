@@ -128,14 +128,22 @@ Before publishing a stable release, confirm these artifacts exist and are attach
 - cloud recovery smoke pass logs
 - admin smoke pass logs
 - successful `release-tag` `workflow_dispatch` run URL (post-release validation)
+- known-good runbook lock artifact (`runbook_lock_<label>.tar.gz`)
 - release assets on the tagged GitHub release:
   - `evidence_pack_<tag>.tar.gz`
   - `pilot_evidence_<tag>.tar.gz`
+  - `runbook_lock_<tag>.tar.gz`
 
 Build evidence pack manually (optional, outside full release-check):
 
 ```bash
 make release-evidence
+```
+
+Build known-good runbook lock artifact manually:
+
+```bash
+make runbook-lock
 ```
 
 ## Pilot Readiness Evidence (v2.3.1 target)
@@ -152,6 +160,7 @@ Optional CI URL capture:
 CI_PARITY_PR_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
 CI_PARITY_MAIN_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
 RELEASE_TAG_DISPATCH_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+RUNBOOK_LOCK_LABEL="vX.Y.Z" \
 make pilot-evidence
 ```
 
@@ -165,6 +174,7 @@ Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
 - For stable tags (`vX.Y.Z`), `.github/workflows/release-tag.yml` now builds and uploads:
   - `evidence_pack_<tag>.tar.gz`
   - `pilot_evidence_<tag>.tar.gz`
+  - `runbook_lock_<tag>.tar.gz`
 - Optional manual release-pipeline validation without creating a new tag:
 
 ```bash

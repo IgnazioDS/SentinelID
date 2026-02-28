@@ -15,6 +15,7 @@ SUPPORT_DIR="${ROOT_DIR}/scripts/support/out"
 CI_PARITY_PR_URL="${CI_PARITY_PR_URL:-}"
 CI_PARITY_MAIN_URL="${CI_PARITY_MAIN_URL:-}"
 RELEASE_TAG_DISPATCH_URL="${RELEASE_TAG_DISPATCH_URL:-}"
+RUNBOOK_LOCK_LABEL="${RUNBOOK_LOCK_LABEL:-}"
 
 autodetect_ci_url() {
   local event="$1"
@@ -63,6 +64,12 @@ fi
 LATEST_PERF="$(ls -1t "${PERF_DIR}"/bench_edge_*.json 2>/dev/null | head -n 1 || true)"
 LATEST_SUPPORT="$(ls -1t "${SUPPORT_DIR}"/support_bundle_*.tar.gz 2>/dev/null | head -n 1 || true)"
 LATEST_RELEASE_EVIDENCE="$(ls -1t "${EVIDENCE_DIR}"/evidence_pack_*.tar.gz 2>/dev/null | head -n 1 || true)"
+LATEST_RUNBOOK_LOCK=""
+if [[ -n "${RUNBOOK_LOCK_LABEL}" && -f "${EVIDENCE_DIR}/runbook_lock_${RUNBOOK_LOCK_LABEL}.tar.gz" ]]; then
+  LATEST_RUNBOOK_LOCK="${EVIDENCE_DIR}/runbook_lock_${RUNBOOK_LOCK_LABEL}.tar.gz"
+else
+  LATEST_RUNBOOK_LOCK="$(ls -1t "${EVIDENCE_DIR}"/runbook_lock_*.tar.gz 2>/dev/null | head -n 1 || true)"
+fi
 
 if [[ -z "${LATEST_PERF}" ]]; then
   echo "No perf artifact found under ${PERF_DIR}"
@@ -81,11 +88,29 @@ if [[ -z "${LATEST_RELEASE_EVIDENCE}" ]]; then
   echo "Release evidence pack generation failed"
   exit 1
 fi
+if [[ -z "${LATEST_RUNBOOK_LOCK}" ]]; then
+  echo "No runbook lock artifact found under ${EVIDENCE_DIR}; generating one now..."
+  if [[ -n "${RUNBOOK_LOCK_LABEL}" ]]; then
+    RUNBOOK_LOCK_LABEL="${RUNBOOK_LOCK_LABEL}" "${ROOT_DIR}/scripts/release/build_runbook_lock.sh"
+  else
+    "${ROOT_DIR}/scripts/release/build_runbook_lock.sh"
+  fi
+  if [[ -n "${RUNBOOK_LOCK_LABEL}" && -f "${EVIDENCE_DIR}/runbook_lock_${RUNBOOK_LOCK_LABEL}.tar.gz" ]]; then
+    LATEST_RUNBOOK_LOCK="${EVIDENCE_DIR}/runbook_lock_${RUNBOOK_LOCK_LABEL}.tar.gz"
+  else
+    LATEST_RUNBOOK_LOCK="$(ls -1t "${EVIDENCE_DIR}"/runbook_lock_*.tar.gz 2>/dev/null | head -n 1 || true)"
+  fi
+fi
+if [[ -z "${LATEST_RUNBOOK_LOCK}" ]]; then
+  echo "Runbook lock artifact generation failed"
+  exit 1
+fi
 
 cp "${RELIABILITY_FILE}" "${WORK_DIR}/reliability_slo.json"
 cp "${LATEST_PERF}" "${WORK_DIR}/bench_edge_latest.json"
 cp "${LATEST_SUPPORT}" "${WORK_DIR}/support_bundle_latest.tar.gz"
 cp "${LATEST_RELEASE_EVIDENCE}" "${WORK_DIR}/release_evidence_pack.tar.gz"
+cp "${LATEST_RUNBOOK_LOCK}" "${WORK_DIR}/runbook_lock_latest.tar.gz"
 
 cp "${ROOT_DIR}/RUNBOOK.md" "${WORK_DIR}/docs/RUNBOOK.md"
 cp "${ROOT_DIR}/docs/RELEASE.md" "${WORK_DIR}/docs/RELEASE.md"
@@ -109,10 +134,10 @@ SentinelID Pilot Readiness Checklist (v2.3.1 target)
 - [ ] Evidence pack generated and attached
 - [ ] CI parity proof collected (PR + main)
 - [ ] Manual release-tag workflow_dispatch proof collected
-- [ ] Known-good runbook archived
+- [ ] Known-good runbook lock artifact archived
 CHECKLIST
 
-python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" "${LATEST_RELEASE_EVIDENCE}" "${CI_PARITY_PR_URL}" "${CI_PARITY_MAIN_URL}" "${RELEASE_TAG_DISPATCH_URL}" <<'PY'
+python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" "${LATEST_RELEASE_EVIDENCE}" "${LATEST_RUNBOOK_LOCK}" "${CI_PARITY_PR_URL}" "${CI_PARITY_MAIN_URL}" "${RELEASE_TAG_DISPATCH_URL}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -125,9 +150,10 @@ work_dir = Path(sys.argv[1])
 latest_perf = Path(sys.argv[2])
 latest_support = Path(sys.argv[3])
 release_pack = Path(sys.argv[4])
-ci_parity_pr_url = sys.argv[5]
-ci_parity_main_url = sys.argv[6]
-release_tag_dispatch_url = sys.argv[7]
+runbook_lock = Path(sys.argv[5])
+ci_parity_pr_url = sys.argv[6]
+ci_parity_main_url = sys.argv[7]
+release_tag_dispatch_url = sys.argv[8]
 
 
 def cmd(*args: str) -> str:
@@ -145,6 +171,7 @@ manifest = {
         "bench_edge_latest": "bench_edge_latest.json",
         "support_bundle_latest": "support_bundle_latest.tar.gz",
         "release_evidence_pack": "release_evidence_pack.tar.gz",
+        "runbook_lock_latest": "runbook_lock_latest.tar.gz",
         "docs": {
             "runbook": "docs/RUNBOOK.md",
             "release": "docs/RELEASE.md",
@@ -158,6 +185,7 @@ manifest = {
         "bench_edge_latest": str(latest_perf),
         "support_bundle_latest": str(latest_support),
         "release_evidence_pack": str(release_pack),
+        "runbook_lock_latest": str(runbook_lock),
     },
     "notes": {
         "release_check_log": "release_check.log" if (work_dir / "release_check.log").exists() else "",
@@ -183,6 +211,7 @@ Included files:
 - bench_edge_latest.json
 - support_bundle_latest.tar.gz
 - release_evidence_pack.tar.gz
+- runbook_lock_latest.tar.gz
 - docs/ (RUNBOOK, RELEASE, DEMO_CHECKLIST, RECOVERY, CHANGELOG)
 README
 

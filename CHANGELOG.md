@@ -11,6 +11,7 @@ All notable changes to SentinelID are documented in this file.
 - Standardized release-facing version headers to `v2.3.1` for pilot tag readiness.
 - Added manual `workflow_dispatch` support and concurrency controls for `.github/workflows/release-tag.yml` to allow post-release pipeline validation without creating a new tag.
 - Extended `.github/workflows/release-tag.yml` for stable tags to run release evidence generation and upload `evidence_pack_<tag>.tar.gz` and `pilot_evidence_<tag>.tar.gz` assets to the GitHub release automatically.
+- Added runbook lock artifact generation (`make runbook-lock`) and integrated `runbook_lock_<tag>.tar.gz` into pilot evidence plus stable-tag release asset publishing.
 
 ## v2.3.0 (2026-02-27)
 

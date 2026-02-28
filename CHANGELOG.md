@@ -10,6 +10,7 @@ All notable changes to SentinelID are documented in this file.
 - Extended pilot evidence capture to include successful `release-tag` `workflow_dispatch` run proof URLs (auto-detected on `main` when available, or injected via `RELEASE_TAG_DISPATCH_URL`).
 - Standardized release-facing version headers to `v2.3.1` for pilot tag readiness.
 - Added manual `workflow_dispatch` support and concurrency controls for `.github/workflows/release-tag.yml` to allow post-release pipeline validation without creating a new tag.
+- Extended `.github/workflows/release-tag.yml` for stable tags to run release evidence generation and upload `evidence_pack_<tag>.tar.gz` and `pilot_evidence_<tag>.tar.gz` assets to the GitHub release automatically.
 
 ## v2.3.0 (2026-02-27)
 

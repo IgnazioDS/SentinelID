@@ -226,6 +226,7 @@ jobs:
     outputs:
       evidence_pack_asset: ${{ steps.prepare_assets.outputs.evidence_pack_asset }}
       pilot_evidence_asset: ${{ steps.prepare_assets.outputs.pilot_evidence_asset }}
+      runbook_lock_asset: ${{ steps.prepare_assets.outputs.runbook_lock_asset }}
     env:
       ADMIN_API_TOKEN: dev-admin-token
       ADMIN_UI_USERNAME: admin
@@ -300,23 +301,30 @@ jobs:
           RELEASE_PARITY_ATTEMPTS: '2'
         run: ./scripts/ci/run_release_parity.sh
 
+      - name: Build runbook lock artifact
+        run: RUNBOOK_LOCK_LABEL="${GITHUB_REF_NAME}" make runbook-lock
+
       - name: Build pilot evidence bundle
-        run: make pilot-evidence
+        run: RUNBOOK_LOCK_LABEL="${GITHUB_REF_NAME}" make pilot-evidence
 
       - name: Prepare release evidence assets
         id: prepare_assets
         run: |
           EVIDENCE_PACK_SRC="$(ls -1t output/release/evidence_pack_*.tar.gz | head -n 1)"
           PILOT_EVIDENCE_SRC="$(ls -1t output/release/pilot_evidence_*.tar.gz | head -n 1)"
+          RUNBOOK_LOCK_SRC="$(ls -1t output/release/runbook_lock_*.tar.gz | head -n 1)"
 
           EVIDENCE_PACK_DST="output/release/evidence_pack_${GITHUB_REF_NAME}.tar.gz"
           PILOT_EVIDENCE_DST="output/release/pilot_evidence_${GITHUB_REF_NAME}.tar.gz"
+          RUNBOOK_LOCK_DST="output/release/runbook_lock_${GITHUB_REF_NAME}.tar.gz"
 
           cp "${EVIDENCE_PACK_SRC}" "${EVIDENCE_PACK_DST}"
           cp "${PILOT_EVIDENCE_SRC}" "${PILOT_EVIDENCE_DST}"
+          cp "${RUNBOOK_LOCK_SRC}" "${RUNBOOK_LOCK_DST}"
 
           echo "evidence_pack_asset=${EVIDENCE_PACK_DST}" >> "${GITHUB_OUTPUT}"
           echo "pilot_evidence_asset=${PILOT_EVIDENCE_DST}" >> "${GITHUB_OUTPUT}"
+          echo "runbook_lock_asset=${RUNBOOK_LOCK_DST}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload release evidence assets
         uses: actions/upload-artifact@v4
@@ -326,6 +334,7 @@ jobs:
           path: |
             ${{ steps.prepare_assets.outputs.evidence_pack_asset }}
             ${{ steps.prepare_assets.outputs.pilot_evidence_asset }}
+            ${{ steps.prepare_assets.outputs.runbook_lock_asset }}
 
   publish-release-assets:
     runs-on: ubuntu-latest
@@ -357,6 +366,7 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" \
             "${{ needs.release-evidence.outputs.evidence_pack_asset }}" \
             "${{ needs.release-evidence.outputs.pilot_evidence_asset }}" \
+            "${{ needs.release-evidence.outputs.runbook_lock_asset }}" \
             --clobber
 
       - name: Print evidence asset URLs
@@ -365,6 +375,6 @@ jobs:
         run: |
           gh release view "${GITHUB_REF_NAME}" --json assets --jq '
             .assets
-            | map(select(.name | test("^evidence_pack_|^pilot_evidence_")))
+            | map(select(.name | test("^evidence_pack_|^pilot_evidence_|^runbook_lock_")))
             | .[]
             | "\(.name) -> \(.url)"'

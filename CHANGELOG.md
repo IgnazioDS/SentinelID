@@ -2,6 +2,12 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.4 (2026-02-28)
+
+### Release Pipeline Reliability
+- Fixed `publish-release-assets` in `.github/workflows/release-tag.yml` by setting explicit `GH_REPO` context for `gh release` commands in non-checkout jobs.
+- Preserved idempotent evidence asset staging for tag-stable tarballs (`evidence_pack`, `pilot_evidence`, `runbook_lock`) during release-tag runs.
+
 ## v2.3.3 (2026-02-28)
 
 ### Release Pipeline Reliability

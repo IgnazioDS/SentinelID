@@ -2,6 +2,12 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.3 (2026-02-28)
+
+### Release Pipeline Reliability
+- Fixed `.github/workflows/release-tag.yml` asset staging to avoid failing when a source artifact already matches the tag-stable destination path.
+- Hardened evidence asset preparation with idempotent copy behavior for `evidence_pack`, `pilot_evidence`, and `runbook_lock` tarballs.
+
 ## v2.3.2 (2026-02-28)
 
 ### Release Integrity and Artifact Publication

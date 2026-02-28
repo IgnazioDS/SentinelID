@@ -36,7 +36,7 @@
 	clean
 
 help:
-	@echo "SentinelID v2.3.1 Commands"
+	@echo "SentinelID v2.3.2 Commands"
 	@echo ""
 	@echo "Demo"
 	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"

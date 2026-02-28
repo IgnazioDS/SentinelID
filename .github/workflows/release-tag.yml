@@ -318,9 +318,21 @@ jobs:
           PILOT_EVIDENCE_DST="output/release/pilot_evidence_${GITHUB_REF_NAME}.tar.gz"
           RUNBOOK_LOCK_DST="output/release/runbook_lock_${GITHUB_REF_NAME}.tar.gz"
 
-          cp "${EVIDENCE_PACK_SRC}" "${EVIDENCE_PACK_DST}"
-          cp "${PILOT_EVIDENCE_SRC}" "${PILOT_EVIDENCE_DST}"
-          cp "${RUNBOOK_LOCK_SRC}" "${RUNBOOK_LOCK_DST}"
+          stage_asset() {
+            local src="$1"
+            local dst="$2"
+
+            if [[ "${src}" == "${dst}" ]]; then
+              echo "Asset already tag-stable: ${dst}"
+              return 0
+            fi
+
+            cp "${src}" "${dst}"
+          }
+
+          stage_asset "${EVIDENCE_PACK_SRC}" "${EVIDENCE_PACK_DST}"
+          stage_asset "${PILOT_EVIDENCE_SRC}" "${PILOT_EVIDENCE_DST}"
+          stage_asset "${RUNBOOK_LOCK_SRC}" "${RUNBOOK_LOCK_DST}"
 
           echo "evidence_pack_asset=${EVIDENCE_PACK_DST}" >> "${GITHUB_OUTPUT}"
           echo "pilot_evidence_asset=${PILOT_EVIDENCE_DST}" >> "${GITHUB_OUTPUT}"

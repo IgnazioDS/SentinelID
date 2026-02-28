@@ -14,6 +14,7 @@ PERF_DIR="${ROOT_DIR}/scripts/perf/out"
 SUPPORT_DIR="${ROOT_DIR}/scripts/support/out"
 CI_PARITY_PR_URL="${CI_PARITY_PR_URL:-}"
 CI_PARITY_MAIN_URL="${CI_PARITY_MAIN_URL:-}"
+RELEASE_TAG_DISPATCH_URL="${RELEASE_TAG_DISPATCH_URL:-}"
 
 autodetect_ci_url() {
   local event="$1"
@@ -29,11 +30,27 @@ autodetect_ci_url() {
     2>/dev/null || true
 }
 
+autodetect_release_tag_dispatch_url() {
+  if ! command -v gh >/dev/null 2>&1; then
+    return
+  fi
+
+  gh run list \
+    --workflow release-tag.yml \
+    --limit 30 \
+    --json event,status,conclusion,url,createdAt,headBranch \
+    --jq 'map(select(.event == "workflow_dispatch" and .status == "completed" and .conclusion == "success" and .headBranch == "main")) | sort_by(.createdAt) | reverse | .[0].url // ""' \
+    2>/dev/null || true
+}
+
 if [[ -z "${CI_PARITY_PR_URL}" ]]; then
   CI_PARITY_PR_URL="$(autodetect_ci_url "pull_request")"
 fi
 if [[ -z "${CI_PARITY_MAIN_URL}" ]]; then
   CI_PARITY_MAIN_URL="$(autodetect_ci_url "push")"
+fi
+if [[ -z "${RELEASE_TAG_DISPATCH_URL}" ]]; then
+  RELEASE_TAG_DISPATCH_URL="$(autodetect_release_tag_dispatch_url)"
 fi
 
 mkdir -p "${WORK_DIR}/docs"
@@ -91,10 +108,11 @@ SentinelID Pilot Readiness Checklist (v2.3.1 target)
 - [ ] Support bundle sanitization verified
 - [ ] Evidence pack generated and attached
 - [ ] CI parity proof collected (PR + main)
+- [ ] Manual release-tag workflow_dispatch proof collected
 - [ ] Known-good runbook archived
 CHECKLIST
 
-python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" "${LATEST_RELEASE_EVIDENCE}" "${CI_PARITY_PR_URL}" "${CI_PARITY_MAIN_URL}" <<'PY'
+python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" "${LATEST_RELEASE_EVIDENCE}" "${CI_PARITY_PR_URL}" "${CI_PARITY_MAIN_URL}" "${RELEASE_TAG_DISPATCH_URL}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -109,6 +127,7 @@ latest_support = Path(sys.argv[3])
 release_pack = Path(sys.argv[4])
 ci_parity_pr_url = sys.argv[5]
 ci_parity_main_url = sys.argv[6]
+release_tag_dispatch_url = sys.argv[7]
 
 
 def cmd(*args: str) -> str:
@@ -145,6 +164,8 @@ manifest = {
         "ci_parity_proof_pr": ci_parity_pr_url,
         "ci_parity_proof_main": ci_parity_main_url,
         "ci_parity_note": "If empty, capture URLs after CI completes on PR/main.",
+        "release_tag_dispatch_proof": release_tag_dispatch_url,
+        "release_tag_dispatch_note": "Optional post-release proof from a successful workflow_dispatch run of release-tag.yml on main.",
     },
 }
 

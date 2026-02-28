@@ -127,6 +127,7 @@ Before publishing a stable release, confirm these artifacts exist and are attach
 - support bundle sanitization pass logs
 - cloud recovery smoke pass logs
 - admin smoke pass logs
+- successful `release-tag` `workflow_dispatch` run URL (post-release validation)
 
 Build evidence pack manually (optional, outside full release-check):
 
@@ -147,6 +148,7 @@ Optional CI URL capture:
 ```bash
 CI_PARITY_PR_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
 CI_PARITY_MAIN_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
+RELEASE_TAG_DISPATCH_URL="https://github.com/<org>/<repo>/actions/runs/<id>" \
 make pilot-evidence
 ```
 
@@ -161,4 +163,10 @@ Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
 
 ```bash
 gh workflow run release-tag.yml --ref main
+```
+
+- Capture the successful run URL in pilot evidence (optional; auto-detected when possible):
+
+```bash
+RELEASE_TAG_DISPATCH_URL="https://github.com/<org>/<repo>/actions/runs/<id>" make pilot-evidence
 ```

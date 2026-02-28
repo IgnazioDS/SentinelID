@@ -1,4 +1,4 @@
-# SentinelID Runbook (v2.3.1)
+# SentinelID Runbook (v2.3.2)
 
 This is the single source of truth for local setup, run, and validation.
 

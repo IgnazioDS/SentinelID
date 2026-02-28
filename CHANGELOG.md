@@ -2,6 +2,17 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.2 (2026-02-28)
+
+### Release Integrity and Artifact Publication
+- Added stable-tag release publishing for evidence bundles: `evidence_pack_<tag>.tar.gz`, `pilot_evidence_<tag>.tar.gz`, and `runbook_lock_<tag>.tar.gz`.
+- Added known-good runbook lock artifact generation (`make runbook-lock`) with checksum manifest and docs snapshot.
+- Extended pilot evidence index generation to include runbook lock artifact capture and source-path traceability.
+
+### Version Alignment
+- Updated release-facing version headers to `v2.3.2` across runbook, release guide, demo checklist, and Make help banner.
+- Aligned desktop Tauri package metadata version to `2.3.2`.
+
 ## v2.3.1 (2026-02-27)
 
 ### Pilot Readiness Freeze

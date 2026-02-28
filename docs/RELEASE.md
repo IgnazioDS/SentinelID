@@ -128,6 +128,9 @@ Before publishing a stable release, confirm these artifacts exist and are attach
 - cloud recovery smoke pass logs
 - admin smoke pass logs
 - successful `release-tag` `workflow_dispatch` run URL (post-release validation)
+- release assets on the tagged GitHub release:
+  - `evidence_pack_<tag>.tar.gz`
+  - `pilot_evidence_<tag>.tar.gz`
 
 Build evidence pack manually (optional, outside full release-check):
 
@@ -159,6 +162,9 @@ Artifacts are written under `output/release/pilot_evidence_<timestamp>.tar.gz`.
 - Record final notes in `CHANGELOG.md`
 - Ensure runbook/version headers stay aligned
 - Keep release evidence linked from release notes
+- For stable tags (`vX.Y.Z`), `.github/workflows/release-tag.yml` now builds and uploads:
+  - `evidence_pack_<tag>.tar.gz`
+  - `pilot_evidence_<tag>.tar.gz`
 - Optional manual release-pipeline validation without creating a new tag:
 
 ```bash

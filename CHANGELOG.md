@@ -7,6 +7,7 @@ All notable changes to SentinelID are documented in this file.
 ### Pilot Readiness Freeze
 - Completed pilot freeze runbook alignment and evidence workflow for Docker-first self-hosted validation.
 - Hardened `scripts/release/build_pilot_evidence_index.sh` to auto-detect latest successful `release-parity` run URLs for pull requests and `main` pushes when not provided explicitly.
+- Extended pilot evidence capture to include successful `release-tag` `workflow_dispatch` run proof URLs (auto-detected on `main` when available, or injected via `RELEASE_TAG_DISPATCH_URL`).
 - Standardized release-facing version headers to `v2.3.1` for pilot tag readiness.
 - Added manual `workflow_dispatch` support and concurrency controls for `.github/workflows/release-tag.yml` to allow post-release pipeline validation without creating a new tag.
 

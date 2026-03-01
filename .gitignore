@@ -10,6 +10,7 @@ node_modules/
 dist/
 build/
 coverage/
+*.tsbuildinfo
 # Interrupted local admin installs can leave renamed dependency trees.
 apps/admin/node_modules_corrupt*/
 apps/admin/node_modules 2/

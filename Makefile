@@ -7,6 +7,7 @@
 	demo-down \
 	demo-checklist \
 	check-no-orphans \
+	check-no-duplicates \
 	bundle-edge \
 	check-edge-preflight \
 	edge-shell \
@@ -47,6 +48,7 @@ help:
 	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
+	@echo "  make check-no-duplicates Verify duplicate source artifact pairs are absent"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
@@ -113,6 +115,9 @@ demo-checklist:
 
 check-no-orphans:
 	@./scripts/check_no_orphan_edge.sh
+
+check-no-duplicates:
+	@./scripts/release/check_no_duplicate_pairs.sh
 
 check-edge-preflight:
 	@./scripts/dev/edge_env.sh preflight

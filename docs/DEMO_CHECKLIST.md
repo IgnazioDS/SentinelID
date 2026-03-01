@@ -1,4 +1,4 @@
-# SentinelID Demo Checklist (v2.3.4)
+# SentinelID Demo Checklist (v2.3.5)
 
 Target runtime: under 10 minutes for a full manual pass.
 

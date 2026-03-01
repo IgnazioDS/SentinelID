@@ -32,6 +32,10 @@ export function toUserFacingError(error: unknown): string {
       return error.message;
     }
     if (error.kind === 'network') {
+      const detail = error.detail?.trim();
+      if (detail) {
+        return `Cannot reach local Edge service. Ensure Edge is running, then retry. (${detail})`;
+      }
       return 'Cannot reach local Edge service. Ensure Edge is running, then retry.';
     }
     if (error.kind === 'auth') {

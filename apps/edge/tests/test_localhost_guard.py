@@ -10,12 +10,12 @@ from sentinelid_edge.core.config import settings
 from sentinelid_edge.main import LocalhostOnlyMiddleware, app
 
 
-def _request_with_client(path: str, host: str) -> Request:
+def _request_with_client(path: str, host: str, method: str = "GET") -> Request:
     scope = {
         "type": "http",
         "asgi": {"version": "3.0"},
         "http_version": "1.1",
-        "method": "GET",
+        "method": method,
         "scheme": "http",
         "path": path,
         "raw_path": path.encode("utf-8"),
@@ -60,3 +60,17 @@ def test_non_local_client_can_access_health_paths() -> None:
 
     assert response_api.status_code == 200
     assert response_root.status_code == 200
+
+
+def test_options_preflight_is_not_blocked_by_auth_or_localhost_guards() -> None:
+    client = TestClient(app)
+    resp = client.options(
+        "/api/v1/settings/telemetry",
+        headers={
+            "Origin": "http://localhost:1420",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:1420"

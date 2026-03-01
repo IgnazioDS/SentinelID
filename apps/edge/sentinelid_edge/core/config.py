@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Input hardening
     MAX_REQUEST_BODY_BYTES: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(2 * 1024 * 1024)))  # 2 MB
     REQUEST_TIMEOUT_SECONDS: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "15.0"))
-    MAX_FRAMES_PER_SESSION: int = int(os.getenv("MAX_FRAMES_PER_SESSION", "200"))
+    MAX_FRAMES_PER_SESSION: int = int(os.getenv("MAX_FRAMES_PER_SESSION", "1200"))
     MAX_SESSION_LIFETIME_SECONDS: int = int(os.getenv("MAX_SESSION_LIFETIME_SECONDS", "120"))
     FRAME_PROCESSING_MAX_FPS: float = float(os.getenv("FRAME_PROCESSING_MAX_FPS", "10.0"))
     FRAME_CONTROLLER_STATE_TTL_SECONDS: int = int(

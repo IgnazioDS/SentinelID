@@ -9,11 +9,11 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "cd src-tauri && ../node_modules/.bin/tauri dev --config tauri.conf.json",
+    "tauri:dev": "cd src-tauri && ../node_modules/.bin/tauri dev --config tauri.dev.conf.json",
     "tauri:build": "cd src-tauri && ../node_modules/.bin/tauri build --config tauri.conf.json"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/api": "^1.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

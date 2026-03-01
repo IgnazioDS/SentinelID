@@ -1,0 +1,42 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "SentinelID",
+    "version": "2.3.5"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "open": true,
+        "execute": true,
+        "sidecar": true
+      },
+      "http": {
+        "scope": ["http://localhost/*", "http://127.0.0.1/*"]
+      }
+    },
+    "bundle": {
+      "active": false,
+      "identifier": "com.sentinelid.desktop",
+      "resources": []
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "SentinelID",
+        "width": 800,
+        "height": 600
+      }
+    ]
+  }
+}

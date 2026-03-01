@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/tauri';
 import { ApiClientError } from './apiErrors';
 import { TAURI_REQUIRED_MESSAGE, isTauriRuntimeAvailable } from './tauriRuntime';
 
@@ -123,6 +123,14 @@ async function getEdgeInfo(): Promise<EdgeInfo> {
   }
 }
 
+async function resolveEdgeInfo(): Promise<EdgeInfo> {
+  try {
+    return await getCurrentEdgeInfo();
+  } catch {
+    return await getEdgeInfo();
+  }
+}
+
 async function getCurrentEdgeInfo(): Promise<EdgeInfo> {
   ensureTauriRuntime();
   try {
@@ -182,7 +190,7 @@ function buildHttpError(path: string, status: number, payload: ErrorPayload): Ap
 }
 
 async function request(path: string, method: string, body?: unknown): Promise<any> {
-  let edge = await getEdgeInfo();
+  let edge = await resolveEdgeInfo();
   let response: Response;
 
   try {
@@ -191,7 +199,7 @@ async function request(path: string, method: string, body?: unknown): Promise<an
     if (!(error instanceof ApiClientError) || error.kind !== 'network') {
       throw error;
     }
-    edge = await getEdgeInfo();
+    edge = await resolveEdgeInfo();
     response = await doEdgeFetch(edge, path, method, body);
   }
 

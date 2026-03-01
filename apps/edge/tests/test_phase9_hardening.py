@@ -166,3 +166,17 @@ def test_admin_replay_dlq_endpoint_requeues_event(monkeypatch) -> None:
         assert body["status"] == "replayed"
         assert body["replayed_count"] == 1
         assert len(repo.get_dlq_events()) == 0
+
+
+def test_cors_allows_tauri_origin_for_authenticated_routes() -> None:
+    client = TestClient(app)
+    resp = client.options(
+        "/api/v1/auth/start",
+        headers={
+            "Origin": "tauri://localhost",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "tauri://localhost"

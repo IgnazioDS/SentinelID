@@ -99,6 +99,7 @@ run_step() {
 
 run_step "edge preflight imports" make check-edge-preflight
 run_step "version consistency" ./scripts/release/check_version_consistency.sh
+run_step "duplicate artifact guard" ./scripts/release/check_no_duplicate_pairs.sh
 run_step "edge tests" make test-edge
 run_step "cloud tests" make test-cloud
 run_step "warning budget" ./scripts/ci/check_warning_budget.sh

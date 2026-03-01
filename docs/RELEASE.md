@@ -15,6 +15,7 @@ make release-check
 `make release-check` is the source-of-truth gate and includes:
 
 - version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/DEMO_CHECKLIST.md`, Makefile help banner)
+- duplicate artifact pair guard (`scripts/release/check_no_duplicate_pairs.sh`)
 - edge/cloud test suites
 - desktop build checks
 - docker build checks

@@ -1,4 +1,4 @@
-# Release Guide (v2.3.4)
+# Release Guide (v2.3.5)
 
 ## Scope
 

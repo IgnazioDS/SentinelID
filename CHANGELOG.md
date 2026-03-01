@@ -2,6 +2,13 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.5 (2026-03-01)
+
+### Release Integrity Guardrails
+- Added release duplicate-pair guard `scripts/release/check_no_duplicate_pairs.sh` to block accidental `<name> 2` artifacts when the original path exists.
+- Integrated duplicate guard into `make release-check` and exposed it as `make check-no-duplicates`.
+- Added `*.tsbuildinfo` to `.gitignore` to suppress transient TypeScript build artifacts from polluting release worktrees.
+
 ## v2.3.4 (2026-02-28)
 
 ### Release Pipeline Reliability

@@ -164,15 +164,19 @@ class RateLimiter:
     Registry of per-(endpoint, client) token buckets.
 
     Default configuration:
-      - auth endpoints: 10 req/s burst, 2 req/s sustained
-      - other endpoints: 30 req/s burst, 10 req/s sustained
+      - auth start/finish endpoints: 10 req burst, 2 req/s sustained
+      - auth frame endpoint (streaming): 20 req burst, 12 req/s sustained
+      - other endpoints: 30 req burst, 10 req/s sustained
     """
 
-    _AUTH_CAPACITY = 10.0
-    _AUTH_RATE = 2.0
+    _AUTH_MUTATION_CAPACITY = 10.0
+    _AUTH_MUTATION_RATE = 2.0
+    _AUTH_FRAME_CAPACITY = 20.0
+    _AUTH_FRAME_RATE = 12.0
     _DEFAULT_CAPACITY = 30.0
     _DEFAULT_RATE = 10.0
-    _AUTH_ENDPOINTS = {"/api/v1/auth/start", "/api/v1/auth/frame", "/api/v1/auth/finish"}
+    _AUTH_MUTATION_ENDPOINTS = {"/api/v1/auth/start", "/api/v1/auth/finish"}
+    _AUTH_FRAME_ENDPOINTS = {"/api/v1/auth/frame"}
 
     def __init__(self):
         self._buckets: Dict[str, TokenBucket] = {}
@@ -206,9 +210,13 @@ class RateLimiter:
     def _get_or_create_bucket(self, bucket_key: str, endpoint: str) -> TokenBucket:
         with self._lock:
             if bucket_key not in self._buckets:
-                if endpoint in self._AUTH_ENDPOINTS:
+                if endpoint in self._AUTH_FRAME_ENDPOINTS:
                     self._buckets[bucket_key] = TokenBucket(
-                        self._AUTH_CAPACITY, self._AUTH_RATE
+                        self._AUTH_FRAME_CAPACITY, self._AUTH_FRAME_RATE
+                    )
+                elif endpoint in self._AUTH_MUTATION_ENDPOINTS:
+                    self._buckets[bucket_key] = TokenBucket(
+                        self._AUTH_MUTATION_CAPACITY, self._AUTH_MUTATION_RATE
                     )
                 else:
                     self._buckets[bucket_key] = TokenBucket(

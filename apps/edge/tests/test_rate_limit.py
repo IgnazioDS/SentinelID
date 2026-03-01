@@ -121,13 +121,21 @@ class TestRateLimiter:
         assert "retry" in reason.lower() or "failure" in reason.lower()
 
     def test_auth_endpoint_has_tighter_limit(self):
-        """Auth endpoints should exhaust capacity faster than non-auth."""
+        """Auth start endpoint should exhaust capacity quickly."""
         rl = RateLimiter()
         auth_ep = "/api/v1/auth/start"
-        # Drain the burst for auth endpoint (capacity=10)
+        # Drain the burst for auth-start endpoint (capacity=10)
         results = [rl.check(auth_ep, "rapid-client") for _ in range(15)]
         blocked = [r for r in results if not r[0]]
         assert len(blocked) > 0
+
+    def test_auth_frame_endpoint_allows_streaming_burst(self):
+        """Auth frame endpoint should tolerate normal short streaming bursts."""
+        rl = RateLimiter()
+        frame_ep = "/api/v1/auth/frame"
+        results = [rl.check(frame_ep, "stream-client") for _ in range(12)]
+        blocked = [r for r in results if not r[0]]
+        assert len(blocked) == 0
 
     def test_different_clients_independent(self):
         rl = RateLimiter()

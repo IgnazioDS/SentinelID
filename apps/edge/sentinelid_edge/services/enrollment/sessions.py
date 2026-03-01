@@ -82,7 +82,7 @@ class EnrollmentPipeline:
     def process_frame(self, session: EnrollmentSession, frame_data: str) -> dict:
         faces, meta = self.detector.detect_faces(frame_data)
         image = meta.get("image_bgr")
-        if meta.get("model_unavailable"):
+        if meta.get("model_unavailable") and not meta.get("fallback_used"):
             session.last_reason_codes = [ReasonCode.MODEL_UNAVAILABLE]
             session.last_quality_metrics = {"num_faces": 0}
             return {

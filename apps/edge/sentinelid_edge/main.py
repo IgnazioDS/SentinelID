@@ -74,18 +74,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS based on environment
-cors_origins = []
+# Configure CORS for desktop runtime plus local dev frontend(s).
+cors_origins = [
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+]
 if settings.EDGE_ENV == "dev":
-    cors_origins = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "tauri://localhost",
-    ]
+    cors_origins.extend(
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:1420",
+            "http://127.0.0.1:1420",
+        ]
+    )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -194,6 +202,10 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
+        # CORS preflight requests are unauthenticated by definition.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip auth for unprotected paths
         if path in _SKIP_AUTH_PATHS:
             return await call_next(request)
@@ -236,6 +248,10 @@ class LocalhostOnlyMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        # Let CORS middleware complete preflight negotiation.
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         if request.url.path in _LOCALHOST_GUARD_EXEMPT_PATHS:
             return await call_next(request)
 

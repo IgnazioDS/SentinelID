@@ -126,7 +126,7 @@ edge-shell:
 	@./scripts/dev/edge_env.sh shell
 
 dev-edge:
-	@EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken ./scripts/dev/edge_env.sh run
+	@EDGE_ENV=dev EDGE_HOST=127.0.0.1 EDGE_PORT=8787 EDGE_AUTH_TOKEN=devtoken ALLOW_FALLBACK_EMBEDDINGS=$${ALLOW_FALLBACK_EMBEDDINGS:-1} ./scripts/dev/edge_env.sh run
 
 check-tauri-config:
 	@./scripts/dev/check_tauri_config.py

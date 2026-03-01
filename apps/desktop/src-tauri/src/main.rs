@@ -21,6 +21,7 @@ struct EdgeInfo {
 struct EdgeState {
     edge_process: Option<Child>,
     edge_info: Option<EdgeInfo>,
+    starting: bool,
 }
 
 #[tauri::command]
@@ -28,6 +29,7 @@ async fn start_edge(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<EdgeState>>,
 ) -> Result<EdgeInfo, String> {
+    let mut should_start = false;
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         let mut stale = false;
@@ -51,6 +53,42 @@ async fn start_edge(
             }
             guard.edge_info = None;
         }
+
+        if guard.starting {
+            // Another caller is currently launching edge; wait below.
+        } else {
+            guard.starting = true;
+            should_start = true;
+        }
+    }
+
+    if !should_start {
+        for _ in 0..50 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let mut guard = state.lock().map_err(|e| e.to_string())?;
+
+            if let Some(child) = guard.edge_process.as_mut() {
+                if let Ok(None) = child.try_wait() {
+                    if let Some(info) = guard.edge_info.clone() {
+                        return Ok(info);
+                    }
+                }
+            }
+
+            if !guard.starting {
+                break;
+            }
+        }
+        // Retry as launcher if previous startup failed/finished without a healthy child.
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        if !guard.starting {
+            guard.starting = true;
+            should_start = true;
+        }
+    }
+
+    if !should_start {
+        return Err("Timed out waiting for edge startup".to_string());
     }
 
     let port = find_free_port()?;
@@ -58,13 +96,20 @@ async fn start_edge(
     let base_url = format!("http://127.0.0.1:{}", port);
 
     let mut edge_cmd = build_edge_command(&app, port, &token)?;
-    let mut child = edge_cmd
-        .spawn()
-        .map_err(|e| format!("Failed to start edge process: {}", e))?;
+    let mut child = match edge_cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            let mut guard = state.lock().map_err(|lock_err| lock_err.to_string())?;
+            guard.starting = false;
+            return Err(format!("Failed to start edge process: {}", e));
+        }
+    };
 
     if let Err(err) = wait_for_health(&base_url).await {
         let _ = child.kill();
         let _ = child.wait();
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.starting = false;
         return Err(err);
     }
 
@@ -77,6 +122,7 @@ async fn start_edge(
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.edge_process = Some(child);
         guard.edge_info = Some(edge_info.clone());
+        guard.starting = false;
     }
 
     Ok(edge_info)
@@ -158,12 +204,16 @@ fn build_edge_command(_app: &tauri::AppHandle, port: u16, token: &str) -> Result
             ));
         }
 
+        let fallback_embeddings = std::env::var("ALLOW_FALLBACK_EMBEDDINGS")
+            .unwrap_or_else(|_| "1".to_string());
+
         let mut cmd = Command::new(launcher);
         cmd.arg("run")
             .env("EDGE_HOST", "127.0.0.1")
             .env("EDGE_PORT", port.to_string())
             .env("EDGE_AUTH_TOKEN", token)
             .env("EDGE_ENV", "dev")
+            .env("ALLOW_FALLBACK_EMBEDDINGS", fallback_embeddings)
             .current_dir(repo_root);
         Ok(cmd)
     }
@@ -209,6 +259,7 @@ fn main() {
         .manage(Mutex::new(EdgeState {
             edge_process: None,
             edge_info: None,
+            starting: false,
         }))
         .invoke_handler(tauri::generate_handler![start_edge, get_edge_info, kill_edge])
         .build(tauri::generate_context!())

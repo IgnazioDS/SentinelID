@@ -11,5 +11,10 @@ export function isTauriRuntimeAvailable(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
-  return typeof window.__TAURI_INTERNALS__ !== 'undefined';
+  // Support both Tauri v1 and v2 runtime bridges in dev and packaged runs.
+  return (
+    typeof window.__TAURI_INTERNALS__ !== 'undefined' ||
+    typeof window.__TAURI__ !== 'undefined' ||
+    typeof window.__TAURI_IPC__ === 'function'
+  );
 }

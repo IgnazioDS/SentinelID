@@ -10,6 +10,7 @@ Flow (v0.7):
 """
 from __future__ import annotations
 
+import copy
 import logging
 import time
 from typing import List, Optional
@@ -135,6 +136,39 @@ def _current_challenge_name(session: AuthSession) -> str:
     return ch.challenge_type.value if ch else "finished"
 
 
+def _normalize_reason_codes(codes: List[object]) -> List[str]:
+    return [code.value if hasattr(code, "value") else str(code) for code in codes]
+
+
+def _dev_fallback_liveness_relaxation_eligible(
+    session: AuthSession,
+    *,
+    template_enrolled: bool,
+    similarity_score: Optional[float],
+) -> bool:
+    if settings.EDGE_ENV.lower() != "dev" or not settings.ALLOW_FALLBACK_EMBEDDINGS:
+        return False
+    if not template_enrolled or similarity_score is None:
+        return False
+    if similarity_score < settings.SIMILARITY_THRESHOLD:
+        return False
+
+    latest_codes = set(_normalize_reason_codes(session.latest_quality_reasons))
+    return ReasonCode.FALLBACK_EMBEDDING_USED.value in latest_codes
+
+
+def _session_with_relaxed_liveness(session: AuthSession) -> AuthSession:
+    relaxed = copy.deepcopy(session)
+    for challenge in relaxed.challenges:
+        challenge.completed = True
+        challenge.passed = True
+    for challenge in relaxed.step_up_challenges:
+        challenge.completed = True
+        challenge.passed = True
+    relaxed.liveness_passed = True
+    return relaxed
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -188,16 +222,6 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
                 detail="Session already finished",
             )
 
-        # Enforce max frames per session
-        session.frame_count += 1
-        if session.frame_count > settings.MAX_FRAMES_PER_SESSION:
-            session.finished = True
-            _session_store.save_session(session)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Frame limit exceeded for this session",
-            )
-
         # Adaptive processing gate: cap FPS and drop when processing is backed up.
         acquired, drop_reason = _frame_controller.try_acquire(session.session_id)
         if not acquired:
@@ -214,6 +238,16 @@ async def auth_frame(request: AuthFrameRequest) -> AuthFrameResponse:
                 detail=drop_detail,
                 in_step_up=session.in_step_up,
                 quality_reason_codes=[],
+            )
+
+        # Enforce max processed frames per session.
+        session.frame_count += 1
+        if session.frame_count > settings.MAX_FRAMES_PER_SESSION:
+            session.finished = True
+            _session_store.save_session(session)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Frame limit exceeded for this session",
             )
 
         with _perf.stage("frame.decode"):
@@ -418,6 +452,33 @@ async def finish_authentication(request: FinishAuthRequest) -> FinishAuthRespons
                 enforce_similarity=True,
                 force_final=force_final,
             )
+            # In dev fallback mode, landmark-based liveness may be unreliable.
+            # If embedding fallback is active and similarity is already strong,
+            # bypass liveness/step-up gates but keep similarity + high-risk denial.
+            if (
+                auth_decision.decision == "deny"
+                and set(_normalize_reason_codes(auth_decision.reason_codes))
+                == {ReasonCode.LIVENESS_FAILED.value}
+                and _dev_fallback_liveness_relaxation_eligible(
+                    session,
+                    template_enrolled=template_enrolled,
+                    similarity_score=similarity_score,
+                )
+            ):
+                relaxed_session = _session_with_relaxed_liveness(session)
+                auth_decision = _policy_engine.evaluate(
+                    relaxed_session,
+                    risk_score=session.risk_score,
+                    risk_reasons=session.risk_reasons,
+                    template_enrolled=template_enrolled,
+                    similarity_score=similarity_score,
+                    enforce_similarity=True,
+                    force_final=True,
+                )
+                logger.warning(
+                    "Dev fallback mode: liveness gate relaxed for session %s",
+                    request.session_id,
+                )
 
         # --- Handle STEP_UP: issue additional challenges, keep session open ---
         if auth_decision.decision == "step_up":

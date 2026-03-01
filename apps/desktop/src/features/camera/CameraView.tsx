@@ -36,8 +36,8 @@ interface AuthSession {
   risk_reasons?: string[];
   quality_reason_codes?: string[];
   liveness_passed?: boolean;
-  similarity_score?: number;
-  risk_score?: number;
+  similarity_score?: number | null;
+  risk_score?: number | null;
   step_up?: boolean;
   step_up_challenges?: string[];
   in_step_up?: boolean;
@@ -97,6 +97,60 @@ function cameraErrorMessage(error: unknown): string {
   return 'Camera initialization failed due to an unknown error.';
 }
 
+type LegacyGetUserMedia = (
+  constraints: MediaStreamConstraints,
+  successCallback: (stream: MediaStream) => void,
+  errorCallback: (error: unknown) => void
+) => void;
+
+function legacyGetUserMediaApi(): LegacyGetUserMedia | null {
+  const legacyNavigator = navigator as Navigator & {
+    getUserMedia?: LegacyGetUserMedia;
+    webkitGetUserMedia?: LegacyGetUserMedia;
+    mozGetUserMedia?: LegacyGetUserMedia;
+    msGetUserMedia?: LegacyGetUserMedia;
+  };
+
+  return (
+    legacyNavigator.getUserMedia ??
+    legacyNavigator.webkitGetUserMedia ??
+    legacyNavigator.mozGetUserMedia ??
+    legacyNavigator.msGetUserMedia ??
+    null
+  );
+}
+
+async function requestCameraStream(constraints: MediaStreamConstraints): Promise<MediaStream> {
+  if (navigator.mediaDevices?.getUserMedia) {
+    return await navigator.mediaDevices.getUserMedia(constraints);
+  }
+
+  const legacyApi = legacyGetUserMediaApi();
+  if (!legacyApi) {
+    throw new Error('No camera capture API is available.');
+  }
+
+  return await new Promise<MediaStream>((resolve, reject) => {
+    legacyApi.call(navigator, constraints, resolve, reject);
+  });
+}
+
+function cameraApiUnavailableMessage(): string {
+  const legacyNavigator = navigator as Navigator & {
+    webkitGetUserMedia?: LegacyGetUserMedia;
+    mozGetUserMedia?: LegacyGetUserMedia;
+    msGetUserMedia?: LegacyGetUserMedia;
+  };
+  const secure = typeof window !== 'undefined' ? window.isSecureContext : false;
+  const mediaDevicesApi = Boolean(navigator.mediaDevices?.getUserMedia);
+  const legacyApi = Boolean(
+    legacyNavigator.webkitGetUserMedia ||
+      legacyNavigator.mozGetUserMedia ||
+      legacyNavigator.msGetUserMedia
+  );
+  return `Camera API is unavailable in this environment (secureContext=${secure}, mediaDevices=${mediaDevicesApi}, legacyApi=${legacyApi}).`;
+}
+
 const CameraView: React.FC<CameraViewProps> = ({
   activeTab,
   edgeReady,
@@ -143,8 +197,8 @@ const CameraView: React.FC<CameraViewProps> = ({
     onCameraStatusChange('loading');
     setCameraIssue(null);
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      const message = 'Camera API is unavailable in this environment.';
+    if (!navigator.mediaDevices?.getUserMedia && !legacyGetUserMediaApi()) {
+      const message = cameraApiUnavailableMessage();
       setCameraIssue(message);
       setAuthError(message);
       setEnrollError(message);
@@ -171,9 +225,15 @@ const CameraView: React.FC<CameraViewProps> = ({
         }
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 } },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await requestCameraStream({
+          video: { width: { ideal: 640 }, height: { ideal: 480 } },
+        });
+      } catch {
+        // Fallback for cameras that reject explicit constraints.
+        stream = await requestCameraStream({ video: true });
+      }
       cameraStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -254,16 +314,24 @@ const CameraView: React.FC<CameraViewProps> = ({
       return null;
     }
 
+    const sourceWidth = videoRef.current.videoWidth;
+    const sourceHeight = videoRef.current.videoHeight;
+    const maxWidth = 640;
+    const maxHeight = 480;
+    const scale = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight, 1);
+    const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
     const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     const context = canvas.getContext('2d');
     if (!context) return null;
 
-    context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight);
 
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((value) => resolve(value), 'image/jpeg', 0.85)
+      canvas.toBlob((value) => resolve(value), 'image/jpeg', 0.72)
     );
     if (!blob) return null;
 
@@ -323,6 +391,11 @@ const CameraView: React.FC<CameraViewProps> = ({
                 }
               : null
           );
+          const progress = extractProgressParts(result.progress);
+          if (progress && progress.done >= progress.total) {
+            // Challenge sequence complete; pause streaming until operator finishes the check.
+            stopVerifyStream();
+          }
           lastFrameAtRef.current = now;
         } catch (error) {
           setAuthError(toUserFacingError(error));
@@ -725,10 +798,12 @@ const CameraView: React.FC<CameraViewProps> = ({
             <p className="frame-count">Frames analyzed: {frameCount}</p>
             <p className="quality-feedback">{authQualityMessage}</p>
             {renderCameraIssue()}
-            {demoMode && session?.risk_score !== undefined && (
+            {demoMode && typeof session?.risk_score === 'number' && (
               <p className="demo-note">
                 Demo metrics: risk {session.risk_score.toFixed(3)}
-                {session.similarity_score !== undefined ? ` | similarity ${session.similarity_score.toFixed(3)}` : ''}
+                {typeof session.similarity_score === 'number'
+                  ? ` | similarity ${session.similarity_score.toFixed(3)}`
+                  : ''}
               </p>
             )}
             <div className="button-group">
@@ -776,9 +851,13 @@ const CameraView: React.FC<CameraViewProps> = ({
           <section className={`phase-card ${authState === 'success' ? 'success' : 'error'}`}>
             <h2>{authState === 'success' ? 'Login Successful' : 'Login Failed'}</h2>
             <p>{summarizeDecision(session?.decision)}</p>
-            <p>Liveness: {session?.liveness_passed ? 'Passed' : 'Failed'}</p>
-            {session?.similarity_score !== undefined && <p>Similarity: {session.similarity_score.toFixed(3)}</p>}
-            {session?.risk_score !== undefined && <p>Risk score: {session.risk_score.toFixed(3)}</p>}
+            {session?.liveness_passed !== undefined && (
+              <p>Liveness: {session.liveness_passed ? 'Passed' : 'Failed'}</p>
+            )}
+            {typeof session?.similarity_score === 'number' && (
+              <p>Similarity: {session.similarity_score.toFixed(3)}</p>
+            )}
+            {typeof session?.risk_score === 'number' && <p>Risk score: {session.risk_score.toFixed(3)}</p>}
             {authError && <p className="error-text">{authError}</p>}
             {authHint && <p className="hint-text">{authHint}</p>}
             {authReasonMessages.length > 0 && <p>Reasons: {authReasonMessages.join(' | ')}</p>}

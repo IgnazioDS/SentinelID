@@ -20,10 +20,12 @@ apps/admin/tsconfig 2.json
 apps/admin/app/api/admin/session 2/
 *.bak_timeout
 # Bundled desktop runtime virtualenv is reproducible and should stay local-only.
-apps/desktop/resources/edge/pyvenv_active/
+apps/desktop/resources/edge/pyvenv_active/*
+!apps/desktop/resources/edge/pyvenv_active/.gitkeep
 apps/desktop/resources/edge/pyvenv/
 apps/desktop/resources/edge/pyvenv_stale*/
-apps/desktop/resources/edge/app/
+apps/desktop/resources/edge/app/*
+!apps/desktop/resources/edge/app/.gitkeep
 # Guard against accidental nested duplicate project copies.
 apps/desktop/apps/
 

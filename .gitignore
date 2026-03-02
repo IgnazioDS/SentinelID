@@ -17,9 +17,12 @@ apps/admin/node_modules 2/
 apps/admin/next-env.d 2.ts
 apps/admin/package-lock 2.json
 apps/admin/tsconfig 2.json
+apps/admin/app/api/admin/session 2/
 *.bak_timeout
 # Bundled desktop runtime virtualenv is reproducible and should stay local-only.
+apps/desktop/resources/edge/pyvenv_active/
 apps/desktop/resources/edge/pyvenv/
+apps/desktop/resources/edge/pyvenv_stale*/
 apps/desktop/resources/edge/app/
 # Guard against accidental nested duplicate project copies.
 apps/desktop/apps/
@@ -82,7 +85,6 @@ scripts/support/out/*.tar.gz
 /.dockerignore
 
 # OS Temporary Files
-.DS_Store
 Thumbs.db
 *.swp
 *.swo

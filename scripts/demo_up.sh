@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/compose_env_file.sh
+source "${SCRIPT_DIR}/lib/compose_env_file.sh"
 CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 ADMIN_UI_URL="${ADMIN_UI_URL:-http://127.0.0.1:3000}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-dev-admin-token}}"
@@ -13,6 +15,7 @@ DEMO_HEALTH_TIMEOUT_SECONDS="${DEMO_HEALTH_TIMEOUT_SECONDS:-180}"
 DEMO_CLOUD_BIND_HOST="${DEMO_CLOUD_BIND_HOST:-0.0.0.0}"
 
 cd "${REPO_ROOT}"
+prepare_compose_env_file "${REPO_ROOT}"
 
 echo "[demo-up] starting docker compose stack (postgres/cloud/admin)"
 echo "[demo-up] cloud bind host for compose runtime: ${DEMO_CLOUD_BIND_HOST}"
@@ -22,7 +25,7 @@ if [[ "${DEMO_FORCE_BUILD}" == "1" ]]; then
 fi
 
 attempt=1
-until CLOUD_BIND_HOST="${DEMO_CLOUD_BIND_HOST}" docker compose "${compose_args[@]}"; do
+until CLOUD_BIND_HOST="${DEMO_CLOUD_BIND_HOST}" compose_cmd "${compose_args[@]}"; do
   if [[ "${attempt}" -ge 3 ]]; then
     echo "[demo-up] docker compose failed after ${attempt} attempts"
     exit 1
@@ -42,9 +45,9 @@ done
 if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
   echo "Cloud health check failed: ${CLOUD_URL}/health"
   echo "[demo-up] docker compose ps"
-  docker compose ps || true
+  compose_cmd ps || true
   echo "[demo-up] cloud logs (tail 120)"
-  docker compose logs --tail=120 cloud || true
+  compose_cmd logs --tail=120 cloud || true
   exit 1
 fi
 
@@ -58,9 +61,9 @@ done
 if ! curl -fsS "${ADMIN_UI_URL}" >/dev/null 2>&1; then
   echo "Admin UI health check failed: ${ADMIN_UI_URL}"
   echo "[demo-up] docker compose ps"
-  docker compose ps || true
+  compose_cmd ps || true
   echo "[demo-up] admin logs (tail 120)"
-  docker compose logs --tail=120 admin || true
+  compose_cmd logs --tail=120 admin || true
   exit 1
 fi
 

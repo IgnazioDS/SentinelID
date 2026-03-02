@@ -1,7 +1,7 @@
-# Desktop Screenshot Placeholders
+# Desktop Release Screenshots
 
 Capture these screenshots during release QA and save with the names below:
 
-- `desktop-login-placeholder.png`
-- `desktop-enroll-placeholder.png`
-- `desktop-settings-placeholder.png`
+- `desktop-login.png`
+- `desktop-enroll.png`
+- `desktop-settings.png`

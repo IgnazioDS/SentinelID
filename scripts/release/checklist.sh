@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/lib/compose_env_file.sh
+source "${ROOT_DIR}/scripts/lib/compose_env_file.sh"
 cd "${ROOT_DIR}"
+prepare_compose_env_file "${ROOT_DIR}"
 
 EDGE_URL="${EDGE_URL:-http://127.0.0.1:8787}"
 EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-devtoken}}"
@@ -44,7 +47,7 @@ cleanup() {
   fi
   pkill -f "sentinelid_edge.main:app --host 127.0.0.1 --port 8787" >/dev/null 2>&1 || true
   if [[ "${SERVICES_STARTED}" == "1" && "${KEEP_SERVICES:-0}" != "1" ]]; then
-    docker compose down >/dev/null 2>&1 || true
+    compose_cmd down >/dev/null 2>&1 || true
   fi
 }
 
@@ -71,10 +74,10 @@ dump_failure_diagnostics() {
   fi
 
   echo "[diag] writing docker compose ps: ${prefix}_compose_ps.txt"
-  docker compose ps > "${prefix}_compose_ps.txt" 2>&1 || true
+  compose_cmd ps > "${prefix}_compose_ps.txt" 2>&1 || true
 
   echo "[diag] writing docker compose logs: ${prefix}_compose.log"
-  docker compose logs --no-color > "${prefix}_compose.log" 2>&1 || true
+  compose_cmd logs --no-color > "${prefix}_compose.log" 2>&1 || true
 }
 
 on_exit() {
@@ -108,7 +111,11 @@ run_step "desktop web build" make build-desktop-web
 run_step "desktop cargo check" make check-desktop-rust
 run_step "security: no admin token in client bundle" ./scripts/release/check_no_public_admin_token_bundle.sh
 run_step "compose admin env wiring" bash -c '
-  cfg="$(docker compose config)"
+  if [[ -n "${SENTINELID_COMPOSE_ENV_FILE:-}" ]]; then
+    cfg="$(docker compose --env-file "${SENTINELID_COMPOSE_ENV_FILE}" config)"
+  else
+    cfg="$(docker compose config)"
+  fi
   echo "$cfg" | grep -q "CLOUD_BASE_URL: http://cloud:8000" || {
     echo "docker compose config missing CLOUD_BASE_URL=http://cloud:8000"
     exit 1

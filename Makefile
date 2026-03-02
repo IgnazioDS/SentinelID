@@ -8,6 +8,7 @@
 	demo-checklist \
 	check-no-orphans \
 	check-no-duplicates \
+	gen-types \
 	bundle-edge \
 	check-edge-preflight \
 	edge-shell \
@@ -60,6 +61,7 @@ help:
 	@echo "  make build-desktop-web   Build desktop frontend"
 	@echo "  make check-desktop-rust  Cargo check for Tauri runtime"
 	@echo "  make build-desktop       Produce desktop distribution bundle (bundled edge runner)"
+	@echo "  make gen-types           Regenerate TypeScript types from OpenAPI contracts"
 	@echo ""
 	@echo "Test"
 	@echo "  make test-edge           Run edge pytest suite"
@@ -119,6 +121,9 @@ check-no-orphans:
 check-no-duplicates:
 	@./scripts/release/check_no_duplicate_pairs.sh
 
+gen-types:
+	@./scripts/gen_types.sh
+
 check-edge-preflight:
 	@./scripts/dev/edge_env.sh preflight
 
@@ -146,7 +151,7 @@ check-desktop-rust:
 
 build-desktop: build-desktop-web check-desktop-rust
 	@make check-tauri-config
-	@[ -x apps/desktop/resources/edge/pyvenv/bin/python ] || (echo "Bundled edge runtime missing. Run 'make bundle-edge' first."; exit 1)
+	@[ -x apps/desktop/resources/edge/pyvenv_active/bin/python ] || [ -x apps/desktop/resources/edge/pyvenv/bin/python ] || (echo "Bundled edge runtime missing. Run 'make bundle-edge' first."; exit 1)
 	@cd apps/desktop && npm run tauri:build
 
 test-edge:
@@ -197,7 +202,9 @@ release-check:
 	@./scripts/release/checklist.sh
 
 clean:
+	@rm -rf apps/desktop/resources/edge/pyvenv_active
 	@rm -rf apps/desktop/resources/edge/pyvenv
+	@rm -rf apps/desktop/resources/edge/pyvenv_stale*
 	@rm -rf apps/desktop/src-tauri/target
 	@rm -rf apps/desktop/dist
 	@cd apps/edge && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

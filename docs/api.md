@@ -56,4 +56,4 @@ Auth:
 ## Contracts
 
 - Shared schemas and OpenAPI artifacts live in `packages/shared-contracts/`.
-- Regenerate TypeScript types with `scripts/gen_types.sh` (placeholder script).
+- Regenerate TypeScript contract types with `make gen-types` (or `scripts/gen_types.sh`).

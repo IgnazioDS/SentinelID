@@ -20,7 +20,9 @@ if [[ "${INCLUDE_GENERATED}" != "1" ]]; then
       -name output -o
       -name .venv -o
       -name venv -o
+      -name pyvenv_active -o
       -name pyvenv -o
+      -name 'pyvenv_stale*' -o
       -name __pycache__
     \) -prune \)
     -o
@@ -34,7 +36,7 @@ while IFS= read -r -d '' path; do
   base="${path##*/}"
   dir="${path%/*}"
 
-  if [[ "${base}" =~ ^(.+)\ 2(\..+)?$ ]]; then
+  if [[ "${base}" =~ ^(.+)\ [0-9]+(\..+)?$ ]]; then
     original="${BASH_REMATCH[1]}${BASH_REMATCH[2]:-}"
     if [[ -e "${dir}/${original}" ]]; then
       DUPLICATES+=("${path#./}")
@@ -43,10 +45,11 @@ while IFS= read -r -d '' path; do
 done < <("${FIND_CMD[@]}")
 
 if [[ "${#DUPLICATES[@]}" -gt 0 ]]; then
-  mapfile -t SORTED_DUPLICATES < <(printf '%s\n' "${DUPLICATES[@]}" | sort -u)
-
-  echo "Duplicate artifact pairs detected (\"<name>\" + \"<name> 2\"):"
-  printf '  - %s\n' "${SORTED_DUPLICATES[@]}"
+  echo "Duplicate artifact pairs detected (\"<name>\" + \"<name> <n>\"):"
+  while IFS= read -r duplicate; do
+    [[ -z "${duplicate}" ]] && continue
+    printf '  - %s\n' "${duplicate}"
+  done < <(printf '%s\n' "${DUPLICATES[@]}" | sort -u)
   echo "Remove these duplicates before running release checks."
   exit 1
 fi

@@ -5,7 +5,8 @@ set -euo pipefail
 # Uses bundled Python runtime + venv and never depends on Poetry.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_PYTHON="${SCRIPT_DIR}/pyvenv/bin/python"
+ACTIVE_VENV_PYTHON="${SCRIPT_DIR}/pyvenv_active/bin/python"
+LEGACY_VENV_PYTHON="${SCRIPT_DIR}/pyvenv/bin/python"
 APP_SRC_DIR="${SCRIPT_DIR}/app"
 
 PORT="${EDGE_PORT:-${1:-8787}}"
@@ -13,8 +14,14 @@ TOKEN="${EDGE_AUTH_TOKEN:-${2:-dev-token}}"
 ENV_NAME="${EDGE_ENV:-${3:-prod}}"
 HOST="127.0.0.1"
 
+if [[ -x "${ACTIVE_VENV_PYTHON}" ]]; then
+  VENV_PYTHON="${ACTIVE_VENV_PYTHON}"
+else
+  VENV_PYTHON="${LEGACY_VENV_PYTHON}"
+fi
+
 if [[ ! -x "${VENV_PYTHON}" ]]; then
-  echo "Bundled edge python not found at ${VENV_PYTHON}" >&2
+  echo "Bundled edge python not found at ${ACTIVE_VENV_PYTHON} or ${LEGACY_VENV_PYTHON}" >&2
   exit 1
 fi
 

@@ -25,7 +25,11 @@
       "active": true,
       "identifier": "com.sentinelid.desktop",
       "targets": ["app"],
-      "resources": ["../resources/edge"]
+      "resources": [
+        "../resources/edge/run_edge.sh",
+        "../resources/edge/app",
+        "../resources/edge/pyvenv_active"
+      ]
     },
     "security": {
       "csp": null

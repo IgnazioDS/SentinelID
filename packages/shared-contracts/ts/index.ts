@@ -1,2 +1,10 @@
-// This file will be populated by the code generation script.
-export {};
+export type {
+  paths as EdgePaths,
+  components as EdgeComponents,
+  operations as EdgeOperations,
+} from "./edge";
+export type {
+  paths as CloudPaths,
+  components as CloudComponents,
+  operations as CloudOperations,
+} from "./cloud";

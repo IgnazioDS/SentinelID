@@ -10,7 +10,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DESKTOP_APP="${PROJECT_ROOT}/apps/desktop"
 EDGE_APP="${PROJECT_ROOT}/apps/edge"
 RESOURCES_DIR="${DESKTOP_APP}/resources/edge"
-VENV_DIR="${RESOURCES_DIR}/pyvenv"
+VENV_DIR="${RESOURCES_DIR}/pyvenv_active"
 APP_FALLBACK_DIR="${RESOURCES_DIR}/app"
 RUNNER_PATH="${RESOURCES_DIR}/run_edge.sh"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -37,8 +37,12 @@ echo "  edge app: ${EDGE_APP}"
 echo "  resources: ${RESOURCES_DIR}"
 
 mkdir -p "${RESOURCES_DIR}"
-rm -rf "${VENV_DIR}" "${APP_FALLBACK_DIR}"
-"${PYTHON_BIN}" -m venv "${VENV_DIR}"
+rm -rf "${APP_FALLBACK_DIR}"
+if [[ -d "${VENV_DIR}" ]]; then
+  "${PYTHON_BIN}" -m venv --clear "${VENV_DIR}"
+else
+  "${PYTHON_BIN}" -m venv "${VENV_DIR}"
+fi
 
 TMP_DIR="$(mktemp -d)"
 cleanup() {

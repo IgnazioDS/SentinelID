@@ -12,7 +12,7 @@ SentinelID desktop packaging bundles the edge runtime into the Tauri application
 
 Bundling creates the following under `apps/desktop/resources/edge/`:
 
-- `pyvenv/`: Python virtual environment with edge dependencies plus `uvicorn`.
+- `pyvenv_active/`: Python virtual environment with edge dependencies plus `uvicorn`.
 - `run_edge.sh`: launcher used by the Tauri runtime in production mode.
 - `app/sentinelid_edge/`: bundled source fallback for `PYTHONPATH` startup safety.
 
@@ -58,7 +58,7 @@ Distribution smoke verifies the bundled edge runtime directly (without Poetry):
 What it validates:
 
 - bundled runner exists and is executable
-- bundled `pyvenv` contains required runtime packages
+- bundled `pyvenv_active` contains required runtime packages
 - edge starts on a dynamic loopback port using bundled runtime
 - `/health` and `/api/v1/health` return success
 - protected endpoint rejects unauthenticated access with `401`
@@ -73,7 +73,7 @@ What it validates:
 ### Production mode
 
 - Tauri resolves `resources/edge/run_edge.sh`.
-- Launcher activates bundled `pyvenv` and starts edge.
+- Launcher activates bundled `pyvenv_active` (or legacy `pyvenv`) and starts edge.
 - Desktop assigns a loopback host, runtime port, and bearer token.
 
 ## Expected Inputs
@@ -87,14 +87,14 @@ What it validates:
 ### Missing bundled venv
 
 ```bash
-rm -rf apps/desktop/resources/edge/pyvenv
+rm -rf apps/desktop/resources/edge/pyvenv_active apps/desktop/resources/edge/pyvenv
 make bundle-edge
 ```
 
 ### Uvicorn unavailable in bundle
 
 ```bash
-apps/desktop/resources/edge/pyvenv/bin/python -m uvicorn --version
+apps/desktop/resources/edge/pyvenv_active/bin/python -m uvicorn --version
 ./scripts/bundle_edge_venv.sh
 ```
 

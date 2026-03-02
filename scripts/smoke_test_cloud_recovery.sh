@@ -3,6 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/compose_env_file.sh
+source "${SCRIPT_DIR}/lib/compose_env_file.sh"
+prepare_compose_env_file "${REPO_ROOT}"
 
 if [[ -z "${EDGE_URL:-}" ]]; then
   EDGE_PORT_AUTO="$(
@@ -80,17 +83,17 @@ dump_recovery_diagnostics() {
   if [[ -f "${EDGE_LOG}" ]]; then
     tail -n 200 "${EDGE_LOG}" > "${prefix}_edge_tail.log" 2>&1 || true
   fi
-  docker compose ps > "${prefix}_compose_ps.txt" 2>&1 || true
-  docker compose logs --no-color > "${prefix}_compose.log" 2>&1 || true
+  compose_cmd ps > "${prefix}_compose_ps.txt" 2>&1 || true
+  compose_cmd logs --no-color > "${prefix}_compose.log" 2>&1 || true
 }
 
 trap dump_recovery_diagnostics ERR
 
 echo "[recovery] stopping cloud/admin to simulate outage"
-docker compose stop cloud admin >/dev/null 2>&1 || true
+compose_cmd stop cloud admin >/dev/null 2>&1 || true
 
 echo "[recovery] ensuring postgres is running"
-docker compose up -d postgres >/dev/null
+compose_cmd up -d postgres >/dev/null
 
 echo "[recovery] starting edge with telemetry enabled"
 (
@@ -243,7 +246,7 @@ if [[ "${PENDING_COUNT}" -le 0 && "${DLQ_COUNT}" -le 0 ]]; then
 fi
 
 echo "[recovery] starting cloud/admin and waiting for recovery"
-CLOUD_BIND_HOST="${RECOVERY_CLOUD_BIND_HOST}" docker compose up -d cloud admin >/dev/null
+CLOUD_BIND_HOST="${RECOVERY_CLOUD_BIND_HOST}" compose_cmd up -d cloud admin >/dev/null
 
 for _ in $(seq 1 120); do
   if curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
@@ -255,9 +258,9 @@ done
 if ! curl -fsS "${CLOUD_URL}/health" >/dev/null 2>&1; then
   echo "Cloud did not become healthy"
   echo "[recovery] docker compose ps"
-  docker compose ps || true
+  compose_cmd ps || true
   echo "[recovery] cloud logs (tail 120)"
-  docker compose logs --tail=120 cloud || true
+  compose_cmd logs --tail=120 cloud || true
   exit 1
 fi
 

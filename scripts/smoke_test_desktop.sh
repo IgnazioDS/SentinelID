@@ -4,7 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LAUNCHER="${REPO_ROOT}/apps/desktop/resources/edge/run_edge.sh"
-VENV_PYTHON="${REPO_ROOT}/apps/desktop/resources/edge/pyvenv/bin/python"
+ACTIVE_VENV_PYTHON="${REPO_ROOT}/apps/desktop/resources/edge/pyvenv_active/bin/python"
+LEGACY_VENV_PYTHON="${REPO_ROOT}/apps/desktop/resources/edge/pyvenv/bin/python"
+VENV_PYTHON="${ACTIVE_VENV_PYTHON}"
+if [[ ! -x "${VENV_PYTHON}" ]]; then
+  VENV_PYTHON="${LEGACY_VENV_PYTHON}"
+fi
 
 if [[ ! -x "${LAUNCHER}" || ! -x "${VENV_PYTHON}" ]]; then
   echo "Bundled desktop runtime missing launcher or python. Building bundle runtime first..."
@@ -14,7 +19,7 @@ fi
 if [[ ! -x "${LAUNCHER}" || ! -x "${VENV_PYTHON}" ]]; then
   echo "Bundled desktop runtime still incomplete after bundling."
   echo "launcher=${LAUNCHER}"
-  echo "python=${VENV_PYTHON}"
+  echo "python=${ACTIVE_VENV_PYTHON} (fallback ${LEGACY_VENV_PYTHON})"
   exit 1
 fi
 

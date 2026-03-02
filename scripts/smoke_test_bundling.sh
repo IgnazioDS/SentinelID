@@ -5,7 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DESKTOP_APP="${PROJECT_ROOT}/apps/desktop"
 RESOURCES_DIR="${DESKTOP_APP}/resources/edge"
-VENV_DIR="${RESOURCES_DIR}/pyvenv"
+ACTIVE_VENV_DIR="${RESOURCES_DIR}/pyvenv_active"
+LEGACY_VENV_DIR="${RESOURCES_DIR}/pyvenv"
 RUNNER="${RESOURCES_DIR}/run_edge.sh"
 SKIP_DESKTOP_BUILD="${SKIP_DESKTOP_BUILD:-0}"
 SKIP_BUNDLE="${SKIP_BUNDLE:-0}"
@@ -50,8 +51,14 @@ if [[ ! -x "${RUNNER}" ]]; then
   exit 1
 fi
 
+if [[ -x "${ACTIVE_VENV_DIR}/bin/python" ]]; then
+  VENV_DIR="${ACTIVE_VENV_DIR}"
+else
+  VENV_DIR="${LEGACY_VENV_DIR}"
+fi
+
 if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
-  echo "Bundled python missing: ${VENV_DIR}/bin/python"
+  echo "Bundled python missing: ${ACTIVE_VENV_DIR}/bin/python (or legacy ${LEGACY_VENV_DIR}/bin/python)"
   exit 1
 fi
 

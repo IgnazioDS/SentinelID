@@ -34,7 +34,7 @@ Required values:
 - `EDGE_AUTH_TOKEN`
 - `ADMIN_API_TOKEN`
 - `ADMIN_UI_USERNAME`
-- `ADMIN_UI_PASSWORD_HASH` (bcrypt hash, not plaintext)
+- `ADMIN_UI_PASSWORD_HASH` (bcrypt hash for non-Docker runs) or `ADMIN_UI_PASSWORD_HASH_B64` (recommended for Docker Compose)
 - `ADMIN_UI_SESSION_SECRET`
 
 Optional values:

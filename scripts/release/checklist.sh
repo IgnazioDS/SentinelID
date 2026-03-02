@@ -121,8 +121,8 @@ run_step "compose admin env wiring" bash -c '
     echo "docker compose config missing ADMIN_UI_USERNAME"
     exit 1
   }
-  echo "$cfg" | grep -q "ADMIN_UI_PASSWORD_HASH:" || {
-    echo "docker compose config missing ADMIN_UI_PASSWORD_HASH"
+  echo "$cfg" | grep -q "ADMIN_UI_PASSWORD_HASH_B64:" || {
+    echo "docker compose config missing ADMIN_UI_PASSWORD_HASH_B64"
     exit 1
   }
   echo "$cfg" | grep -q "ADMIN_UI_SESSION_SECRET:" || {

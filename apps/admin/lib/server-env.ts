@@ -17,6 +17,32 @@ export interface AdminServerConfig {
   adminUiSessionTtlMinutes: number;
 }
 
+function resolveAdminUiPasswordHash(): string {
+  const directHash = process.env.ADMIN_UI_PASSWORD_HASH?.trim();
+  if (directHash) {
+    return directHash;
+  }
+
+  const encodedHash = process.env.ADMIN_UI_PASSWORD_HASH_B64?.trim();
+  if (!encodedHash) {
+    throw new Error(
+      'Missing required env var: ADMIN_UI_PASSWORD_HASH (or ADMIN_UI_PASSWORD_HASH_B64).',
+    );
+  }
+
+  let decoded = '';
+  try {
+    decoded = Buffer.from(encodedHash, 'base64').toString('utf8').trim();
+  } catch (error) {
+    throw new Error(`Invalid ADMIN_UI_PASSWORD_HASH_B64 value: ${(error as Error).message}`);
+  }
+
+  if (!decoded) {
+    throw new Error('ADMIN_UI_PASSWORD_HASH_B64 decoded to an empty value.');
+  }
+  return decoded;
+}
+
 export function getAdminServerConfig(): AdminServerConfig {
   const cloudBaseUrl =
     process.env.CLOUD_BASE_URL?.trim() || process.env.NEXT_PUBLIC_CLOUD_BASE_URL?.trim();
@@ -35,7 +61,7 @@ export function getAdminServerConfig(): AdminServerConfig {
     cloudBaseUrl,
     adminApiToken: requireEnv('ADMIN_API_TOKEN'),
     adminUiUsername: requireEnv('ADMIN_UI_USERNAME'),
-    adminUiPasswordHash: requireEnv('ADMIN_UI_PASSWORD_HASH'),
+    adminUiPasswordHash: resolveAdminUiPasswordHash(),
     adminUiSessionSecret: requireEnv('ADMIN_UI_SESSION_SECRET'),
     adminUiSessionTtlMinutes,
   };

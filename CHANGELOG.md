@@ -2,6 +2,13 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.6 (2026-03-03)
+
+### Release Cut and Evidence Refresh
+- Advanced release line to `v2.3.6` across release-critical headers, packaging metadata, and operator-facing docs.
+- Validated release integrity on `main` after merge with fresh CI parity and `release-tag` workflow-dispatch proof.
+- Regenerated pilot evidence index to reference current PR/main parity URLs and latest manual release-tag validation run.
+
 ## v2.3.5 (2026-03-01)
 
 ### Release Integrity Guardrails

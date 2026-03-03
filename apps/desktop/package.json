@@ -2,6 +2,7 @@
   "name": "sentinelid-desktop",
   "private": true,
   "version": "1.9.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

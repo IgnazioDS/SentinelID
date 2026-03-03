@@ -3,7 +3,7 @@ name = "sentinelid-desktop"
 version = "0.1.0"
 description = "SentinelID Desktop App"
 authors = ["you"]
-license = ""
+license = "MIT"
 repository = ""
 edition = "2021"
 

@@ -2,6 +2,7 @@
 name = "sentinelid-edge"
 version = "0.6.0"
 description = "SentinelID Edge Service for Face Authentication"
+license = "MIT"
 authors = ["Ignazio De Santis <ignaziodesantisofficial@gmail.com>"]
 
 [tool.poetry.dependencies]

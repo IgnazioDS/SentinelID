@@ -31,6 +31,7 @@ It pairs a local edge verifier with cloud telemetry and an admin dashboard, so a
 ## Security Posture
 
 - Local API is bound to localhost and protected by bearer token auth.
+- Admin dashboard and `/api/cloud/*` proxy use server-side session auth (HttpOnly cookie); browser-supplied admin tokens are ignored.
 - No iframe/browser embedding trust path for auth decisions.
 - Edge produces signed telemetry; cloud verifies signatures before persistence.
 - Audit logging is hash-chained for tamper evidence.
@@ -46,6 +47,15 @@ Common commands:
 make test
 make docker-build
 make release-check
+```
+
+Docker-first local startup:
+
+```bash
+make demo-up
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:3000
+make demo-down
 ```
 
 ## Quick Demo
@@ -100,7 +110,7 @@ GitHub Actions runs the following on PRs and `main` pushes:
 - cloud pytest
 - desktop web build + cargo check
 - docker compose build (cloud + admin)
-- release parity gate (`make release-check` hardening equivalent)
+- release parity gate on PR + `main` (`make release-check`)
 
 ## Documentation
 

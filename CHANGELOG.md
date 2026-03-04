@@ -19,6 +19,7 @@ All notable changes to SentinelID are documented in this file.
 - Extended `make demo-verify` to generate and validate a local support bundle artifact for better parity with release preflight.
 - Added `make check-release-tag` as a direct wrapper for strict tag-to-HEAD alignment checks.
 - Made support-bundle validation deterministic in `release-check` and `demo-verify` by passing the exact generated artifact path to local validation.
+- Set desktop workspace resolver to Cargo resolver v2 to eliminate repeated virtual-workspace resolver warnings in build/check output.
 
 ## v2.3.5 (2026-03-01)
 

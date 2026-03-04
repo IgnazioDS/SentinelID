@@ -63,6 +63,7 @@ output/
 *.sqlite
 *.sqlite3
 apps/edge/.sentinelid/
+/.sentinelid/
 logs/
 *.log
 tmp/

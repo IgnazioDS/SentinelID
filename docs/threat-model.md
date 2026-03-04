@@ -28,12 +28,10 @@ Threat: Attacker sends many requests to /auth/start, /auth/frame, or
 Mitigation (implemented):
 - Token bucket per (endpoint, client key): 10-burst, 2 req/s for auth endpoints.
 - Escalating lockout: 30 s after 5 failures, doubling up to 5 min after 40+.
+- Lockout state is persisted on disk, so Edge process restart does not reset lockout history.
 - Frame cap per session: sessions are terminated after MAX_FRAMES_PER_SESSION
   (default 200) to prevent indefinite probing within a single session.
 - Request body size limit (2 MB) prevents resource exhaustion via large payloads.
-
-Residual risk: Lockout state is in-memory; a process restart clears it. Persistent
-lockout storage is planned.
 
 ---
 
@@ -110,7 +108,6 @@ secure deletion requires OS-level secure erase.
 
 ## Planned Mitigations
 
-- Persistent lockout storage (survives process restart).
 - TLS enforcement at the edge HTTP server layer (currently delegated to OS).
 - Secure enclave / TPM integration for master key storage on Linux / Windows.
 - Audit log encryption (currently stored in plaintext in SQLite).

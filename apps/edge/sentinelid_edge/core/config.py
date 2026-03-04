@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -32,6 +33,10 @@ class Settings(BaseSettings):
     # Storage paths
     DB_PATH: str = os.getenv("SENTINELID_DB_PATH", ".sentinelid/audit.db")
     KEYCHAIN_DIR: str = os.getenv("SENTINELID_KEYCHAIN_DIR", ".sentinelid/keys")
+    LOCKOUT_STATE_PATH: str = os.getenv(
+        "SENTINELID_LOCKOUT_STATE_PATH",
+        str(Path(os.getenv("SENTINELID_DB_PATH", ".sentinelid/audit.db")).parent / "lockout_state.json"),
+    )
 
     # Input hardening
     MAX_REQUEST_BODY_BYTES: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(2 * 1024 * 1024)))  # 2 MB

@@ -42,6 +42,7 @@ Optional values:
 - `ADMIN_UI_SESSION_TTL_MINUTES` (default `480`)
 - `ADMIN_UI_SESSION_SECURE` (default `0`; set `1` only behind HTTPS)
 - `CLOUD_BIND_HOST` (unset defaults to `127.0.0.1` for local non-container runs and `0.0.0.0` for container runtime)
+- `SENTINELID_LOCKOUT_STATE_PATH` (default `.sentinelid/lockout_state.json`)
 - `ADMIN_UI_PASSWORD` (dev/smoke helper for scripted admin login only)
 
 Optional verification fallback toggle (dev only):

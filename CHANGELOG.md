@@ -21,6 +21,8 @@ All notable changes to SentinelID are documented in this file.
 - Made support-bundle validation deterministic in `release-check` and `demo-verify` by passing the exact generated artifact path to local validation.
 - Set desktop workspace resolver to Cargo resolver v2 to eliminate repeated virtual-workspace resolver warnings in build/check output.
 - Hardened local support-bundle sanitization to inspect non-JSON text artifacts for unredacted bearer strings and live credential values.
+- Persisted edge auth lockout state to local disk (`SENTINELID_LOCKOUT_STATE_PATH`) so lockout survives process restart, with regression tests and threat-model updates.
+- Added repository-root runtime ignore (`/.sentinelid/`) to keep local lockout/audit state files out of git status noise.
 
 ## v2.3.5 (2026-03-01)
 

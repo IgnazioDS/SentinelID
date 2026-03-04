@@ -12,6 +12,8 @@ Mitigation (implemented):
 - All face embeddings are AES-256-GCM encrypted. Without the master key (stored
   in the OS keychain, not in the database), the attacker cannot recover any
   biometric data.
+- Audit event payloads are encrypted at rest with per-event derived keys, while
+  hash-chain links remain verifiable.
 - The GCM authentication tag detects any tampering with stored blobs.
 
 Residual risk: If the attacker also obtains the OS keychain (e.g., via a
@@ -112,4 +114,3 @@ secure deletion requires OS-level secure erase.
 ## Planned Mitigations
 
 - Secure enclave / TPM integration for master key storage on Linux / Windows.
-- Audit log encryption (currently stored in plaintext in SQLite).

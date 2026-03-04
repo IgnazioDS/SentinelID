@@ -23,7 +23,7 @@ For setup and run commands, use `RUNBOOK.md`.
 
 ## Data Stores
 
-- Edge: local SQLite (`apps/edge/.sentinelid/audit.db`) for audit/outbox and encrypted templates.
+- Edge: local SQLite (`apps/edge/.sentinelid/audit.db`) for audit/outbox, encrypted templates, and encrypted audit payloads.
 - Cloud: PostgreSQL for registered devices and telemetry events.
 
 ## Related Docs

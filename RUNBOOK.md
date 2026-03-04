@@ -264,6 +264,12 @@ make bundle-edge
 make build-desktop
 ```
 
+For detailed dependency installer logs during bundling, use:
+
+```bash
+BUNDLE_VERBOSE=1 make bundle-edge
+```
+
 Bundled local artifact ignored by git:
 
 - `apps/desktop/resources/edge/pyvenv/`

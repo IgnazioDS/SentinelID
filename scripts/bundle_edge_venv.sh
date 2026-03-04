@@ -103,6 +103,8 @@ fi
 echo "Copying edge source fallback for PYTHONPATH runtime fallback"
 mkdir -p "${APP_FALLBACK_DIR}"
 cp -R "${EDGE_APP}/sentinelid_edge" "${APP_FALLBACK_DIR}/"
+touch "${APP_FALLBACK_DIR}/.gitkeep"
+touch "${VENV_DIR}/.gitkeep"
 
 if [[ ! -f "${RUNNER_PATH}" ]]; then
   echo "Missing bundled runner at ${RUNNER_PATH}"

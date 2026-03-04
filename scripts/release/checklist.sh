@@ -22,6 +22,7 @@ EDGE_LOG=""
 SERVICES_STARTED=0
 ORPHAN_BASELINE_PIDS="$(pgrep -f "run_edge.sh|sentinelid_edge.main:app" | tr '\n' ',' | sed 's/,$//' || true)"
 DIAG_DIR="${RELEASE_CHECK_DIAG_DIR:-output/ci/logs}"
+BASELINE_TRACKED_STATUS="$(git status --porcelain --untracked-files=no || true)"
 
 summary() {
   echo ""
@@ -98,6 +99,29 @@ run_step() {
     FAILED_STEP="${name}"
     return 1
   fi
+}
+
+assert_tracked_status_unchanged() {
+  local current_status
+  current_status="$(git status --porcelain --untracked-files=no || true)"
+  if [[ "${current_status}" == "${BASELINE_TRACKED_STATUS}" ]]; then
+    return 0
+  fi
+
+  echo "Tracked git status changed during release-check."
+  echo "Expected baseline:"
+  if [[ -n "${BASELINE_TRACKED_STATUS}" ]]; then
+    echo "${BASELINE_TRACKED_STATUS}"
+  else
+    echo "(clean)"
+  fi
+  echo "Current:"
+  if [[ -n "${current_status}" ]]; then
+    echo "${current_status}"
+  else
+    echo "(clean)"
+  fi
+  return 1
 }
 
 run_step "edge preflight imports" make check-edge-preflight
@@ -200,6 +224,7 @@ run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}"
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
 run_step "demo readiness: no orphan edge process" env ORPHAN_BASELINE_PIDS="${ORPHAN_BASELINE_PIDS}" ./scripts/check_no_orphan_edge.sh
+run_step "demo readiness: tracked git status unchanged" assert_tracked_status_unchanged
 run_step "release evidence pack" ./scripts/release/build_evidence_pack.sh
 
 FAILED_STEP=""

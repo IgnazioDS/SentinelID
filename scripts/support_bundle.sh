@@ -89,21 +89,26 @@ fetch_json() {
   local headers_path="${TMP_DIR}/${output_base}.headers"
   local raw_path="${TMP_DIR}/${output_base}.raw.json"
   local clean_path="${TMP_DIR}/${output_base}.json"
+  local err_path="${TMP_DIR}/${output_base}.err.log"
 
   local curl_args=("-sS" "-f" "-D" "${headers_path}" "${url}")
   if [[ -n "${auth_header}" ]]; then
     curl_args=("-sS" "-f" "-D" "${headers_path}" "-H" "${auth_header}" "${url}")
   fi
 
-  if ! curl "${curl_args[@]}" >"${raw_path}"; then
-    echo "${label}: unavailable" >"${clean_path}"
-    rm -f "${headers_path}" "${raw_path}" >/dev/null 2>&1 || true
+  if ! curl "${curl_args[@]}" >"${raw_path}" 2>"${err_path}"; then
+    local err_detail="request failed"
+    if [[ -s "${err_path}" ]]; then
+      err_detail="$(head -n 1 "${err_path}")"
+    fi
+    echo "${label}: unavailable (${err_detail})" >"${clean_path}"
+    rm -f "${headers_path}" "${raw_path}" "${err_path}" >/dev/null 2>&1 || true
     return
   fi
 
   sanitize_json "${raw_path}" "${clean_path}"
   record_request_id "${headers_path}" "${label}"
-  rm -f "${headers_path}" "${raw_path}" >/dev/null 2>&1 || true
+  rm -f "${headers_path}" "${raw_path}" "${err_path}" >/dev/null 2>&1 || true
 }
 
 # Collect API snapshots

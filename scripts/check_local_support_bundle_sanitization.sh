@@ -38,6 +38,18 @@ for key in ("EDGE_TOKEN", "EDGE_AUTH_TOKEN", "ADMIN_TOKEN", "ADMIN_API_TOKEN"):
         forbidden_literals.append(value)
 
 
+def inspect_text(text: str, ctx: str) -> None:
+    lower = text.lower()
+    if "bearer " in lower and "Bearer [REDACTED]" not in text:
+        violations.append(f"{ctx} has non-redacted bearer token text")
+    if "data:image/" in lower:
+        violations.append(f"{ctx} has raw image data text")
+    for literal in forbidden_literals:
+        if literal in text:
+            violations.append(f"{ctx} contains live credential value")
+            break
+
+
 def inspect(value, ctx: str) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
@@ -73,13 +85,20 @@ with tarfile.open(path, mode="r:gz") as archive:
         leaf = Path(member.name).name
         if leaf.startswith("._"):
             continue
-        if not member.name.endswith(".json"):
-            continue
         payload = archive.extractfile(member)
         if payload is None:
             continue
+        raw_bytes = payload.read()
         try:
-            data = json.loads(payload.read().decode("utf-8"))
+            text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            text = None
+        if text is not None:
+            inspect_text(text, member.name)
+        if not member.name.endswith(".json"):
+            continue
+        try:
+            data = json.loads(text if text is not None else raw_bytes.decode("utf-8"))
         except Exception as exc:  # pragma: no cover
             violations.append(f"{member.name} invalid json: {exc}")
             continue

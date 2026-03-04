@@ -289,6 +289,10 @@ class TelemetryExporter:
             "last_export_error": self.last_export_error or outbox_stats.get("last_error_summary"),
         }
 
+    def purge_sent_older_than(self, retention_days: int) -> int:
+        """Purge old SENT outbox rows according to retention policy."""
+        return self.outbox.purge_sent_older_than(retention_days)
+
     def replay_dlq_event(self, event_id: int):
         """
         Replay an event from DLQ back to PENDING.

@@ -320,6 +320,32 @@ class OutboxRepository:
         conn.commit()
         return cursor.rowcount
 
+    def purge_sent_older_than(self, retention_days: int) -> int:
+        """
+        Delete SENT outbox rows older than retention_days.
+
+        Args:
+            retention_days: Retention window in days. Non-positive values disable purge.
+
+        Returns:
+            Number of deleted rows.
+        """
+        if retention_days <= 0:
+            return 0
+        cutoff_iso = (_utc_now_naive() - timedelta(days=int(retention_days))).isoformat()
+        conn = self.db.connect()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            DELETE FROM outbox_events
+            WHERE status = 'SENT'
+              AND COALESCE(last_success_at, created_at) < ?
+            """,
+            (cutoff_iso,),
+        )
+        conn.commit()
+        return cursor.rowcount
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Get outbox statistics.

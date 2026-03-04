@@ -24,6 +24,7 @@ All notable changes to SentinelID are documented in this file.
 - Persisted edge auth lockout state to local disk (`SENTINELID_LOCKOUT_STATE_PATH`) so lockout survives process restart, with regression tests and threat-model updates.
 - Added repository-root runtime ignore (`/.sentinelid/`) to keep local lockout/audit state files out of git status noise.
 - Added telemetry ingest transport validation: in `EDGE_ENV=prod`, non-loopback `CLOUD_INGEST_URL` must use HTTPS (with test coverage and runbook/threat-model updates).
+- Added automatic telemetry outbox retention sweep: old `SENT` rows now expire by policy (`TELEMETRY_SENT_RETENTION_DAYS`, default 30 days) on a configurable interval.
 
 ## v2.3.5 (2026-03-01)
 

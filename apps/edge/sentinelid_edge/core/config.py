@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     TELEMETRY_HTTP_TIMEOUT_SECONDS: float = float(
         os.getenv("TELEMETRY_HTTP_TIMEOUT_SECONDS", "10.0")
     )
+    TELEMETRY_SENT_RETENTION_DAYS: int = int(
+        os.getenv("TELEMETRY_SENT_RETENTION_DAYS", "30")
+    )
+    TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS: float = float(
+        os.getenv("TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS", "3600")
+    )
 
     # Storage paths
     DB_PATH: str = os.getenv("SENTINELID_DB_PATH", ".sentinelid/audit.db")

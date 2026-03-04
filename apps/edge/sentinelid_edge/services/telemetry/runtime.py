@@ -24,6 +24,8 @@ class TelemetryRuntimeStats:
     wake_signals: int = 0
     last_loop_error: Optional[str] = None
     last_export_success_at: Optional[float] = None
+    last_retention_sweep_at: Optional[float] = None
+    last_retention_sweep_deleted: int = 0
 
 
 class TelemetryRuntime:
@@ -34,6 +36,8 @@ class TelemetryRuntime:
         exporter: TelemetryExporter,
         export_interval_seconds: float = settings.TELEMETRY_EXPORT_INTERVAL_SECONDS,
         signal_queue_size: int = settings.TELEMETRY_SIGNAL_QUEUE_SIZE,
+        retention_days: int = settings.TELEMETRY_SENT_RETENTION_DAYS,
+        retention_sweep_interval_seconds: float = settings.TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS,
     ) -> None:
         self.exporter = exporter
         self.enabled = settings.TELEMETRY_ENABLED
@@ -42,6 +46,9 @@ class TelemetryRuntime:
         self._stop_event = asyncio.Event()
         self._task: Optional[asyncio.Task] = None
         self._stats = TelemetryRuntimeStats()
+        self.retention_days = int(retention_days)
+        self.retention_sweep_interval_seconds = max(10.0, float(retention_sweep_interval_seconds))
+        self._last_retention_sweep_monotonic: float = 0.0
 
     async def start(self) -> None:
         if self._task is not None:
@@ -86,6 +93,12 @@ class TelemetryRuntime:
                 pass
 
             self._stats.loop_iterations += 1
+            try:
+                self._maybe_run_retention_sweep()
+            except Exception as exc:
+                self._stats.export_errors += 1
+                self._stats.last_loop_error = f"retention_sweep: {exc}"
+                logger.error("Telemetry retention sweep failed: %s", exc)
             if not self.enabled:
                 continue
             try:
@@ -97,6 +110,23 @@ class TelemetryRuntime:
                 self._stats.export_errors += 1
                 self._stats.last_loop_error = str(exc)
                 logger.error("Telemetry background export failed: %s", exc)
+
+    def _maybe_run_retention_sweep(self) -> None:
+        if self.retention_days <= 0:
+            return
+        now_monotonic = time.monotonic()
+        if (now_monotonic - self._last_retention_sweep_monotonic) < self.retention_sweep_interval_seconds:
+            return
+        deleted = self.exporter.purge_sent_older_than(self.retention_days)
+        self._last_retention_sweep_monotonic = now_monotonic
+        self._stats.last_retention_sweep_at = time.time()
+        self._stats.last_retention_sweep_deleted = int(deleted)
+        if deleted > 0:
+            logger.info(
+                "Telemetry retention sweep deleted %s sent outbox rows older than %s days",
+                deleted,
+                self.retention_days,
+            )
 
     def stats(self) -> dict:
         exporter_stats = self.exporter.get_stats()
@@ -114,6 +144,8 @@ class TelemetryRuntime:
                 "export_errors": self._stats.export_errors,
                 "last_loop_error": self._stats.last_loop_error,
                 "last_export_success_at": self._stats.last_export_success_at,
+                "last_retention_sweep_at": self._stats.last_retention_sweep_at,
+                "last_retention_sweep_deleted": self._stats.last_retention_sweep_deleted,
             },
             "outbox": {
                 "pending_count": exporter_stats["pending_count"],

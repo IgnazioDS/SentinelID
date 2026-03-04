@@ -76,6 +76,7 @@ Mitigation (implemented):
 - Field validators enforce that event_type and outcome are within allowed sets.
 - Any payload containing forbidden fields is rejected with HTTP 422.
 - Tests enforce that _FORBIDDEN_FIELDS constant covers the minimum required set.
+- Edge outbox automatically expires old `SENT` telemetry rows (default 30 days).
 
 ---
 
@@ -112,4 +113,3 @@ secure deletion requires OS-level secure erase.
 
 - Secure enclave / TPM integration for master key storage on Linux / Windows.
 - Audit log encryption (currently stored in plaintext in SQLite).
-- Automatic telemetry event expiry to limit data retention window.

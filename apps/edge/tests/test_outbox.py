@@ -208,6 +208,42 @@ class TestOutboxRepository:
         pending = repo.get_pending_events()
         assert len(pending) == 0
 
+    def test_purge_sent_older_than(self, temp_db):
+        repo = OutboxRepository(temp_db)
+        old_sent_id = repo.add_event({'event_id': 'old-sent'})
+        fresh_sent_id = repo.add_event({'event_id': 'fresh-sent'})
+        repo.add_event({'event_id': 'still-pending'})
+
+        repo.mark_sent(old_sent_id)
+        repo.mark_sent(fresh_sent_id)
+
+        conn = repo.db.connect()
+        old_iso = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=40)).isoformat()
+        fresh_iso = (datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)).isoformat()
+        conn.cursor().execute(
+            "UPDATE outbox_events SET last_success_at = ? WHERE id = ?",
+            (old_iso, old_sent_id),
+        )
+        conn.cursor().execute(
+            "UPDATE outbox_events SET last_success_at = ? WHERE id = ?",
+            (fresh_iso, fresh_sent_id),
+        )
+        conn.commit()
+
+        deleted = repo.purge_sent_older_than(retention_days=30)
+        assert deleted == 1
+
+        row_count = conn.cursor().execute(
+            "SELECT COUNT(*) FROM outbox_events WHERE id = ?",
+            (old_sent_id,),
+        ).fetchone()[0]
+        assert row_count == 0
+
+        # Fresh SENT and PENDING rows remain.
+        remaining_stats = repo.get_stats()
+        assert remaining_stats["sent_count"] == 1
+        assert remaining_stats["pending_count"] == 1
+
 
 class TestOutboxSQLiteSchema:
     """Test outbox table schema and constraints."""

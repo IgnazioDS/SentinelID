@@ -31,6 +31,7 @@
 	smoke-bundling \
 	perf-edge \
 	support-bundle \
+	check-local-support-bundle \
 	runbook-lock \
 	release-evidence \
 	pilot-evidence \
@@ -78,6 +79,7 @@ help:
 	@echo "  make smoke-bundling      Validate bundled desktop runtime (no Poetry at runtime)"
 	@echo "  make perf-edge           Run edge benchmark (writes scripts/perf/out/*.json)"
 	@echo "  make support-bundle      Generate sanitized support bundle artifact"
+	@echo "  make check-local-support-bundle Validate latest local support bundle artifact"
 	@echo "  make runbook-lock        Build known-good runbook lock artifact under output/release/"
 	@echo "  make release-evidence    Build release evidence pack under output/release/"
 	@echo "  make pilot-evidence      Build pilot evidence index under output/release/"
@@ -188,6 +190,9 @@ perf-edge:
 
 support-bundle:
 	@./scripts/support_bundle.sh
+
+check-local-support-bundle:
+	@./scripts/check_local_support_bundle_sanitization.sh
 
 runbook-lock:
 	@./scripts/release/build_runbook_lock.sh

@@ -233,6 +233,7 @@ make smoke-admin
 make smoke-desktop
 make smoke-bundling
 make support-bundle
+make check-local-support-bundle
 make release-evidence
 make pilot-evidence
 ```
@@ -310,6 +311,7 @@ Generate a support/debug bundle without raw frames, embeddings, tokens, or signa
 
 ```bash
 EDGE_TOKEN="${EDGE_AUTH_TOKEN}" ADMIN_TOKEN="${ADMIN_API_TOKEN}" ./scripts/support_bundle.sh
+./scripts/check_local_support_bundle_sanitization.sh
 ```
 
 Artifact path:

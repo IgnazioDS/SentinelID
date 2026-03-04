@@ -250,6 +250,11 @@ make release-check
 RELEASE_EXPECT_TAG=vX.Y.Z make release-check
 ```
 
+`make release-check` enforces:
+- cloud and local support-bundle sanitization checks
+- client bundle admin-token exposure checks
+- tracked git status unchanged from start to finish
+
 Pilot readiness checklist: `docs/PILOT_FREEZE.md`.
 
 ## Packaging

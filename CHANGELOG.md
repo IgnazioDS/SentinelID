@@ -9,6 +9,12 @@ All notable changes to SentinelID are documented in this file.
 - Validated release integrity on `main` after merge with fresh CI parity and `release-tag` workflow-dispatch proof.
 - Regenerated pilot evidence index to reference current PR/main parity URLs and latest manual release-tag validation run.
 
+### Post-Cut Hardening
+- Hardened desktop support-bundle flow to use a Tauri backend command with server-side admin token injection, removing renderer-side admin token requirements.
+- Added release checks to enforce no admin token leakage in desktop web bundles.
+- Hardened release scripts to keep tracked workspace state stable during bundling smoke and to verify tracked git status remains unchanged at the end of `make release-check`.
+- Improved support-bundle collection fallback behavior and added local support-bundle sanitization validation in release preflight.
+
 ## v2.3.5 (2026-03-01)
 
 ### Release Integrity Guardrails

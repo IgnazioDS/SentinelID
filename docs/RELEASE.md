@@ -19,11 +19,14 @@ make release-check
 - duplicate artifact pair guard (`scripts/release/check_no_duplicate_pairs.sh`)
 - edge/cloud test suites
 - desktop build checks
+- desktop/admin token exposure checks for built client bundles
 - docker build checks
 - outage recovery smoke
 - support bundle sanitization validation
+- local support bundle artifact sanitization validation
 - admin session-auth smoke
 - orphan-edge process checks
+- tracked git status unchanged guard (no tracked-file mutations during gate)
 - reliability SLO report export (`output/ci/reliability_slo.json`)
 - release evidence pack generation (`output/release/evidence_pack_<timestamp>.tar.gz`)
 

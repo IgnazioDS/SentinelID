@@ -73,6 +73,7 @@ Use `./scripts/release/check_release_tag_alignment.sh` to enforce that a specifi
 
 ```bash
 RELEASE_EXPECT_TAG=vX.Y.Z ./scripts/release/check_release_tag_alignment.sh
+RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 ```
 
 ## Canonical Orphan-Check Command

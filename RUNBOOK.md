@@ -249,6 +249,7 @@ make perf-edge
 ```bash
 make release-check
 RELEASE_EXPECT_TAG=vX.Y.Z make release-check
+RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 ```
 
 `make release-check` enforces:

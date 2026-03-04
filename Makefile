@@ -8,6 +8,7 @@
 	demo-checklist \
 	check-no-orphans \
 	check-no-duplicates \
+	check-release-tag \
 	gen-types \
 	bundle-edge \
 	check-edge-preflight \
@@ -51,6 +52,7 @@ help:
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
 	@echo "  make check-no-duplicates Verify duplicate source artifact pairs are absent"
+	@echo "  make check-release-tag   Verify RELEASE_EXPECT_TAG points to HEAD"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
@@ -122,6 +124,9 @@ check-no-orphans:
 
 check-no-duplicates:
 	@./scripts/release/check_no_duplicate_pairs.sh
+
+check-release-tag:
+	@./scripts/release/check_release_tag_alignment.sh
 
 gen-types:
 	@./scripts/gen_types.sh

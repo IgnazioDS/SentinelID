@@ -21,6 +21,7 @@ from sentinelid_edge.core.request_context import (
 )
 from sentinelid_edge.services.security.rate_limit import get_rate_limiter
 from sentinelid_edge.services.telemetry.exporter import TelemetryExporter
+from sentinelid_edge.services.telemetry.transport import validate_cloud_ingest_url
 from sentinelid_edge.services.telemetry.runtime import (
     TelemetryRuntime,
     set_telemetry_runtime,
@@ -38,6 +39,16 @@ configure_logging(
 async def lifespan(_app: FastAPI):
     telemetry_runtime = None
     if settings.TELEMETRY_ENABLED and settings.CLOUD_INGEST_URL:
+        insecure_transport = validate_cloud_ingest_url(
+            settings.CLOUD_INGEST_URL,
+            settings.EDGE_ENV,
+        )
+        if insecure_transport:
+            logger.warning(
+                "Telemetry ingest uses insecure HTTP transport for non-loopback host in %s mode: %s",
+                settings.EDGE_ENV,
+                settings.CLOUD_INGEST_URL,
+            )
         exporter = TelemetryExporter(
             cloud_ingest_url=settings.CLOUD_INGEST_URL,
             batch_size=settings.TELEMETRY_BATCH_SIZE,

@@ -43,9 +43,11 @@ Mitigation (implemented):
 - Every telemetry event and batch is signed with the device ED25519 private key.
 - Cloud verifies signatures; unsigned or incorrectly signed events are rejected.
 - Telemetry never includes biometric data (enforced by Pydantic extra=forbid).
+- Edge startup enforces secure ingest transport in production: non-loopback
+  `CLOUD_INGEST_URL` values must use HTTPS.
 
-Residual risk: TLS is required for the transport channel in production; the
-current implementation delegates TLS to the deployment infrastructure.
+Residual risk: Certificate pinning and mTLS are not enforced at the Edge client.
+Transport security currently depends on standard CA validation.
 
 ---
 
@@ -108,7 +110,6 @@ secure deletion requires OS-level secure erase.
 
 ## Planned Mitigations
 
-- TLS enforcement at the edge HTTP server layer (currently delegated to OS).
 - Secure enclave / TPM integration for master key storage on Linux / Windows.
 - Audit log encryption (currently stored in plaintext in SQLite).
 - Automatic telemetry event expiry to limit data retention window.

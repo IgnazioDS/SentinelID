@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 OUT_DIR="${REPO_ROOT}/scripts/support/out"
 TMP_DIR="$(mktemp -d -t sentinelid_support_bundle.XXXXXX)"
+SUPPORT_BUNDLE_PATH_OUT="${SUPPORT_BUNDLE_PATH_OUT:-}"
 
 EDGE_URL="${EDGE_URL:-http://127.0.0.1:8787}"
 EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-}}"
@@ -230,5 +231,9 @@ BUNDLE_TS="$(date -u +%Y%m%dT%H%M%SZ)"
 BUNDLE_PATH="${OUT_DIR}/support_bundle_${BUNDLE_TS}.tar.gz"
 
 COPYFILE_DISABLE=1 tar -czf "${BUNDLE_PATH}" -C "${TMP_DIR}" .
+
+if [[ -n "${SUPPORT_BUNDLE_PATH_OUT}" ]]; then
+  printf '%s\n' "${BUNDLE_PATH}" > "${SUPPORT_BUNDLE_PATH_OUT}"
+fi
 
 echo "Support bundle created: ${BUNDLE_PATH}"

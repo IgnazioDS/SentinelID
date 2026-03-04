@@ -18,6 +18,7 @@ All notable changes to SentinelID are documented in this file.
 - Added `make check-local-support-bundle` as a first-class operator/CI command for validating local support bundle artifacts outside full release preflight.
 - Extended `make demo-verify` to generate and validate a local support bundle artifact for better parity with release preflight.
 - Added `make check-release-tag` as a direct wrapper for strict tag-to-HEAD alignment checks.
+- Made support-bundle validation deterministic in `release-check` and `demo-verify` by passing the exact generated artifact path to local validation.
 
 ## v2.3.5 (2026-03-01)
 

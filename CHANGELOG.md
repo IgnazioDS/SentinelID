@@ -16,6 +16,7 @@ All notable changes to SentinelID are documented in this file.
 - Improved support-bundle collection fallback behavior and added local support-bundle sanitization validation in release preflight.
 - Reduced bundling smoke log noise by default while preserving failure diagnostics and optional verbose mode (`BUNDLE_VERBOSE=1`).
 - Added `make check-local-support-bundle` as a first-class operator/CI command for validating local support bundle artifacts outside full release preflight.
+- Extended `make demo-verify` to generate and validate a local support bundle artifact for better parity with release preflight.
 
 ## v2.3.5 (2026-03-01)
 

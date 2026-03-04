@@ -43,6 +43,14 @@ echo "[demo-verify] support bundle sanitization"
 CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" \
   "${REPO_ROOT}/scripts/check_support_bundle_sanitization.sh"
 
+echo "[demo-verify] support bundle artifact"
+CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" \
+  "${REPO_ROOT}/scripts/support_bundle.sh"
+
+echo "[demo-verify] local support bundle sanitization"
+EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" \
+  "${REPO_ROOT}/scripts/check_local_support_bundle_sanitization.sh"
+
 echo "[demo-verify] admin smoke"
 API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" \
   ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME}" ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD}" \

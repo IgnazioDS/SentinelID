@@ -247,6 +247,7 @@ make perf-edge
 
 ```bash
 make release-check
+RELEASE_EXPECT_TAG=vX.Y.Z make release-check
 ```
 
 Pilot readiness checklist: `docs/PILOT_FREEZE.md`.

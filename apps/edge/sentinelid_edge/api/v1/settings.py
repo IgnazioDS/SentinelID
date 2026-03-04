@@ -13,6 +13,7 @@ from ...core.config import settings
 from ...services.storage.db import get_database
 from ...services.storage.repo_templates import TemplateRepository
 from ...services.security.device_binding import DeviceBinding
+from ...services.security.keychain import Keychain
 from ...services.security.encryption import get_master_key_provider
 from ...services.telemetry.runtime import get_telemetry_runtime
 
@@ -163,6 +164,12 @@ async def delete_identity(
             logger.info("delete_identity: device keypair rotated")
         except Exception as exc:
             logger.error("delete_identity: keypair rotation failed: %s", exc)
+    else:
+        try:
+            _delete_device_keypair()
+            logger.info("delete_identity: device keypair deleted")
+        except Exception as exc:
+            logger.error("delete_identity: keypair deletion failed: %s", exc)
 
     # 5. Delete the master encryption key so it cannot be reused
     try:
@@ -187,27 +194,33 @@ async def delete_identity(
 
 def _rotate_device_keypair():
     """Generate a new ED25519 keypair and derive a new device_id."""
-    from ...services.security.crypto import CryptoProvider
     import json
-    import os
 
     keychain_dir = Path(settings.KEYCHAIN_DIR)
     keychain_dir.mkdir(parents=True, exist_ok=True)
-    keys_file = keychain_dir / "device_keys.json"
     device_id_file = keychain_dir / "device_id.json"
 
     # Generate fresh keypair
-    private_key, public_key = CryptoProvider.generate_keypair()
-    keys_data = {"private_key": private_key, "public_key": public_key}
-    keys_file.write_text(json.dumps(keys_data))
-    keys_file.chmod(0o600)
+    _, public_key = Keychain(str(keychain_dir)).rotate_keypair()
 
     # Derive new device_id
+    from ...services.security.crypto import CryptoProvider
     import uuid
+
     key_hash = CryptoProvider.hash_sha256(public_key.encode())
     device_id = str(uuid.UUID(key_hash[:32]))
     device_id_file.write_text(json.dumps({"device_id": device_id}))
     device_id_file.chmod(0o600)
+
+
+def _delete_device_keypair():
+    """Delete device keypair and local device_id metadata."""
+    keychain_dir = Path(settings.KEYCHAIN_DIR)
+    Keychain(str(keychain_dir)).clear_keypair()
+
+    device_id_file = keychain_dir / "device_id.json"
+    if device_id_file.exists():
+        device_id_file.unlink()
 
 
 def _delete_master_key():

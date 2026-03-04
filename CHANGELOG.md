@@ -136,6 +136,13 @@ All notable changes to SentinelID are documented in this file.
 - Added non-interactive `make demo-verify` flow, optional scripted desktop close verification, and explicit demo exit semantics in docs.
 - Added pilot readiness freeze guide and pilot evidence index instructions.
 
+## v2.0.1 (2026-02-26)
+
+### Post-release hardening
+- Hardened edge process cleanup in smoke and checklist scripts to reduce stale local `uvicorn` edge processes after demo/test flows.
+- Tightened release checklist behavior around process lifecycle so failed or interrupted runs are less likely to leave residual local state.
+- Kept release scope focused on stability and cleanup; no protocol or API contract changes.
+
 ## v2.0.0 (2026-02-26)
 
 ### Demo Mode and Operator Flow

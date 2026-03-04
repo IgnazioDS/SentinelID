@@ -102,12 +102,14 @@ run_step() {
 
 run_step "edge preflight imports" make check-edge-preflight
 run_step "version consistency" ./scripts/release/check_version_consistency.sh
+run_step "release tag alignment (optional)" ./scripts/release/check_release_tag_alignment.sh
 run_step "duplicate artifact guard" ./scripts/release/check_no_duplicate_pairs.sh
 run_step "edge tests" make test-edge
 run_step "cloud tests" make test-cloud
 run_step "warning budget" ./scripts/ci/check_warning_budget.sh
 run_step "tauri config validation" make check-tauri-config
 run_step "desktop web build" make build-desktop-web
+run_step "security: no admin token in desktop bundle" ./scripts/release/check_no_public_admin_token_desktop_bundle.sh
 run_step "desktop cargo check" make check-desktop-rust
 run_step "security: no admin token in client bundle" ./scripts/release/check_no_public_admin_token_bundle.sh
 run_step "compose admin env wiring" bash -c '

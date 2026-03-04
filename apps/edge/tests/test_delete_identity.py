@@ -149,6 +149,26 @@ class TestDeleteIdentity:
         assert resp.status_code == 200
         assert resp.json()["device_key_rotated"] is True
 
+    def test_delete_device_key_when_rotate_false(self, client, tmp_env):
+        _, _, _ = tmp_env
+        from sentinelid_edge.services.security.device_binding import DeviceBinding
+        from sentinelid_edge.api.v1 import settings as settings_api
+
+        # Materialize identity metadata first.
+        key_dir = settings_api.settings.KEYCHAIN_DIR
+        binding = DeviceBinding(keychain_dir=key_dir)
+        _ = binding.get_device_id()
+        device_id_file = Path(key_dir) / "device_id.json"
+        assert device_id_file.exists()
+
+        resp = client.post(
+            "/api/v1/settings/delete_identity",
+            json={"clear_audit": False, "clear_outbox": False, "rotate_device_key": False},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["device_key_rotated"] is False
+        assert not device_id_file.exists()
+
     def test_response_has_deleted_at(self, client, tmp_env):
         resp = client.post("/api/v1/settings/delete_identity", json={})
         assert resp.status_code == 200

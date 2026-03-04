@@ -15,6 +15,7 @@ make release-check
 `make release-check` is the source-of-truth gate and includes:
 
 - version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/DEMO_CHECKLIST.md`, Makefile help banner)
+- optional strict tag-to-HEAD alignment (`RELEASE_EXPECT_TAG=vX.Y.Z`)
 - duplicate artifact pair guard (`scripts/release/check_no_duplicate_pairs.sh`)
 - edge/cloud test suites
 - desktop build checks
@@ -65,6 +66,12 @@ When cutting a new release, review/update:
 
 Use `./scripts/release/check_version_consistency.sh` before tagging to enforce alignment.
 
+Use `./scripts/release/check_release_tag_alignment.sh` to enforce that a specific tag points to HEAD:
+
+```bash
+RELEASE_EXPECT_TAG=vX.Y.Z ./scripts/release/check_release_tag_alignment.sh
+```
+
 ## Canonical Orphan-Check Command
 
 - Canonical path: `scripts/check_no_orphan_edge.sh`
@@ -90,6 +97,7 @@ git switch -c branch/feat/release-vX.Y.Z
 
 ```bash
 make release-check
+RELEASE_EXPECT_TAG=vX.Y.Z make release-check
 git push -u origin branch/feat/release-vX.Y.Z
 ```
 

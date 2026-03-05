@@ -13,6 +13,9 @@ def _make_exporter(tmp_path, **kwargs):
         mtls_cert_path=kwargs.get("mtls_cert_path"),
         mtls_key_path=kwargs.get("mtls_key_path"),
         tls_cert_sha256_pins=kwargs.get("tls_cert_sha256_pins"),
+        edge_env=kwargs.get("edge_env", "dev"),
+        min_pin_count_prod=kwargs.get("min_pin_count_prod", 2),
+        allow_single_pin_prod=kwargs.get("allow_single_pin_prod", False),
     )
 
 
@@ -84,6 +87,12 @@ def test_parse_certificate_pins_normalizes_variants():
     assert pins[1] == ("22" * 32)
 
 
+def test_parse_certificate_pins_deduplicates():
+    pin = "33" * 32
+    pins = parse_certificate_pins(f"{pin}, sha256:{pin}")
+    assert pins == [pin]
+
+
 def test_parse_certificate_pins_rejects_invalid_value():
     with pytest.raises(ValueError, match="Invalid certificate pin"):
         parse_certificate_pins("zzzz")
@@ -97,3 +106,26 @@ def test_tls_pins_require_https_url(tmp_path):
             cloud_ingest_url="http://cloud.example.com/v1/ingest/events",
             tls_cert_sha256_pins=pin,
         )
+
+
+def test_prod_pin_policy_requires_overlap_by_default(tmp_path):
+    pin = "44" * 32
+    with pytest.raises(RuntimeError, match="Insufficient TELEMETRY_TLS_CERT_SHA256_PINS"):
+        _make_exporter(
+            tmp_path,
+            cloud_ingest_url="https://cloud.example.com/v1/ingest/events",
+            tls_cert_sha256_pins=pin,
+            edge_env="prod",
+        )
+
+
+def test_prod_pin_policy_allows_single_pin_when_explicit(tmp_path):
+    pin = "55" * 32
+    exporter = _make_exporter(
+        tmp_path,
+        cloud_ingest_url="https://cloud.example.com/v1/ingest/events",
+        tls_cert_sha256_pins=pin,
+        edge_env="prod",
+        allow_single_pin_prod=True,
+    )
+    assert exporter is not None

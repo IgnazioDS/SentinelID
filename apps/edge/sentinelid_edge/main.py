@@ -60,6 +60,9 @@ async def lifespan(_app: FastAPI):
             mtls_cert_path=settings.TELEMETRY_MTLS_CERT_PATH,
             mtls_key_path=settings.TELEMETRY_MTLS_KEY_PATH,
             tls_cert_sha256_pins=settings.TELEMETRY_TLS_CERT_SHA256_PINS,
+            edge_env=settings.EDGE_ENV,
+            min_pin_count_prod=settings.TELEMETRY_TLS_MIN_PIN_COUNT_PROD,
+            allow_single_pin_prod=settings.TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD,
         )
         telemetry_runtime = TelemetryRuntime(
             exporter=exporter,

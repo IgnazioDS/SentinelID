@@ -17,7 +17,11 @@ from uuid import uuid4
 import httpx
 from .event import TelemetryEvent, TelemetryMapper
 from .signer import TelemetrySigner
-from .transport import parse_certificate_pins, validate_server_certificate_pin
+from .transport import (
+    parse_certificate_pins,
+    validate_pin_rollout_policy,
+    validate_server_certificate_pin,
+)
 from ..storage.repo_outbox import OutboxRepository, OutboxEvent
 
 
@@ -51,6 +55,9 @@ class TelemetryExporter:
         mtls_cert_path: Optional[str] = None,
         mtls_key_path: Optional[str] = None,
         tls_cert_sha256_pins: Optional[str] = None,
+        edge_env: str = "dev",
+        min_pin_count_prod: int = 2,
+        allow_single_pin_prod: bool = False,
     ):
         """
         Initialize telemetry exporter.
@@ -80,6 +87,9 @@ class TelemetryExporter:
         self._mtls_key_path: Optional[str] = None
         self._tls_cert_pins: List[str] = parse_certificate_pins(tls_cert_sha256_pins)
         self._last_pin_observed: Optional[str] = None
+        self._edge_env = str(edge_env).strip().lower()
+        self._min_pin_count_prod = int(min_pin_count_prod)
+        self._allow_single_pin_prod = bool(allow_single_pin_prod)
         self._configure_tls(
             tls_ca_bundle_path=tls_ca_bundle_path,
             mtls_cert_path=mtls_cert_path,
@@ -87,6 +97,15 @@ class TelemetryExporter:
         )
         if self._tls_cert_pins and not self.cloud_ingest_url.lower().startswith("https://"):
             raise RuntimeError("TELEMETRY_TLS_CERT_SHA256_PINS requires CLOUD_INGEST_URL with https://")
+        try:
+            validate_pin_rollout_policy(
+                pins=self._tls_cert_pins,
+                edge_env=self._edge_env,
+                min_pin_count_prod=self._min_pin_count_prod,
+                allow_single_pin_prod=self._allow_single_pin_prod,
+            )
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
 
     def _configure_tls(
         self,

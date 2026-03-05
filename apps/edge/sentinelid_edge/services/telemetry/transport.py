@@ -80,8 +80,37 @@ def parse_certificate_pins(raw: str | None) -> list[str]:
             int(normalized, 16)
         except ValueError as exc:
             raise ValueError(f"Invalid certificate pin hex value: {chunk.strip()!r}") from exc
-        pins.append(normalized)
+        if normalized not in pins:
+            pins.append(normalized)
     return pins
+
+
+def validate_pin_rollout_policy(
+    *,
+    pins: list[str],
+    edge_env: str,
+    min_pin_count_prod: int = 2,
+    allow_single_pin_prod: bool = False,
+) -> None:
+    """
+    Validate operational policy for certificate pin rollout.
+
+    In production, pinning should keep at least two active pins to support
+    certificate rotation overlap. Single-pin mode can be explicitly allowed
+    for bootstrapping.
+    """
+    if not pins:
+        return
+    if str(edge_env).strip().lower() != "prod":
+        return
+    required = max(1, int(min_pin_count_prod))
+    if allow_single_pin_prod:
+        required = 1
+    if len(pins) < required:
+        raise ValueError(
+            "Insufficient TELEMETRY_TLS_CERT_SHA256_PINS for production rollout: "
+            f"have={len(pins)} required={required}"
+        )
 
 
 def validate_server_certificate_pin(

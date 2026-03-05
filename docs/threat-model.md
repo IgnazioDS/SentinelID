@@ -49,10 +49,11 @@ Mitigation (implemented):
   `CLOUD_INGEST_URL` values must use HTTPS.
 - Optional mTLS and SHA-256 certificate pin checks are available for telemetry
   transport hardening in sensitive deployments.
+- Production pinning policy enforces overlapping pin sets by default (minimum
+  two pins) to support safe certificate rotation.
 
-Residual risk: Pin/material rotation requires coordinated operational updates.
-If operators do not configure mTLS or certificate pins, protection falls back
-to standard CA validation.
+Residual risk: Pin/material rotation still requires coordinated operational
+updates and emergency override procedures.
 
 ---
 

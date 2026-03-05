@@ -46,6 +46,8 @@ Optional values:
 - `TELEMETRY_TLS_CA_BUNDLE_PATH` (optional custom CA bundle for telemetry TLS verification)
 - `TELEMETRY_MTLS_CERT_PATH` + `TELEMETRY_MTLS_KEY_PATH` (optional client certificate/key pair for telemetry mTLS; requires `CLOUD_INGEST_URL` with `https://`)
 - `TELEMETRY_TLS_CERT_SHA256_PINS` (optional comma-separated SHA-256 server certificate fingerprints; requires `CLOUD_INGEST_URL` with `https://`)
+- `TELEMETRY_TLS_MIN_PIN_COUNT_PROD` (default `2`; minimum pin overlap required in production when pinning is enabled)
+- `TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD` (default `0`; set `1` only for controlled bootstrap/rotation windows)
 - `TELEMETRY_SENT_RETENTION_DAYS` (default `30`; set `0` to disable automatic SENT outbox expiry)
 - `TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS` (default `3600`)
 - `SENTINELID_LOCKOUT_STATE_PATH` (default `.sentinelid/lockout_state.json`)

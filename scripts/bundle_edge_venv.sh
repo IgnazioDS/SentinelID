@@ -72,6 +72,12 @@ run_logged() {
   fi
 }
 
+cv2_import_works() {
+  "${VENV_DIR}/bin/python" - <<'PY' >/dev/null 2>&1
+import cv2  # noqa: F401
+PY
+}
+
 install_poetry_locked_deps() {
   (
     cd "${EDGE_APP}"
@@ -101,11 +107,17 @@ run_logged "pip_bootstrap" "${VENV_DIR}/bin/python" -m pip install --upgrade pip
 # Desktop distribution is headless; remove GUI opencv wheels if both are present.
 if "${VENV_DIR}/bin/pip" show opencv-python-headless >/dev/null 2>&1; then
   "${VENV_DIR}/bin/pip" uninstall -y opencv-python >/dev/null 2>&1 || true
-  # Both OpenCV wheels share the cv2 package namespace. Reinstall headless after
-  # removing GUI wheel so cv2 files are guaranteed present.
-  OPENCV_HEADLESS_VER="$("${VENV_DIR}/bin/pip" show opencv-python-headless | awk '/^Version:/{print $2}')"
-  if [[ -n "${OPENCV_HEADLESS_VER}" ]]; then
-    run_logged "pip_reinstall_opencv_headless" "${VENV_DIR}/bin/pip" install --force-reinstall --no-deps "opencv-python-headless==${OPENCV_HEADLESS_VER}"
+  if ! cv2_import_works; then
+    # Both OpenCV wheels share the cv2 package namespace. If cv2 is broken after
+    # removing GUI wheel, repair by reinstalling headless wheel.
+    OPENCV_HEADLESS_VER="$("${VENV_DIR}/bin/pip" show opencv-python-headless | awk '/^Version:/{print $2}')"
+    if [[ -n "${OPENCV_HEADLESS_VER}" ]]; then
+      run_logged "pip_reinstall_opencv_headless" "${VENV_DIR}/bin/pip" install --force-reinstall --no-deps "opencv-python-headless==${OPENCV_HEADLESS_VER}"
+    fi
+  fi
+  if ! cv2_import_works; then
+    echo "opencv cv2 import check failed in bundled runtime"
+    exit 1
   fi
 fi
 

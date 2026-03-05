@@ -31,6 +31,7 @@ All notable changes to SentinelID are documented in this file.
 - Added production pin-rollout guardrails for telemetry pinning: overlapping pins required by default (`TELEMETRY_TLS_MIN_PIN_COUNT_PROD=2`) with explicit single-pin override (`TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD=1`).
 - Added a live telemetry transport preflight command (`make check-telemetry-transport`) plus optional startup preflight (`TELEMETRY_TRANSPORT_PREFLIGHT_ON_START`) to verify TLS/pinning connectivity before export loops begin.
 - Added optional `release-check` integration for transport preflight via `RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1` so operators can enforce live TLS/pinning validation in release gates when needed.
+- Hardened edge bundling to avoid unnecessary network-dependent OpenCV headless reinstalls when `cv2` remains healthy after GUI wheel removal, reducing flaky release-check failures under transient proxy/network issues.
 
 ## v2.3.5 (2026-03-01)
 

@@ -43,6 +43,8 @@ Optional values:
 - `ADMIN_UI_SESSION_SECURE` (default `0`; set `1` only behind HTTPS)
 - `CLOUD_BIND_HOST` (unset defaults to `127.0.0.1` for local non-container runs and `0.0.0.0` for container runtime)
 - `CLOUD_INGEST_URL` must use `https://` in `EDGE_ENV=prod` unless host is loopback (`localhost`, `127.0.0.1`, `::1`)
+- `TELEMETRY_TLS_CA_BUNDLE_PATH` (optional custom CA bundle for telemetry TLS verification)
+- `TELEMETRY_MTLS_CERT_PATH` + `TELEMETRY_MTLS_KEY_PATH` (optional client certificate/key pair for telemetry mTLS; requires `CLOUD_INGEST_URL` with `https://`)
 - `TELEMETRY_SENT_RETENTION_DAYS` (default `30`; set `0` to disable automatic SENT outbox expiry)
 - `TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS` (default `3600`)
 - `SENTINELID_LOCKOUT_STATE_PATH` (default `.sentinelid/lockout_state.json`)

@@ -48,8 +48,8 @@ Mitigation (implemented):
 - Edge startup enforces secure ingest transport in production: non-loopback
   `CLOUD_INGEST_URL` values must use HTTPS.
 
-Residual risk: Certificate pinning and mTLS are not enforced at the Edge client.
-Transport security currently depends on standard CA validation.
+Residual risk: Certificate pinning is not enforced. mTLS is supported via
+optional client cert/key configuration, but deployments must enable it.
 
 ---
 

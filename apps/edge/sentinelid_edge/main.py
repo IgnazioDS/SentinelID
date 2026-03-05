@@ -56,6 +56,9 @@ async def lifespan(_app: FastAPI):
             keychain_dir=settings.KEYCHAIN_DIR,
             db_path=settings.DB_PATH,
             http_timeout_seconds=settings.TELEMETRY_HTTP_TIMEOUT_SECONDS,
+            tls_ca_bundle_path=settings.TELEMETRY_TLS_CA_BUNDLE_PATH,
+            mtls_cert_path=settings.TELEMETRY_MTLS_CERT_PATH,
+            mtls_key_path=settings.TELEMETRY_MTLS_KEY_PATH,
         )
         telemetry_runtime = TelemetryRuntime(
             exporter=exporter,

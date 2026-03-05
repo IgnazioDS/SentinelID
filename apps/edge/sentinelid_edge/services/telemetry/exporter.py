@@ -12,6 +12,7 @@ Features:
 import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 import httpx
 from .event import TelemetryEvent, TelemetryMapper
@@ -45,6 +46,9 @@ class TelemetryExporter:
         keychain_dir: str = ".sentinelid/keys",
         db_path: str = ".sentinelid/audit.db",
         http_timeout_seconds: float = 10.0,
+        tls_ca_bundle_path: Optional[str] = None,
+        mtls_cert_path: Optional[str] = None,
+        mtls_key_path: Optional[str] = None,
     ):
         """
         Initialize telemetry exporter.
@@ -67,6 +71,54 @@ class TelemetryExporter:
         self.last_export_attempt_time: Optional[datetime] = None
         self.last_export_success_time: Optional[datetime] = None
         self.last_export_error: Optional[str] = None
+        self._httpx_verify: Any = True
+        self._httpx_cert: Optional[Any] = None
+        self._configure_tls(
+            tls_ca_bundle_path=tls_ca_bundle_path,
+            mtls_cert_path=mtls_cert_path,
+            mtls_key_path=mtls_key_path,
+        )
+
+    def _configure_tls(
+        self,
+        *,
+        tls_ca_bundle_path: Optional[str],
+        mtls_cert_path: Optional[str],
+        mtls_key_path: Optional[str],
+    ) -> None:
+        if tls_ca_bundle_path:
+            ca_bundle = Path(tls_ca_bundle_path)
+            if not ca_bundle.is_file():
+                raise RuntimeError(f"Invalid TELEMETRY_TLS_CA_BUNDLE_PATH: {ca_bundle}")
+            self._httpx_verify = str(ca_bundle)
+        else:
+            self._httpx_verify = True
+
+        if mtls_cert_path or mtls_key_path:
+            if not (mtls_cert_path and mtls_key_path):
+                raise RuntimeError(
+                    "Both TELEMETRY_MTLS_CERT_PATH and TELEMETRY_MTLS_KEY_PATH are required"
+                )
+            if not self.cloud_ingest_url.lower().startswith("https://"):
+                raise RuntimeError("mTLS requires CLOUD_INGEST_URL with https://")
+            cert_path = Path(mtls_cert_path)
+            key_path = Path(mtls_key_path)
+            if not cert_path.is_file():
+                raise RuntimeError(f"Invalid TELEMETRY_MTLS_CERT_PATH: {cert_path}")
+            if not key_path.is_file():
+                raise RuntimeError(f"Invalid TELEMETRY_MTLS_KEY_PATH: {key_path}")
+            self._httpx_cert = (str(cert_path), str(key_path))
+        else:
+            self._httpx_cert = None
+
+    def _http_client_kwargs(self) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {
+            "timeout": self.http_timeout_seconds,
+            "verify": self._httpx_verify,
+        }
+        if self._httpx_cert is not None:
+            kwargs["cert"] = self._httpx_cert
+        return kwargs
 
     def add_event(self, event: TelemetryEvent):
         """
@@ -214,7 +266,7 @@ class TelemetryExporter:
     async def _send_batch(self, payload: Dict[str, Any]) -> bool:
         """Send one telemetry batch to cloud ingest endpoint."""
         try:
-            async with httpx.AsyncClient(timeout=self.http_timeout_seconds) as client:
+            async with httpx.AsyncClient(**self._http_client_kwargs()) as client:
                 response = await client.post(
                     self.cloud_ingest_url,
                     json=payload,
@@ -276,6 +328,10 @@ class TelemetryExporter:
         outbox_stats = self.outbox.get_stats()
         return {
             **outbox_stats,
+            "tls_verify_mode": (
+                "custom_ca_bundle" if isinstance(self._httpx_verify, str) else "system_default"
+            ),
+            "mtls_enabled": self._httpx_cert is not None,
             "last_export_attempt_time": (
                 self.last_export_attempt_time.isoformat()
                 if self.last_export_attempt_time

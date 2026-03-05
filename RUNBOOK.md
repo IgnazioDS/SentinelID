@@ -261,6 +261,7 @@ make perf-edge
 ```bash
 make release-check
 RELEASE_EXPECT_TAG=vX.Y.Z make release-check
+RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1 make release-check
 RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 ```
 
@@ -268,6 +269,7 @@ RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 - cloud and local support-bundle sanitization checks
 - client bundle admin-token exposure checks
 - tracked git status unchanged from start to finish
+- optional live telemetry transport preflight when `RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1`
 
 Pilot readiness checklist: `docs/PILOT_FREEZE.md`.
 

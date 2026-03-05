@@ -143,7 +143,16 @@ run_local_support_bundle_check() {
     ./scripts/check_local_support_bundle_sanitization.sh
 }
 
+run_optional_telemetry_transport_preflight() {
+  if [[ "${RUN_TELEMETRY_TRANSPORT_PREFLIGHT:-0}" != "1" ]]; then
+    echo "[skip] telemetry transport preflight (set RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1 to enable)"
+    return 0
+  fi
+  make check-telemetry-transport
+}
+
 run_step "edge preflight imports" make check-edge-preflight
+run_step "telemetry transport preflight (optional)" run_optional_telemetry_transport_preflight
 run_step "version consistency" ./scripts/release/check_version_consistency.sh
 run_step "release tag alignment (optional)" ./scripts/release/check_release_tag_alignment.sh
 run_step "duplicate artifact guard" ./scripts/release/check_no_duplicate_pairs.sh

@@ -40,6 +40,13 @@ class Settings(BaseSettings):
         os.getenv("TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD", "0").strip().lower()
         in {"1", "true", "yes"}
     )
+    TELEMETRY_TRANSPORT_PREFLIGHT_ON_START: bool = (
+        os.getenv("TELEMETRY_TRANSPORT_PREFLIGHT_ON_START", "0").strip().lower()
+        in {"1", "true", "yes"}
+    )
+    TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS: float = float(
+        os.getenv("TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS", "5.0")
+    )
     TELEMETRY_SENT_RETENTION_DAYS: int = int(
         os.getenv("TELEMETRY_SENT_RETENTION_DAYS", "30")
     )

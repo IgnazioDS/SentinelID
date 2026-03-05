@@ -129,3 +129,47 @@ def test_prod_pin_policy_allows_single_pin_when_explicit(tmp_path):
         allow_single_pin_prod=True,
     )
     assert exporter is not None
+
+
+def test_transport_preflight_returns_none_for_non_https(tmp_path):
+    exporter = _make_exporter(tmp_path, cloud_ingest_url="http://127.0.0.1:8000/v1/ingest/events")
+    assert exporter.run_transport_preflight() is None
+
+
+def test_transport_preflight_returns_observed_fingerprint(tmp_path, monkeypatch):
+    observed = "66" * 32
+    seen = {}
+
+    def _fake_probe(**kwargs):
+        seen.update(kwargs)
+        return observed
+
+    monkeypatch.setattr(
+        "sentinelid_edge.services.telemetry.exporter.probe_server_certificate_sha256",
+        _fake_probe,
+    )
+    exporter = _make_exporter(
+        tmp_path,
+        cloud_ingest_url="https://cloud.example.com/v1/ingest/events",
+    )
+    result = exporter.run_transport_preflight(timeout_seconds=7.5)
+    assert result == observed
+    assert exporter.get_stats()["tls_last_observed_cert_sha256"] == observed
+    assert seen["cloud_ingest_url"] == "https://cloud.example.com/v1/ingest/events"
+    assert seen["timeout_seconds"] == pytest.approx(7.5)
+
+
+def test_transport_preflight_rejects_pin_mismatch(tmp_path, monkeypatch):
+    pin = "77" * 32
+    observed = "88" * 32
+    monkeypatch.setattr(
+        "sentinelid_edge.services.telemetry.exporter.probe_server_certificate_sha256",
+        lambda **_kwargs: observed,
+    )
+    exporter = _make_exporter(
+        tmp_path,
+        cloud_ingest_url="https://cloud.example.com/v1/ingest/events",
+        tls_cert_sha256_pins=pin,
+    )
+    with pytest.raises(RuntimeError, match="pin mismatch"):
+        exporter.run_transport_preflight()

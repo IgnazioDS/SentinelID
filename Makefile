@@ -12,6 +12,7 @@
 	gen-types \
 	bundle-edge \
 	check-edge-preflight \
+	check-telemetry-transport \
 	edge-shell \
 	dev-edge \
 	check-tauri-config \
@@ -57,6 +58,7 @@ help:
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
 	@echo "  make check-edge-preflight Validate edge Poetry env imports (pydantic_settings/uvicorn)"
+	@echo "  make check-telemetry-transport Run live telemetry transport preflight checks"
 	@echo "  make edge-shell          Open a shell inside edge Poetry environment"
 	@echo "  make dev-edge            Run edge API locally (foreground)"
 	@echo "  make check-tauri-config  Validate required Tauri config keys"
@@ -133,6 +135,9 @@ gen-types:
 
 check-edge-preflight:
 	@./scripts/dev/edge_env.sh preflight
+
+check-telemetry-transport:
+	@./scripts/check_telemetry_transport_preflight.sh
 
 edge-shell:
 	@./scripts/dev/edge_env.sh shell

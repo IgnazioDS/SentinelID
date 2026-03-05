@@ -19,6 +19,7 @@ from .event import TelemetryEvent, TelemetryMapper
 from .signer import TelemetrySigner
 from .transport import (
     parse_certificate_pins,
+    probe_server_certificate_sha256,
     validate_pin_rollout_policy,
     validate_server_certificate_pin,
 )
@@ -153,6 +154,38 @@ class TelemetryExporter:
         if self._httpx_cert is not None:
             kwargs["cert"] = self._httpx_cert
         return kwargs
+
+    def run_transport_preflight(self, timeout_seconds: float = 5.0) -> Optional[str]:
+        """
+        Perform live transport preflight against configured cloud endpoint.
+
+        Returns:
+            Observed server cert SHA-256 for HTTPS endpoints, else None.
+        """
+        if not self.cloud_ingest_url.lower().startswith("https://"):
+            if self._tls_cert_pins:
+                raise RuntimeError(
+                    "TELEMETRY_TLS_CERT_SHA256_PINS requires CLOUD_INGEST_URL with https://"
+                )
+            return None
+
+        observed = probe_server_certificate_sha256(
+            cloud_ingest_url=self.cloud_ingest_url,
+            tls_ca_bundle_path=self._tls_ca_bundle_path,
+            mtls_cert_path=self._mtls_cert_path,
+            mtls_key_path=self._mtls_key_path,
+            timeout_seconds=max(1.0, float(timeout_seconds)),
+        )
+        self._last_pin_observed = observed
+
+        if self._tls_cert_pins:
+            expected = {pin.lower() for pin in self._tls_cert_pins}
+            if observed.lower() not in expected:
+                raise RuntimeError(
+                    "Server certificate pin mismatch: "
+                    f"observed={observed} expected_one_of={sorted(expected)}"
+                )
+        return observed
 
     def add_event(self, event: TelemetryEvent):
         """

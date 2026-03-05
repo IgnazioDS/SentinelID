@@ -128,9 +128,36 @@ def validate_server_certificate_pin(
     Returns:
         Observed certificate SHA-256 fingerprint (hex, lowercase).
     """
+    observed = probe_server_certificate_sha256(
+        cloud_ingest_url=cloud_ingest_url,
+        tls_ca_bundle_path=tls_ca_bundle_path,
+        mtls_cert_path=mtls_cert_path,
+        mtls_key_path=mtls_key_path,
+        timeout_seconds=timeout_seconds,
+    )
+    expected = {pin.lower() for pin in expected_pins}
+    if observed not in expected:
+        raise ValueError(
+            "Server certificate pin mismatch: "
+            f"observed={observed} expected_one_of={sorted(expected)}"
+        )
+    return observed
+
+
+def probe_server_certificate_sha256(
+    *,
+    cloud_ingest_url: str,
+    tls_ca_bundle_path: str | None,
+    mtls_cert_path: str | None,
+    mtls_key_path: str | None,
+    timeout_seconds: float = 5.0,
+) -> str:
+    """
+    Probe remote HTTPS endpoint certificate and return SHA-256 fingerprint.
+    """
     parsed = urlparse(cloud_ingest_url)
     if parsed.scheme.lower() != "https":
-        raise ValueError("Certificate pinning requires CLOUD_INGEST_URL with https://")
+        raise ValueError("Certificate probing requires CLOUD_INGEST_URL with https://")
     host = parsed.hostname
     if not host:
         raise ValueError("CLOUD_INGEST_URL host is missing")
@@ -139,20 +166,13 @@ def validate_server_certificate_pin(
     context = ssl.create_default_context(cafile=tls_ca_bundle_path or None)
     if mtls_cert_path or mtls_key_path:
         if not (mtls_cert_path and mtls_key_path):
-            raise ValueError("mTLS pin check requires both cert and key paths")
+            raise ValueError("mTLS probe requires both cert and key paths")
         context.load_cert_chain(certfile=mtls_cert_path, keyfile=mtls_key_path)
 
     with socket.create_connection((host, port), timeout=timeout_seconds) as sock:
         with context.wrap_socket(sock, server_hostname=host) as tls_sock:
             cert_der = tls_sock.getpeercert(binary_form=True)
             if not cert_der:
-                raise ValueError("Unable to read peer certificate for pin validation")
+                raise ValueError("Unable to read peer certificate during TLS preflight")
 
-    observed = hashlib.sha256(cert_der).hexdigest().lower()
-    expected = {pin.lower() for pin in expected_pins}
-    if observed not in expected:
-        raise ValueError(
-            "Server certificate pin mismatch: "
-            f"observed={observed} expected_one_of={sorted(expected)}"
-        )
-    return observed
+    return hashlib.sha256(cert_der).hexdigest().lower()

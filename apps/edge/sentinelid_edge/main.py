@@ -64,6 +64,17 @@ async def lifespan(_app: FastAPI):
             min_pin_count_prod=settings.TELEMETRY_TLS_MIN_PIN_COUNT_PROD,
             allow_single_pin_prod=settings.TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD,
         )
+        if settings.TELEMETRY_TRANSPORT_PREFLIGHT_ON_START:
+            observed = exporter.run_transport_preflight(
+                timeout_seconds=settings.TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS
+            )
+            if observed:
+                logger.info(
+                    "Telemetry transport preflight passed with server_cert_sha256=%s",
+                    observed,
+                )
+            else:
+                logger.info("Telemetry transport preflight skipped (non-HTTPS ingest URL)")
         telemetry_runtime = TelemetryRuntime(
             exporter=exporter,
             export_interval_seconds=settings.TELEMETRY_EXPORT_INTERVAL_SECONDS,

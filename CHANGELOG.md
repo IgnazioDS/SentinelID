@@ -29,6 +29,7 @@ All notable changes to SentinelID are documented in this file.
 - Added optional telemetry mTLS support (`TELEMETRY_MTLS_CERT_PATH` + `TELEMETRY_MTLS_KEY_PATH`) and custom CA bundle support (`TELEMETRY_TLS_CA_BUNDLE_PATH`) with strict startup validation.
 - Added optional telemetry certificate pinning (`TELEMETRY_TLS_CERT_SHA256_PINS`) with HTTPS-only validation and runtime peer-certificate fingerprint checks before export.
 - Added production pin-rollout guardrails for telemetry pinning: overlapping pins required by default (`TELEMETRY_TLS_MIN_PIN_COUNT_PROD=2`) with explicit single-pin override (`TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD=1`).
+- Added a live telemetry transport preflight command (`make check-telemetry-transport`) plus optional startup preflight (`TELEMETRY_TRANSPORT_PREFLIGHT_ON_START`) to verify TLS/pinning connectivity before export loops begin.
 
 ## v2.3.5 (2026-03-01)
 

@@ -51,6 +51,9 @@ Mitigation (implemented):
   transport hardening in sensitive deployments.
 - Production pinning policy enforces overlapping pin sets by default (minimum
   two pins) to support safe certificate rotation.
+- Live transport preflight checks are available both as a startup gate and
+  manual command to catch certificate drift/misconfiguration before exporter
+  traffic starts.
 
 Residual risk: Pin/material rotation still requires coordinated operational
 updates and emergency override procedures.

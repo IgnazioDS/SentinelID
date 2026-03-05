@@ -1,9 +1,11 @@
 """
 Tests for hash-chained audit log.
 """
+import json
 import pytest
 import time
 from sentinelid_edge.services.storage.repo_audit import AuditRepository, AuditEvent
+from sentinelid_edge.services.security.crypto import CryptoProvider
 
 
 class TestAuditLog:
@@ -172,3 +174,91 @@ class TestAuditLog:
         events = repo.get_events(limit=10)
         assert events[0].hash is not None
         assert events[1].prev_hash == events[0].hash
+
+    def test_audit_payload_encrypted_at_rest(self, tmp_path):
+        db_path = tmp_path / "test_audit.db"
+        repo = AuditRepository(str(db_path), keychain_dir=str(tmp_path / "keys"))
+        event = AuditEvent(
+            event_id="",
+            timestamp=int(time.time()),
+            event_type="auth_finished",
+            outcome="allow",
+            reason_codes=["LIVENESS_PASSED", "RISK_LOW"],
+            similarity_score=0.93,
+            risk_score=0.12,
+            liveness_passed=True,
+            session_id="session-enc-1",
+            request_id="req-enc-1",
+        )
+        repo.write_event(event)
+
+        conn = repo.db.connect()
+        row = conn.cursor().execute(
+            """
+            SELECT reason_codes, similarity_score, risk_score, liveness_passed,
+                   session_id, request_id, encrypted_payload
+            FROM audit_events
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        assert row["encrypted_payload"] is not None
+        assert row["reason_codes"] is None
+        assert row["similarity_score"] is None
+        assert row["risk_score"] is None
+        assert row["liveness_passed"] is None
+        assert row["session_id"] is None
+        assert row["request_id"] is None
+        assert b"LIVENESS_PASSED" not in bytes(row["encrypted_payload"])
+
+    def test_legacy_plaintext_rows_still_verify_and_read(self, tmp_path):
+        db_path = tmp_path / "test_audit.db"
+        repo = AuditRepository(str(db_path), keychain_dir=str(tmp_path / "keys"))
+
+        payload = {
+            "event_id": "legacy-evt-1",
+            "timestamp": int(time.time()),
+            "event_type": "auth_finished",
+            "outcome": "deny",
+            "reason_codes": ["LEGACY_REASON"],
+            "similarity_score": 0.21,
+            "risk_score": 0.81,
+            "liveness_passed": False,
+            "session_id": "legacy-session-1",
+            "request_id": "legacy-request-1",
+        }
+        prev_hash = "0" * 64
+        row_hash = CryptoProvider.hash_chain(prev_hash, json.dumps(payload).encode("utf-8"))
+
+        conn = repo.db.connect()
+        conn.cursor().execute(
+            """
+            INSERT INTO audit_events (
+                event_id, timestamp, event_type, outcome, reason_codes,
+                similarity_score, risk_score, liveness_passed, session_id, request_id,
+                prev_hash, hash, encrypted_payload
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload["event_id"],
+                payload["timestamp"],
+                payload["event_type"],
+                payload["outcome"],
+                '["LEGACY_REASON"]',
+                payload["similarity_score"],
+                payload["risk_score"],
+                0,
+                payload["session_id"],
+                payload["request_id"],
+                prev_hash,
+                row_hash,
+                None,
+            ),
+        )
+        conn.commit()
+
+        events = repo.get_events(limit=5)
+        assert len(events) == 1
+        assert events[0].reason_codes == ["LEGACY_REASON"]
+        assert events[0].request_id == "legacy-request-1"
+        assert repo.verify_chain_integrity() is True

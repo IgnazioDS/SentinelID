@@ -22,6 +22,8 @@ EDGE_LOG=""
 SERVICES_STARTED=0
 ORPHAN_BASELINE_PIDS="$(pgrep -f "run_edge.sh|sentinelid_edge.main:app" | tr '\n' ',' | sed 's/,$//' || true)"
 DIAG_DIR="${RELEASE_CHECK_DIAG_DIR:-output/ci/logs}"
+BASELINE_TRACKED_STATUS="$(git status --porcelain --untracked-files=no || true)"
+SUPPORT_BUNDLE_PATH_FILE="$(mktemp -t sentinelid_release_support_bundle_path.XXXXXX)"
 
 summary() {
   echo ""
@@ -41,6 +43,7 @@ summary() {
 }
 
 cleanup() {
+  rm -f "${SUPPORT_BUNDLE_PATH_FILE}" >/dev/null 2>&1 || true
   if [[ -n "${EDGE_PID}" ]] && kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
     kill "${EDGE_PID}" >/dev/null 2>&1 || true
     wait "${EDGE_PID}" >/dev/null 2>&1 || true
@@ -100,14 +103,65 @@ run_step() {
   fi
 }
 
+assert_tracked_status_unchanged() {
+  local current_status
+  current_status="$(git status --porcelain --untracked-files=no || true)"
+  if [[ "${current_status}" == "${BASELINE_TRACKED_STATUS}" ]]; then
+    return 0
+  fi
+
+  echo "Tracked git status changed during release-check."
+  echo "Expected baseline:"
+  if [[ -n "${BASELINE_TRACKED_STATUS}" ]]; then
+    echo "${BASELINE_TRACKED_STATUS}"
+  else
+    echo "(clean)"
+  fi
+  echo "Current:"
+  if [[ -n "${current_status}" ]]; then
+    echo "${current_status}"
+  else
+    echo "(clean)"
+  fi
+  return 1
+}
+
+run_local_support_bundle_check() {
+  if [[ ! -s "${SUPPORT_BUNDLE_PATH_FILE}" ]]; then
+    echo "Support bundle path capture is missing at ${SUPPORT_BUNDLE_PATH_FILE}"
+    return 1
+  fi
+
+  local bundle_path
+  bundle_path="$(cat "${SUPPORT_BUNDLE_PATH_FILE}")"
+  if [[ -z "${bundle_path}" || ! -f "${bundle_path}" ]]; then
+    echo "Support bundle artifact path is invalid: ${bundle_path}"
+    return 1
+  fi
+
+  EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" BUNDLE_PATH="${bundle_path}" \
+    ./scripts/check_local_support_bundle_sanitization.sh
+}
+
+run_optional_telemetry_transport_preflight() {
+  if [[ "${RUN_TELEMETRY_TRANSPORT_PREFLIGHT:-0}" != "1" ]]; then
+    echo "[skip] telemetry transport preflight (set RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1 to enable)"
+    return 0
+  fi
+  make check-telemetry-transport
+}
+
 run_step "edge preflight imports" make check-edge-preflight
+run_step "telemetry transport preflight (optional)" run_optional_telemetry_transport_preflight
 run_step "version consistency" ./scripts/release/check_version_consistency.sh
+run_step "release tag alignment (optional)" ./scripts/release/check_release_tag_alignment.sh
 run_step "duplicate artifact guard" ./scripts/release/check_no_duplicate_pairs.sh
 run_step "edge tests" make test-edge
 run_step "cloud tests" make test-cloud
 run_step "warning budget" ./scripts/ci/check_warning_budget.sh
 run_step "tauri config validation" make check-tauri-config
 run_step "desktop web build" make build-desktop-web
+run_step "security: no admin token in desktop bundle" ./scripts/release/check_no_public_admin_token_desktop_bundle.sh
 run_step "desktop cargo check" make check-desktop-rust
 run_step "security: no admin token in client bundle" ./scripts/release/check_no_public_admin_token_bundle.sh
 run_step "compose admin env wiring" bash -c '
@@ -193,11 +247,13 @@ run_step "cloud smoke" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}"
 run_step "demo readiness: reliability SLO report" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" OUT="output/ci/reliability_slo.json" ./scripts/ci/export_reliability_slo.py
 run_step "demo readiness: cloud recovery smoke" env CLOUD_URL="${CLOUD_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud_recovery.sh
 run_step "demo readiness: support bundle sanitized" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/check_support_bundle_sanitization.sh
-run_step "demo readiness: support bundle artifact" env CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/support_bundle.sh
+run_step "demo readiness: support bundle artifact" env CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" SUPPORT_BUNDLE_PATH_OUT="${SUPPORT_BUNDLE_PATH_FILE}" ./scripts/support_bundle.sh
+run_step "demo readiness: local support bundle sanitized" run_local_support_bundle_check
 run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME}" ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
 run_step "demo readiness: no orphan edge process" env ORPHAN_BASELINE_PIDS="${ORPHAN_BASELINE_PIDS}" ./scripts/check_no_orphan_edge.sh
+run_step "demo readiness: tracked git status unchanged" assert_tracked_status_unchanged
 run_step "release evidence pack" ./scripts/release/build_evidence_pack.sh
 
 FAILED_STEP=""

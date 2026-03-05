@@ -12,6 +12,8 @@ Mitigation (implemented):
 - All face embeddings are AES-256-GCM encrypted. Without the master key (stored
   in the OS keychain, not in the database), the attacker cannot recover any
   biometric data.
+- Audit event payloads are encrypted at rest with per-event derived keys, while
+  hash-chain links remain verifiable.
 - The GCM authentication tag detects any tampering with stored blobs.
 
 Residual risk: If the attacker also obtains the OS keychain (e.g., via a
@@ -28,12 +30,10 @@ Threat: Attacker sends many requests to /auth/start, /auth/frame, or
 Mitigation (implemented):
 - Token bucket per (endpoint, client key): 10-burst, 2 req/s for auth endpoints.
 - Escalating lockout: 30 s after 5 failures, doubling up to 5 min after 40+.
+- Lockout state is persisted on disk, so Edge process restart does not reset lockout history.
 - Frame cap per session: sessions are terminated after MAX_FRAMES_PER_SESSION
   (default 200) to prevent indefinite probing within a single session.
 - Request body size limit (2 MB) prevents resource exhaustion via large payloads.
-
-Residual risk: Lockout state is in-memory; a process restart clears it. Persistent
-lockout storage is planned.
 
 ---
 
@@ -45,9 +45,18 @@ Mitigation (implemented):
 - Every telemetry event and batch is signed with the device ED25519 private key.
 - Cloud verifies signatures; unsigned or incorrectly signed events are rejected.
 - Telemetry never includes biometric data (enforced by Pydantic extra=forbid).
+- Edge startup enforces secure ingest transport in production: non-loopback
+  `CLOUD_INGEST_URL` values must use HTTPS.
+- Optional mTLS and SHA-256 certificate pin checks are available for telemetry
+  transport hardening in sensitive deployments.
+- Production pinning policy enforces overlapping pin sets by default (minimum
+  two pins) to support safe certificate rotation.
+- Live transport preflight checks are available both as a startup gate and
+  manual command to catch certificate drift/misconfiguration before exporter
+  traffic starts.
 
-Residual risk: TLS is required for the transport channel in production; the
-current implementation delegates TLS to the deployment infrastructure.
+Residual risk: Pin/material rotation still requires coordinated operational
+updates and emergency override procedures.
 
 ---
 
@@ -76,6 +85,7 @@ Mitigation (implemented):
 - Field validators enforce that event_type and outcome are within allowed sets.
 - Any payload containing forbidden fields is rejected with HTTP 422.
 - Tests enforce that _FORBIDDEN_FIELDS constant covers the minimum required set.
+- Edge outbox automatically expires old `SENT` telemetry rows (default 30 days).
 
 ---
 
@@ -110,8 +120,4 @@ secure deletion requires OS-level secure erase.
 
 ## Planned Mitigations
 
-- Persistent lockout storage (survives process restart).
-- TLS enforcement at the edge HTTP server layer (currently delegated to OS).
 - Secure enclave / TPM integration for master key storage on Linux / Windows.
-- Audit log encryption (currently stored in plaintext in SQLite).
-- Automatic telemetry event expiry to limit data retention window.

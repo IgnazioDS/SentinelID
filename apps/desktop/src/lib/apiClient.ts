@@ -17,6 +17,12 @@ interface SupportBundleResult {
   createdAt: string | null;
 }
 
+interface TauriSupportBundleResponse {
+  filename: string;
+  createdAt: string | null;
+  contentBase64: string;
+}
+
 export interface DiagnosticsResponse {
   device_id?: string;
   device_key_fingerprint?: string;
@@ -216,54 +222,33 @@ async function request(path: string, method: string, body?: unknown): Promise<an
   return await response.json();
 }
 
-function cloudConfig(): { baseUrl: string; adminToken: string } {
-  const baseUrl = (import.meta.env.VITE_CLOUD_BASE_URL as string | undefined)?.trim();
-  const adminToken = (import.meta.env.VITE_ADMIN_TOKEN as string | undefined)?.trim();
-
-  if (!baseUrl) {
-    throw new ApiClientError(
-      'Support bundle requires VITE_CLOUD_BASE_URL in desktop environment.',
-      { kind: 'config' }
-    );
+function decodeBase64ToArrayBuffer(contentBase64: string): ArrayBuffer {
+  const decoded = atob(contentBase64);
+  const buffer = new ArrayBuffer(decoded.length);
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < decoded.length; i += 1) {
+    bytes[i] = decoded.charCodeAt(i);
   }
-  if (!adminToken) {
-    throw new ApiClientError(
-      'Support bundle requires VITE_ADMIN_TOKEN in desktop environment.',
-      { kind: 'config' }
-    );
-  }
-
-  return { baseUrl: baseUrl.replace(/\/$/, ''), adminToken };
+  return buffer;
 }
 
 async function generateSupportBundle(window: '24h' | '7d' | '30d' = '24h'): Promise<SupportBundleResult> {
-  const { baseUrl, adminToken } = cloudConfig();
-  let response: Response;
+  ensureTauriRuntime();
+  let result: TauriSupportBundleResponse;
 
   try {
-    response = await fetch(`${baseUrl}/v1/admin/support-bundle?window=${window}&events_limit=100`, {
-      method: 'POST',
-      headers: {
-        'X-Admin-Token': adminToken,
-      },
-    });
+    result = await invoke<TauriSupportBundleResponse>('generate_support_bundle', { window });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new ApiClientError(`Network error generating support bundle: ${message}`, {
-      kind: 'network',
+    throw new ApiClientError(`Unable to generate support bundle: ${message}`, {
+      kind: message.includes('requires') || message.includes('empty') ? 'config' : 'server',
       detail: message,
     });
   }
 
-  if (!response.ok) {
-    const raw = await response.text();
-    throw buildHttpError('/v1/admin/support-bundle', response.status, parseErrorPayload(raw));
-  }
-
-  const blob = await response.blob();
-  const disposition = response.headers.get('content-disposition') ?? '';
-  const match = disposition.match(/filename="?([^";]+)"?/i);
-  const filename = match?.[1] ?? `support_bundle_${Date.now()}.tar.gz`;
+  const contentBuffer = decodeBase64ToArrayBuffer(result.contentBase64);
+  const blob = new Blob([contentBuffer], { type: 'application/gzip' });
+  const filename = result.filename || `support_bundle_${Date.now()}.tar.gz`;
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -276,7 +261,7 @@ async function generateSupportBundle(window: '24h' | '7d' | '30d' = '24h'): Prom
 
   return {
     filename,
-    createdAt: response.headers.get('x-support-bundle-created-at'),
+    createdAt: result.createdAt,
   };
 }
 

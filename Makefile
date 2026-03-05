@@ -8,9 +8,11 @@
 	demo-checklist \
 	check-no-orphans \
 	check-no-duplicates \
+	check-release-tag \
 	gen-types \
 	bundle-edge \
 	check-edge-preflight \
+	check-telemetry-transport \
 	edge-shell \
 	dev-edge \
 	check-tauri-config \
@@ -31,6 +33,7 @@
 	smoke-bundling \
 	perf-edge \
 	support-bundle \
+	check-local-support-bundle \
 	runbook-lock \
 	release-evidence \
 	pilot-evidence \
@@ -50,10 +53,12 @@ help:
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
 	@echo "  make check-no-duplicates Verify duplicate source artifact pairs are absent"
+	@echo "  make check-release-tag   Verify RELEASE_EXPECT_TAG points to HEAD"
 	@echo ""
 	@echo "Build"
 	@echo "  make bundle-edge         Bundle edge runtime for desktop packaging"
 	@echo "  make check-edge-preflight Validate edge Poetry env imports (pydantic_settings/uvicorn)"
+	@echo "  make check-telemetry-transport Run live telemetry transport preflight checks"
 	@echo "  make edge-shell          Open a shell inside edge Poetry environment"
 	@echo "  make dev-edge            Run edge API locally (foreground)"
 	@echo "  make check-tauri-config  Validate required Tauri config keys"
@@ -78,6 +83,7 @@ help:
 	@echo "  make smoke-bundling      Validate bundled desktop runtime (no Poetry at runtime)"
 	@echo "  make perf-edge           Run edge benchmark (writes scripts/perf/out/*.json)"
 	@echo "  make support-bundle      Generate sanitized support bundle artifact"
+	@echo "  make check-local-support-bundle Validate latest local support bundle artifact"
 	@echo "  make runbook-lock        Build known-good runbook lock artifact under output/release/"
 	@echo "  make release-evidence    Build release evidence pack under output/release/"
 	@echo "  make pilot-evidence      Build pilot evidence index under output/release/"
@@ -121,11 +127,17 @@ check-no-orphans:
 check-no-duplicates:
 	@./scripts/release/check_no_duplicate_pairs.sh
 
+check-release-tag:
+	@./scripts/release/check_release_tag_alignment.sh
+
 gen-types:
 	@./scripts/gen_types.sh
 
 check-edge-preflight:
 	@./scripts/dev/edge_env.sh preflight
+
+check-telemetry-transport:
+	@./scripts/check_telemetry_transport_preflight.sh
 
 edge-shell:
 	@./scripts/dev/edge_env.sh shell
@@ -188,6 +200,9 @@ perf-edge:
 
 support-bundle:
 	@./scripts/support_bundle.sh
+
+check-local-support-bundle:
+	@./scripts/check_local_support_bundle_sanitization.sh
 
 runbook-lock:
 	@./scripts/release/build_runbook_lock.sh

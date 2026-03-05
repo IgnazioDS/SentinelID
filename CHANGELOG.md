@@ -9,6 +9,30 @@ All notable changes to SentinelID are documented in this file.
 - Validated release integrity on `main` after merge with fresh CI parity and `release-tag` workflow-dispatch proof.
 - Regenerated pilot evidence index to reference current PR/main parity URLs and latest manual release-tag validation run.
 
+### Post-Cut Hardening
+- Hardened desktop support-bundle flow to use a Tauri backend command with server-side admin token injection, removing renderer-side admin token requirements.
+- Added release checks to enforce no admin token leakage in desktop web bundles.
+- Hardened release scripts to keep tracked workspace state stable during bundling smoke and to verify tracked git status remains unchanged at the end of `make release-check`.
+- Improved support-bundle collection fallback behavior and added local support-bundle sanitization validation in release preflight.
+- Reduced bundling smoke log noise by default while preserving failure diagnostics and optional verbose mode (`BUNDLE_VERBOSE=1`).
+- Added `make check-local-support-bundle` as a first-class operator/CI command for validating local support bundle artifacts outside full release preflight.
+- Extended `make demo-verify` to generate and validate a local support bundle artifact for better parity with release preflight.
+- Added `make check-release-tag` as a direct wrapper for strict tag-to-HEAD alignment checks.
+- Made support-bundle validation deterministic in `release-check` and `demo-verify` by passing the exact generated artifact path to local validation.
+- Set desktop workspace resolver to Cargo resolver v2 to eliminate repeated virtual-workspace resolver warnings in build/check output.
+- Hardened local support-bundle sanitization to inspect non-JSON text artifacts for unredacted bearer strings and live credential values.
+- Persisted edge auth lockout state to local disk (`SENTINELID_LOCKOUT_STATE_PATH`) so lockout survives process restart, with regression tests and threat-model updates.
+- Added repository-root runtime ignore (`/.sentinelid/`) to keep local lockout/audit state files out of git status noise.
+- Added telemetry ingest transport validation: in `EDGE_ENV=prod`, non-loopback `CLOUD_INGEST_URL` must use HTTPS (with test coverage and runbook/threat-model updates).
+- Added automatic telemetry outbox retention sweep: old `SENT` rows now expire by policy (`TELEMETRY_SENT_RETENTION_DAYS`, default 30 days) on a configurable interval.
+- Encrypted edge audit payloads at rest with backward-compatible legacy row reads and hash-chain verification across both encrypted and plaintext historical entries.
+- Added optional telemetry mTLS support (`TELEMETRY_MTLS_CERT_PATH` + `TELEMETRY_MTLS_KEY_PATH`) and custom CA bundle support (`TELEMETRY_TLS_CA_BUNDLE_PATH`) with strict startup validation.
+- Added optional telemetry certificate pinning (`TELEMETRY_TLS_CERT_SHA256_PINS`) with HTTPS-only validation and runtime peer-certificate fingerprint checks before export.
+- Added production pin-rollout guardrails for telemetry pinning: overlapping pins required by default (`TELEMETRY_TLS_MIN_PIN_COUNT_PROD=2`) with explicit single-pin override (`TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD=1`).
+- Added a live telemetry transport preflight command (`make check-telemetry-transport`) plus optional startup preflight (`TELEMETRY_TRANSPORT_PREFLIGHT_ON_START`) to verify TLS/pinning connectivity before export loops begin.
+- Added optional `release-check` integration for transport preflight via `RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1` so operators can enforce live TLS/pinning validation in release gates when needed.
+- Hardened edge bundling to avoid unnecessary network-dependent OpenCV headless reinstalls when `cv2` remains healthy after GUI wheel removal, reducing flaky release-check failures under transient proxy/network issues.
+
 ## v2.3.5 (2026-03-01)
 
 ### Release Integrity Guardrails
@@ -135,6 +159,13 @@ All notable changes to SentinelID are documented in this file.
 - Replaced outdated release guide content with v2.1.0 release process and required evidence model.
 - Added non-interactive `make demo-verify` flow, optional scripted desktop close verification, and explicit demo exit semantics in docs.
 - Added pilot readiness freeze guide and pilot evidence index instructions.
+
+## v2.0.1 (2026-02-26)
+
+### Post-release hardening
+- Hardened edge process cleanup in smoke and checklist scripts to reduce stale local `uvicorn` edge processes after demo/test flows.
+- Tightened release checklist behavior around process lifecycle so failed or interrupted runs are less likely to leave residual local state.
+- Kept release scope focused on stability and cleanup; no protocol or API contract changes.
 
 ## v2.0.0 (2026-02-26)
 

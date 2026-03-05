@@ -20,6 +20,7 @@ For setup and operational commands, use `RUNBOOK.md`.
 
 - All face embeddings are stored as AES-256-GCM encrypted blobs in the local
   SQLite database. The database never contains plaintext float vectors.
+- Audit event payloads are also encrypted at rest with per-event derived keys.
 - The master key is stored in the OS keychain (macOS) when available; a
   restricted file (mode 0600) is used as a fallback.
 - Per-template keys are derived via HKDF-SHA256(master_key, template_id, salt)
@@ -57,7 +58,6 @@ For setup and operational commands, use `RUNBOOK.md`.
 ## Planned
 
 - Differential privacy noise for aggregate telemetry statistics.
-- On-device audit log encryption (currently stored in plaintext in SQLite).
 - Formal data-retention policy and automatic expiry of old telemetry events.
 - Secure enclave / TPM integration for master key storage on non-macOS platforms.
 - User-visible consent flow before first enrollment.

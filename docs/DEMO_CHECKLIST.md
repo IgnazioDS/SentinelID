@@ -4,7 +4,7 @@ Target runtime: under 10 minutes for a full manual pass.
 
 Non-interactive verification alternative:
 
-- `make demo-verify` runs smoke/recovery/support-bundle/admin checks without launching the desktop UI.
+- `make demo-verify` runs smoke/recovery/support-bundle/admin checks (including local support bundle artifact validation) without launching the desktop UI.
 - Optional scripted desktop close semantics pass:
   - `DEMO_VERIFY_DESKTOP=1 DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS=20 make demo-verify`
 

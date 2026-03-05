@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 OUT_DIR="${REPO_ROOT}/scripts/support/out"
 TMP_DIR="$(mktemp -d -t sentinelid_support_bundle.XXXXXX)"
+SUPPORT_BUNDLE_PATH_OUT="${SUPPORT_BUNDLE_PATH_OUT:-}"
 
 EDGE_URL="${EDGE_URL:-http://127.0.0.1:8787}"
 EDGE_TOKEN="${EDGE_TOKEN:-${EDGE_AUTH_TOKEN:-}}"
@@ -80,6 +81,30 @@ record_request_id() {
   fi
 }
 
+write_status_json() {
+  local output_path="$1"
+  local status="$2"
+  local detail="${3:-}"
+
+  python3 - "${output_path}" "${status}" "${detail}" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+out_path = Path(sys.argv[1])
+status = sys.argv[2]
+detail = sys.argv[3]
+
+payload = {"status": status}
+if detail:
+    payload["detail"] = detail
+
+out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+PY
+}
+
 fetch_json() {
   local label="$1"
   local url="$2"
@@ -89,36 +114,41 @@ fetch_json() {
   local headers_path="${TMP_DIR}/${output_base}.headers"
   local raw_path="${TMP_DIR}/${output_base}.raw.json"
   local clean_path="${TMP_DIR}/${output_base}.json"
+  local err_path="${TMP_DIR}/${output_base}.err.log"
 
   local curl_args=("-sS" "-f" "-D" "${headers_path}" "${url}")
   if [[ -n "${auth_header}" ]]; then
     curl_args=("-sS" "-f" "-D" "${headers_path}" "-H" "${auth_header}" "${url}")
   fi
 
-  if ! curl "${curl_args[@]}" >"${raw_path}"; then
-    echo "${label}: unavailable" >"${clean_path}"
-    rm -f "${headers_path}" "${raw_path}" >/dev/null 2>&1 || true
+  if ! curl "${curl_args[@]}" >"${raw_path}" 2>"${err_path}"; then
+    local err_detail="request failed"
+    if [[ -s "${err_path}" ]]; then
+      err_detail="$(head -n 1 "${err_path}")"
+    fi
+    write_status_json "${clean_path}" "unavailable" "${err_detail}"
+    rm -f "${headers_path}" "${raw_path}" "${err_path}" >/dev/null 2>&1 || true
     return
   fi
 
   sanitize_json "${raw_path}" "${clean_path}"
   record_request_id "${headers_path}" "${label}"
-  rm -f "${headers_path}" "${raw_path}" >/dev/null 2>&1 || true
+  rm -f "${headers_path}" "${raw_path}" "${err_path}" >/dev/null 2>&1 || true
 }
 
 # Collect API snapshots
 if [[ -n "${EDGE_TOKEN}" ]]; then
   fetch_json "edge_diagnostics" "${EDGE_URL}/api/v1/diagnostics" "edge_diagnostics" "Authorization: Bearer ${EDGE_TOKEN}"
 else
-  echo "edge_diagnostics: skipped (EDGE_TOKEN missing)" > "${TMP_DIR}/edge_diagnostics.json"
+  write_status_json "${TMP_DIR}/edge_diagnostics.json" "skipped" "EDGE_TOKEN missing"
 fi
 
 if [[ -n "${ADMIN_TOKEN}" ]]; then
   fetch_json "cloud_stats" "${CLOUD_URL}/v1/admin/stats" "cloud_stats" "X-Admin-Token: ${ADMIN_TOKEN}"
   fetch_json "cloud_events" "${CLOUD_URL}/v1/admin/events?limit=${EVENT_LIMIT}" "cloud_events" "X-Admin-Token: ${ADMIN_TOKEN}"
 else
-  echo "cloud_stats: skipped (ADMIN_TOKEN missing)" > "${TMP_DIR}/cloud_stats.json"
-  echo "cloud_events: skipped (ADMIN_TOKEN missing)" > "${TMP_DIR}/cloud_events.json"
+  write_status_json "${TMP_DIR}/cloud_stats.json" "skipped" "ADMIN_TOKEN missing"
+  write_status_json "${TMP_DIR}/cloud_events.json" "skipped" "ADMIN_TOKEN missing"
 fi
 
 # Local audit/outbox summary (sanitized, no raw event payloads)
@@ -200,6 +230,10 @@ fi
 BUNDLE_TS="$(date -u +%Y%m%dT%H%M%SZ)"
 BUNDLE_PATH="${OUT_DIR}/support_bundle_${BUNDLE_TS}.tar.gz"
 
-tar -czf "${BUNDLE_PATH}" -C "${TMP_DIR}" .
+COPYFILE_DISABLE=1 tar -czf "${BUNDLE_PATH}" -C "${TMP_DIR}" .
+
+if [[ -n "${SUPPORT_BUNDLE_PATH_OUT}" ]]; then
+  printf '%s\n' "${BUNDLE_PATH}" > "${SUPPORT_BUNDLE_PATH_OUT}"
+fi
 
 echo "Support bundle created: ${BUNDLE_PATH}"

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -28,10 +29,38 @@ class Settings(BaseSettings):
     TELEMETRY_HTTP_TIMEOUT_SECONDS: float = float(
         os.getenv("TELEMETRY_HTTP_TIMEOUT_SECONDS", "10.0")
     )
+    TELEMETRY_TLS_CA_BUNDLE_PATH: str = os.getenv("TELEMETRY_TLS_CA_BUNDLE_PATH", "").strip()
+    TELEMETRY_MTLS_CERT_PATH: str = os.getenv("TELEMETRY_MTLS_CERT_PATH", "").strip()
+    TELEMETRY_MTLS_KEY_PATH: str = os.getenv("TELEMETRY_MTLS_KEY_PATH", "").strip()
+    TELEMETRY_TLS_CERT_SHA256_PINS: str = os.getenv("TELEMETRY_TLS_CERT_SHA256_PINS", "").strip()
+    TELEMETRY_TLS_MIN_PIN_COUNT_PROD: int = int(
+        os.getenv("TELEMETRY_TLS_MIN_PIN_COUNT_PROD", "2")
+    )
+    TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD: bool = (
+        os.getenv("TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD", "0").strip().lower()
+        in {"1", "true", "yes"}
+    )
+    TELEMETRY_TRANSPORT_PREFLIGHT_ON_START: bool = (
+        os.getenv("TELEMETRY_TRANSPORT_PREFLIGHT_ON_START", "0").strip().lower()
+        in {"1", "true", "yes"}
+    )
+    TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS: float = float(
+        os.getenv("TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS", "5.0")
+    )
+    TELEMETRY_SENT_RETENTION_DAYS: int = int(
+        os.getenv("TELEMETRY_SENT_RETENTION_DAYS", "30")
+    )
+    TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS: float = float(
+        os.getenv("TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS", "3600")
+    )
 
     # Storage paths
     DB_PATH: str = os.getenv("SENTINELID_DB_PATH", ".sentinelid/audit.db")
     KEYCHAIN_DIR: str = os.getenv("SENTINELID_KEYCHAIN_DIR", ".sentinelid/keys")
+    LOCKOUT_STATE_PATH: str = os.getenv(
+        "SENTINELID_LOCKOUT_STATE_PATH",
+        str(Path(os.getenv("SENTINELID_DB_PATH", ".sentinelid/audit.db")).parent / "lockout_state.json"),
+    )
 
     # Input hardening
     MAX_REQUEST_BODY_BYTES: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(2 * 1024 * 1024)))  # 2 MB

@@ -99,6 +99,38 @@ class TestLockoutTracker:
         assert locked_bad is True
         assert locked_good is False
 
+    def test_persists_lockout_state_across_instances(self, tmp_path):
+        state_path = tmp_path / "lockout_state.json"
+        tracker_a = LockoutTracker(state_path=str(state_path))
+        for _ in range(5):
+            tracker_a.record_failure("client-persisted")
+
+        tracker_b = LockoutTracker(state_path=str(state_path))
+        locked, remaining = tracker_b.is_locked("client-persisted")
+        assert locked is True
+        assert remaining > 0
+        assert tracker_b.get_failure_count("client-persisted") == 5
+
+    def test_success_clears_persisted_lockout_state(self, tmp_path):
+        state_path = tmp_path / "lockout_state.json"
+        tracker_a = LockoutTracker(state_path=str(state_path))
+        for _ in range(5):
+            tracker_a.record_failure("client-reset")
+        tracker_a.record_success("client-reset")
+
+        tracker_b = LockoutTracker(state_path=str(state_path))
+        locked, _ = tracker_b.is_locked("client-reset")
+        assert locked is False
+        assert tracker_b.get_failure_count("client-reset") == 0
+
+    def test_corrupt_persisted_state_is_ignored(self, tmp_path):
+        state_path = tmp_path / "lockout_state.json"
+        state_path.write_text("{not-valid-json", encoding="utf-8")
+        tracker = LockoutTracker(state_path=str(state_path))
+        locked, remaining = tracker.is_locked("client-corrupt")
+        assert locked is False
+        assert remaining == 0
+
 
 # ---------------------------------------------------------------------------
 # RateLimiter

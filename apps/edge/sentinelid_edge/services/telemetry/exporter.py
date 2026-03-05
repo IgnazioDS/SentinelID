@@ -12,10 +12,17 @@ Features:
 import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 import httpx
 from .event import TelemetryEvent, TelemetryMapper
 from .signer import TelemetrySigner
+from .transport import (
+    parse_certificate_pins,
+    probe_server_certificate_sha256,
+    validate_pin_rollout_policy,
+    validate_server_certificate_pin,
+)
 from ..storage.repo_outbox import OutboxRepository, OutboxEvent
 
 
@@ -45,6 +52,13 @@ class TelemetryExporter:
         keychain_dir: str = ".sentinelid/keys",
         db_path: str = ".sentinelid/audit.db",
         http_timeout_seconds: float = 10.0,
+        tls_ca_bundle_path: Optional[str] = None,
+        mtls_cert_path: Optional[str] = None,
+        mtls_key_path: Optional[str] = None,
+        tls_cert_sha256_pins: Optional[str] = None,
+        edge_env: str = "dev",
+        min_pin_count_prod: int = 2,
+        allow_single_pin_prod: bool = False,
     ):
         """
         Initialize telemetry exporter.
@@ -67,6 +81,111 @@ class TelemetryExporter:
         self.last_export_attempt_time: Optional[datetime] = None
         self.last_export_success_time: Optional[datetime] = None
         self.last_export_error: Optional[str] = None
+        self._httpx_verify: Any = True
+        self._httpx_cert: Optional[Any] = None
+        self._tls_ca_bundle_path: Optional[str] = None
+        self._mtls_cert_path: Optional[str] = None
+        self._mtls_key_path: Optional[str] = None
+        self._tls_cert_pins: List[str] = parse_certificate_pins(tls_cert_sha256_pins)
+        self._last_pin_observed: Optional[str] = None
+        self._edge_env = str(edge_env).strip().lower()
+        self._min_pin_count_prod = int(min_pin_count_prod)
+        self._allow_single_pin_prod = bool(allow_single_pin_prod)
+        self._configure_tls(
+            tls_ca_bundle_path=tls_ca_bundle_path,
+            mtls_cert_path=mtls_cert_path,
+            mtls_key_path=mtls_key_path,
+        )
+        if self._tls_cert_pins and not self.cloud_ingest_url.lower().startswith("https://"):
+            raise RuntimeError("TELEMETRY_TLS_CERT_SHA256_PINS requires CLOUD_INGEST_URL with https://")
+        try:
+            validate_pin_rollout_policy(
+                pins=self._tls_cert_pins,
+                edge_env=self._edge_env,
+                min_pin_count_prod=self._min_pin_count_prod,
+                allow_single_pin_prod=self._allow_single_pin_prod,
+            )
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+
+    def _configure_tls(
+        self,
+        *,
+        tls_ca_bundle_path: Optional[str],
+        mtls_cert_path: Optional[str],
+        mtls_key_path: Optional[str],
+    ) -> None:
+        if tls_ca_bundle_path:
+            ca_bundle = Path(tls_ca_bundle_path)
+            if not ca_bundle.is_file():
+                raise RuntimeError(f"Invalid TELEMETRY_TLS_CA_BUNDLE_PATH: {ca_bundle}")
+            self._httpx_verify = str(ca_bundle)
+            self._tls_ca_bundle_path = str(ca_bundle)
+        else:
+            self._httpx_verify = True
+            self._tls_ca_bundle_path = None
+
+        if mtls_cert_path or mtls_key_path:
+            if not (mtls_cert_path and mtls_key_path):
+                raise RuntimeError(
+                    "Both TELEMETRY_MTLS_CERT_PATH and TELEMETRY_MTLS_KEY_PATH are required"
+                )
+            if not self.cloud_ingest_url.lower().startswith("https://"):
+                raise RuntimeError("mTLS requires CLOUD_INGEST_URL with https://")
+            cert_path = Path(mtls_cert_path)
+            key_path = Path(mtls_key_path)
+            if not cert_path.is_file():
+                raise RuntimeError(f"Invalid TELEMETRY_MTLS_CERT_PATH: {cert_path}")
+            if not key_path.is_file():
+                raise RuntimeError(f"Invalid TELEMETRY_MTLS_KEY_PATH: {key_path}")
+            self._httpx_cert = (str(cert_path), str(key_path))
+            self._mtls_cert_path = str(cert_path)
+            self._mtls_key_path = str(key_path)
+        else:
+            self._httpx_cert = None
+            self._mtls_cert_path = None
+            self._mtls_key_path = None
+
+    def _http_client_kwargs(self) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {
+            "timeout": self.http_timeout_seconds,
+            "verify": self._httpx_verify,
+        }
+        if self._httpx_cert is not None:
+            kwargs["cert"] = self._httpx_cert
+        return kwargs
+
+    def run_transport_preflight(self, timeout_seconds: float = 5.0) -> Optional[str]:
+        """
+        Perform live transport preflight against configured cloud endpoint.
+
+        Returns:
+            Observed server cert SHA-256 for HTTPS endpoints, else None.
+        """
+        if not self.cloud_ingest_url.lower().startswith("https://"):
+            if self._tls_cert_pins:
+                raise RuntimeError(
+                    "TELEMETRY_TLS_CERT_SHA256_PINS requires CLOUD_INGEST_URL with https://"
+                )
+            return None
+
+        observed = probe_server_certificate_sha256(
+            cloud_ingest_url=self.cloud_ingest_url,
+            tls_ca_bundle_path=self._tls_ca_bundle_path,
+            mtls_cert_path=self._mtls_cert_path,
+            mtls_key_path=self._mtls_key_path,
+            timeout_seconds=max(1.0, float(timeout_seconds)),
+        )
+        self._last_pin_observed = observed
+
+        if self._tls_cert_pins:
+            expected = {pin.lower() for pin in self._tls_cert_pins}
+            if observed.lower() not in expected:
+                raise RuntimeError(
+                    "Server certificate pin mismatch: "
+                    f"observed={observed} expected_one_of={sorted(expected)}"
+                )
+        return observed
 
     def add_event(self, event: TelemetryEvent):
         """
@@ -214,7 +333,17 @@ class TelemetryExporter:
     async def _send_batch(self, payload: Dict[str, Any]) -> bool:
         """Send one telemetry batch to cloud ingest endpoint."""
         try:
-            async with httpx.AsyncClient(timeout=self.http_timeout_seconds) as client:
+            if self._tls_cert_pins:
+                observed = validate_server_certificate_pin(
+                    cloud_ingest_url=self.cloud_ingest_url,
+                    expected_pins=self._tls_cert_pins,
+                    tls_ca_bundle_path=self._tls_ca_bundle_path,
+                    mtls_cert_path=self._mtls_cert_path,
+                    mtls_key_path=self._mtls_key_path,
+                    timeout_seconds=min(5.0, self.http_timeout_seconds),
+                )
+                self._last_pin_observed = observed
+            async with httpx.AsyncClient(**self._http_client_kwargs()) as client:
                 response = await client.post(
                     self.cloud_ingest_url,
                     json=payload,
@@ -276,6 +405,12 @@ class TelemetryExporter:
         outbox_stats = self.outbox.get_stats()
         return {
             **outbox_stats,
+            "tls_verify_mode": (
+                "custom_ca_bundle" if isinstance(self._httpx_verify, str) else "system_default"
+            ),
+            "mtls_enabled": self._httpx_cert is not None,
+            "tls_pinning_enabled": bool(self._tls_cert_pins),
+            "tls_last_observed_cert_sha256": self._last_pin_observed,
             "last_export_attempt_time": (
                 self.last_export_attempt_time.isoformat()
                 if self.last_export_attempt_time
@@ -288,6 +423,10 @@ class TelemetryExporter:
             ),
             "last_export_error": self.last_export_error or outbox_stats.get("last_error_summary"),
         }
+
+    def purge_sent_older_than(self, retention_days: int) -> int:
+        """Purge old SENT outbox rows according to retention policy."""
+        return self.outbox.purge_sent_older_than(retention_days)
 
     def replay_dlq_event(self, event_id: int):
         """

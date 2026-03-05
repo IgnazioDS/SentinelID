@@ -3,13 +3,19 @@ Keychain management for device keypairs.
 """
 import os
 import json
-from typing import Optional, Tuple
+import logging
+from typing import Tuple, Optional
 from pathlib import Path
 from .crypto import CryptoProvider
 
+logger = logging.getLogger(__name__)
+
+_KEYCHAIN_SERVICE = "com.sentinelid.edge"
+_KEYPAIR_ACCOUNT = "device_keypair_v1"
+
 
 class Keychain:
-    """Manages device cryptographic keys (ED25519)."""
+    """Manages device cryptographic keys (ED25519) with keychain-first storage."""
 
     def __init__(self, keychain_dir: str = ".sentinelid/keys"):
         """
@@ -29,26 +35,42 @@ class Keychain:
         Returns:
             Tuple of (private_key_pem, public_key_pem)
         """
-        if self.keys_file.exists():
-            with open(self.keys_file, 'r') as f:
-                keys = json.load(f)
-            return keys['private_key'], keys['public_key']
+        keys = self._load_from_os_keychain()
+        if keys is not None:
+            return keys
 
-        # Generate new keypair
-        private_key, public_key = CryptoProvider.generate_keypair()
+        keys = self._load_from_file()
+        if keys is not None:
+            self._store_to_os_keychain(keys)
+            return keys
 
-        # Store it
-        keys_data = {
-            'private_key': private_key,
-            'public_key': public_key
-        }
-        with open(self.keys_file, 'w') as f:
-            json.dump(keys_data, f)
+        keys = CryptoProvider.generate_keypair()
+        stored_in_keychain = self._store_to_os_keychain(keys)
+        if stored_in_keychain:
+            self._delete_file_copy()
+        else:
+            self._store_to_file(keys)
+        return keys
 
-        # Restrict permissions
-        os.chmod(self.keys_file, 0o600)
+    def rotate_keypair(self) -> Tuple[str, str]:
+        """
+        Generate and persist a fresh keypair.
 
-        return private_key, public_key
+        Returns:
+            Tuple of (private_key_pem, public_key_pem)
+        """
+        keys = CryptoProvider.generate_keypair()
+        stored_in_keychain = self._store_to_os_keychain(keys)
+        if stored_in_keychain:
+            self._delete_file_copy()
+        else:
+            self._store_to_file(keys)
+        return keys
+
+    def clear_keypair(self) -> None:
+        """Remove stored keypair from keychain and fallback file."""
+        self._delete_from_os_keychain()
+        self._delete_file_copy()
 
     def get_public_key(self) -> str:
         """
@@ -69,3 +91,74 @@ class Keychain:
         """
         private_key, _ = self.load_or_generate()
         return private_key
+
+    def _load_from_os_keychain(self) -> Optional[Tuple[str, str]]:
+        try:
+            import keyring
+
+            raw = keyring.get_password(_KEYCHAIN_SERVICE, _KEYPAIR_ACCOUNT)
+            if not raw:
+                return None
+            payload = json.loads(raw)
+            private_key = payload.get("private_key")
+            public_key = payload.get("public_key")
+            if not private_key or not public_key:
+                logger.warning("Invalid device keypair payload in keychain entry; ignoring")
+                return None
+            return private_key, public_key
+        except Exception as exc:
+            logger.debug("OS keychain unavailable for device keypair (%s)", exc)
+            return None
+
+    def _store_to_os_keychain(self, keys: Tuple[str, str]) -> bool:
+        private_key, public_key = keys
+        payload = json.dumps(
+            {
+                "private_key": private_key,
+                "public_key": public_key,
+            }
+        )
+        try:
+            import keyring
+
+            keyring.set_password(_KEYCHAIN_SERVICE, _KEYPAIR_ACCOUNT, payload)
+            return True
+        except Exception as exc:
+            logger.debug("Could not store device keypair in OS keychain (%s)", exc)
+            return False
+
+    def _delete_from_os_keychain(self) -> None:
+        try:
+            import keyring
+
+            keyring.delete_password(_KEYCHAIN_SERVICE, _KEYPAIR_ACCOUNT)
+        except Exception:
+            pass
+
+    def _load_from_file(self) -> Optional[Tuple[str, str]]:
+        if not self.keys_file.exists():
+            return None
+        try:
+            with open(self.keys_file, "r", encoding="utf-8") as f:
+                keys = json.load(f)
+            private_key = keys.get("private_key")
+            public_key = keys.get("public_key")
+            if not private_key or not public_key:
+                return None
+            return private_key, public_key
+        except Exception:
+            return None
+
+    def _store_to_file(self, keys: Tuple[str, str]) -> None:
+        private_key, public_key = keys
+        keys_data = {
+            "private_key": private_key,
+            "public_key": public_key,
+        }
+        with open(self.keys_file, "w", encoding="utf-8") as f:
+            json.dump(keys_data, f)
+        os.chmod(self.keys_file, 0o600)
+
+    def _delete_file_copy(self) -> None:
+        if self.keys_file.exists():
+            self.keys_file.unlink()

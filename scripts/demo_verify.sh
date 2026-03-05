@@ -16,8 +16,10 @@ cd "${REPO_ROOT}"
 : "${DEMO_VERIFY_KEEP_STACK:=0}"
 : "${DEMO_VERIFY_DESKTOP:=0}"
 : "${DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS:=20}"
+SUPPORT_BUNDLE_PATH_FILE="$(mktemp -t sentinelid_demo_support_bundle_path.XXXXXX)"
 
 cleanup() {
+  rm -f "${SUPPORT_BUNDLE_PATH_FILE}" >/dev/null 2>&1 || true
   if [[ "${DEMO_VERIFY_KEEP_STACK}" != "1" ]]; then
     "${REPO_ROOT}/scripts/demo_down.sh" >/dev/null 2>&1 || true
   fi
@@ -42,6 +44,23 @@ CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN
 echo "[demo-verify] support bundle sanitization"
 CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" \
   "${REPO_ROOT}/scripts/check_support_bundle_sanitization.sh"
+
+echo "[demo-verify] support bundle artifact"
+CLOUD_URL="${CLOUD_URL}" EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" SUPPORT_BUNDLE_PATH_OUT="${SUPPORT_BUNDLE_PATH_FILE}" \
+  "${REPO_ROOT}/scripts/support_bundle.sh"
+
+echo "[demo-verify] local support bundle sanitization"
+if [[ ! -s "${SUPPORT_BUNDLE_PATH_FILE}" ]]; then
+  echo "[demo-verify] support bundle path capture missing"
+  exit 1
+fi
+BUNDLE_PATH="$(cat "${SUPPORT_BUNDLE_PATH_FILE}")"
+if [[ -z "${BUNDLE_PATH}" || ! -f "${BUNDLE_PATH}" ]]; then
+  echo "[demo-verify] support bundle path invalid: ${BUNDLE_PATH}"
+  exit 1
+fi
+EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" BUNDLE_PATH="${BUNDLE_PATH}" \
+  "${REPO_ROOT}/scripts/check_local_support_bundle_sanitization.sh"
 
 echo "[demo-verify] admin smoke"
 API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" \

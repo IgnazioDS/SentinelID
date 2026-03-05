@@ -21,6 +21,7 @@ from sentinelid_edge.core.request_context import (
 )
 from sentinelid_edge.services.security.rate_limit import get_rate_limiter
 from sentinelid_edge.services.telemetry.exporter import TelemetryExporter
+from sentinelid_edge.services.telemetry.transport import validate_cloud_ingest_url
 from sentinelid_edge.services.telemetry.runtime import (
     TelemetryRuntime,
     set_telemetry_runtime,
@@ -38,6 +39,16 @@ configure_logging(
 async def lifespan(_app: FastAPI):
     telemetry_runtime = None
     if settings.TELEMETRY_ENABLED and settings.CLOUD_INGEST_URL:
+        insecure_transport = validate_cloud_ingest_url(
+            settings.CLOUD_INGEST_URL,
+            settings.EDGE_ENV,
+        )
+        if insecure_transport:
+            logger.warning(
+                "Telemetry ingest uses insecure HTTP transport for non-loopback host in %s mode: %s",
+                settings.EDGE_ENV,
+                settings.CLOUD_INGEST_URL,
+            )
         exporter = TelemetryExporter(
             cloud_ingest_url=settings.CLOUD_INGEST_URL,
             batch_size=settings.TELEMETRY_BATCH_SIZE,
@@ -45,7 +56,25 @@ async def lifespan(_app: FastAPI):
             keychain_dir=settings.KEYCHAIN_DIR,
             db_path=settings.DB_PATH,
             http_timeout_seconds=settings.TELEMETRY_HTTP_TIMEOUT_SECONDS,
+            tls_ca_bundle_path=settings.TELEMETRY_TLS_CA_BUNDLE_PATH,
+            mtls_cert_path=settings.TELEMETRY_MTLS_CERT_PATH,
+            mtls_key_path=settings.TELEMETRY_MTLS_KEY_PATH,
+            tls_cert_sha256_pins=settings.TELEMETRY_TLS_CERT_SHA256_PINS,
+            edge_env=settings.EDGE_ENV,
+            min_pin_count_prod=settings.TELEMETRY_TLS_MIN_PIN_COUNT_PROD,
+            allow_single_pin_prod=settings.TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD,
         )
+        if settings.TELEMETRY_TRANSPORT_PREFLIGHT_ON_START:
+            observed = exporter.run_transport_preflight(
+                timeout_seconds=settings.TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS
+            )
+            if observed:
+                logger.info(
+                    "Telemetry transport preflight passed with server_cert_sha256=%s",
+                    observed,
+                )
+            else:
+                logger.info("Telemetry transport preflight skipped (non-HTTPS ingest URL)")
         telemetry_runtime = TelemetryRuntime(
             exporter=exporter,
             export_interval_seconds=settings.TELEMETRY_EXPORT_INTERVAL_SECONDS,

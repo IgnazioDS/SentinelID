@@ -23,6 +23,7 @@ if [[ "${INCLUDE_GENERATED}" != "1" ]]; then
       -name pyvenv_active -o
       -name pyvenv -o
       -name 'pyvenv_stale*' -o
+      -name .sentinelid -o
       -name __pycache__
     \) -prune \)
     -o

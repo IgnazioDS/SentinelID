@@ -42,6 +42,17 @@ Optional values:
 - `ADMIN_UI_SESSION_TTL_MINUTES` (default `480`)
 - `ADMIN_UI_SESSION_SECURE` (default `0`; set `1` only behind HTTPS)
 - `CLOUD_BIND_HOST` (unset defaults to `127.0.0.1` for local non-container runs and `0.0.0.0` for container runtime)
+- `CLOUD_INGEST_URL` must use `https://` in `EDGE_ENV=prod` unless host is loopback (`localhost`, `127.0.0.1`, `::1`)
+- `TELEMETRY_TLS_CA_BUNDLE_PATH` (optional custom CA bundle for telemetry TLS verification)
+- `TELEMETRY_MTLS_CERT_PATH` + `TELEMETRY_MTLS_KEY_PATH` (optional client certificate/key pair for telemetry mTLS; requires `CLOUD_INGEST_URL` with `https://`)
+- `TELEMETRY_TLS_CERT_SHA256_PINS` (optional comma-separated SHA-256 server certificate fingerprints; requires `CLOUD_INGEST_URL` with `https://`)
+- `TELEMETRY_TLS_MIN_PIN_COUNT_PROD` (default `2`; minimum pin overlap required in production when pinning is enabled)
+- `TELEMETRY_TLS_ALLOW_SINGLE_PIN_PROD` (default `0`; set `1` only for controlled bootstrap/rotation windows)
+- `TELEMETRY_TRANSPORT_PREFLIGHT_ON_START` (default `0`; set `1` to run a live telemetry transport preflight at edge startup)
+- `TELEMETRY_TRANSPORT_PREFLIGHT_TIMEOUT_SECONDS` (default `5.0`; TLS probe timeout for startup/manual transport preflight)
+- `TELEMETRY_SENT_RETENTION_DAYS` (default `30`; set `0` to disable automatic SENT outbox expiry)
+- `TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS` (default `3600`)
+- `SENTINELID_LOCKOUT_STATE_PATH` (default `.sentinelid/lockout_state.json`)
 - `ADMIN_UI_PASSWORD` (dev/smoke helper for scripted admin login only)
 
 Optional verification fallback toggle (dev only):
@@ -168,6 +179,7 @@ Optional preflight helpers:
 
 ```bash
 make check-edge-preflight
+make check-telemetry-transport
 make check-tauri-config
 ```
 
@@ -233,6 +245,7 @@ make smoke-admin
 make smoke-desktop
 make smoke-bundling
 make support-bundle
+make check-local-support-bundle
 make release-evidence
 make pilot-evidence
 ```
@@ -247,7 +260,16 @@ make perf-edge
 
 ```bash
 make release-check
+RELEASE_EXPECT_TAG=vX.Y.Z make release-check
+RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1 make release-check
+RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 ```
+
+`make release-check` enforces:
+- cloud and local support-bundle sanitization checks
+- client bundle admin-token exposure checks
+- tracked git status unchanged from start to finish
+- optional live telemetry transport preflight when `RUN_TELEMETRY_TRANSPORT_PREFLIGHT=1`
 
 Pilot readiness checklist: `docs/PILOT_FREEZE.md`.
 
@@ -256,6 +278,12 @@ Pilot readiness checklist: `docs/PILOT_FREEZE.md`.
 ```bash
 make bundle-edge
 make build-desktop
+```
+
+For detailed dependency installer logs during bundling, use:
+
+```bash
+BUNDLE_VERBOSE=1 make bundle-edge
 ```
 
 Bundled local artifact ignored by git:
@@ -298,6 +326,7 @@ Generate a support/debug bundle without raw frames, embeddings, tokens, or signa
 
 ```bash
 EDGE_TOKEN="${EDGE_AUTH_TOKEN}" ADMIN_TOKEN="${ADMIN_API_TOKEN}" ./scripts/support_bundle.sh
+./scripts/check_local_support_bundle_sanitization.sh
 ```
 
 Artifact path:

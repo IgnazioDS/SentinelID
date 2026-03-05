@@ -1,6 +1,7 @@
 import pytest
 
 from sentinelid_edge.services.telemetry.exporter import TelemetryExporter
+from sentinelid_edge.services.telemetry.transport import parse_certificate_pins
 
 
 def _make_exporter(tmp_path, **kwargs):
@@ -11,6 +12,7 @@ def _make_exporter(tmp_path, **kwargs):
         tls_ca_bundle_path=kwargs.get("tls_ca_bundle_path"),
         mtls_cert_path=kwargs.get("mtls_cert_path"),
         mtls_key_path=kwargs.get("mtls_key_path"),
+        tls_cert_sha256_pins=kwargs.get("tls_cert_sha256_pins"),
     )
 
 
@@ -72,3 +74,26 @@ def test_mtls_client_cert_tuple_applied(tmp_path):
     )
     kwargs = exporter._http_client_kwargs()
     assert kwargs["cert"] == (str(cert), str(key))
+
+
+def test_parse_certificate_pins_normalizes_variants():
+    pins = parse_certificate_pins(
+        "sha256:" + ":".join(["AA"] * 32) + ", " + ("22" * 32)
+    )
+    assert pins[0] == ("aa" * 32)
+    assert pins[1] == ("22" * 32)
+
+
+def test_parse_certificate_pins_rejects_invalid_value():
+    with pytest.raises(ValueError, match="Invalid certificate pin"):
+        parse_certificate_pins("zzzz")
+
+
+def test_tls_pins_require_https_url(tmp_path):
+    pin = "11" * 32
+    with pytest.raises(RuntimeError, match="requires CLOUD_INGEST_URL with https://"):
+        _make_exporter(
+            tmp_path,
+            cloud_ingest_url="http://cloud.example.com/v1/ingest/events",
+            tls_cert_sha256_pins=pin,
+        )

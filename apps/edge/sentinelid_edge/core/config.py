@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     TELEMETRY_TLS_CA_BUNDLE_PATH: str = os.getenv("TELEMETRY_TLS_CA_BUNDLE_PATH", "").strip()
     TELEMETRY_MTLS_CERT_PATH: str = os.getenv("TELEMETRY_MTLS_CERT_PATH", "").strip()
     TELEMETRY_MTLS_KEY_PATH: str = os.getenv("TELEMETRY_MTLS_KEY_PATH", "").strip()
+    TELEMETRY_TLS_CERT_SHA256_PINS: str = os.getenv("TELEMETRY_TLS_CERT_SHA256_PINS", "").strip()
     TELEMETRY_SENT_RETENTION_DAYS: int = int(
         os.getenv("TELEMETRY_SENT_RETENTION_DAYS", "30")
     )

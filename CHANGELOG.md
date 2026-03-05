@@ -27,6 +27,7 @@ All notable changes to SentinelID are documented in this file.
 - Added automatic telemetry outbox retention sweep: old `SENT` rows now expire by policy (`TELEMETRY_SENT_RETENTION_DAYS`, default 30 days) on a configurable interval.
 - Encrypted edge audit payloads at rest with backward-compatible legacy row reads and hash-chain verification across both encrypted and plaintext historical entries.
 - Added optional telemetry mTLS support (`TELEMETRY_MTLS_CERT_PATH` + `TELEMETRY_MTLS_KEY_PATH`) and custom CA bundle support (`TELEMETRY_TLS_CA_BUNDLE_PATH`) with strict startup validation.
+- Added optional telemetry certificate pinning (`TELEMETRY_TLS_CERT_SHA256_PINS`) with HTTPS-only validation and runtime peer-certificate fingerprint checks before export.
 
 ## v2.3.5 (2026-03-01)
 

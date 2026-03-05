@@ -47,9 +47,12 @@ Mitigation (implemented):
 - Telemetry never includes biometric data (enforced by Pydantic extra=forbid).
 - Edge startup enforces secure ingest transport in production: non-loopback
   `CLOUD_INGEST_URL` values must use HTTPS.
+- Optional mTLS and SHA-256 certificate pin checks are available for telemetry
+  transport hardening in sensitive deployments.
 
-Residual risk: Certificate pinning is not enforced. mTLS is supported via
-optional client cert/key configuration, but deployments must enable it.
+Residual risk: Pin/material rotation requires coordinated operational updates.
+If operators do not configure mTLS or certificate pins, protection falls back
+to standard CA validation.
 
 ---
 

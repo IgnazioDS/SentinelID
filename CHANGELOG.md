@@ -2,6 +2,14 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.3.7 (2026-03-07)
+
+### Release Metadata and Gate Hardening
+- Advanced release line to `v2.3.7` across release-critical headers, Make help banner, and desktop package metadata.
+- Extended release version consistency enforcement to include `apps/desktop/src-tauri/tauri.conf.json` (`package.version`) so release docs and packaged desktop version cannot drift.
+- Added a release preflight quarantine step for untracked duplicate artifact pairs (`<name>` + `<name> <n>`) under desktop bundled-edge resources to reduce local release-check brittleness without mutating tracked files.
+- Updated release-tag workflow concurrency policy to avoid canceling in-progress runs for the same ref (`cancel-in-progress: false`) and reduce release asset publish interruption risk.
+
 ## v2.3.6 (2026-03-03)
 
 ### Release Cut and Evidence Refresh

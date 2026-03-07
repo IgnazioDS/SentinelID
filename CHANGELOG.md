@@ -9,6 +9,7 @@ All notable changes to SentinelID are documented in this file.
 - Extended release version consistency enforcement to include `apps/desktop/src-tauri/tauri.conf.json` (`package.version`) so release docs and packaged desktop version cannot drift.
 - Added a release preflight quarantine step for untracked duplicate artifact pairs (`<name>` + `<name> <n>`) under desktop bundled-edge resources to reduce local release-check brittleness without mutating tracked files.
 - Updated release-tag workflow concurrency policy to avoid canceling in-progress runs for the same ref (`cancel-in-progress: false`) and reduce release asset publish interruption risk.
+- Added a local Cargo patch override for `wry` (`apps/desktop/src-tauri/vendor/wry`) to stabilize Linux CI desktop checks against `webkit2gtk::SettingsExt` trait resolution failures.
 
 ## v2.3.6 (2026-03-03)
 

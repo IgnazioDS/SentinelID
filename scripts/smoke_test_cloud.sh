@@ -8,8 +8,41 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=scripts/lib/compose_env_file.sh
 source "${SCRIPT_DIR}/lib/compose_env_file.sh"
 prepare_compose_env_file "${REPO_ROOT}"
-PYTHON_BIN="${PYTHON_BIN:-${REPO_ROOT}/apps/edge/.venv/bin/python}"
 DIAG_DIR="${SMOKE_CLOUD_DIAG_DIR:-${REPO_ROOT}/output/ci/logs}"
+
+resolve_edge_python() {
+  if [[ -n "${PYTHON_BIN:-}" && -x "${PYTHON_BIN}" ]]; then
+    printf '%s' "${PYTHON_BIN}"
+    return
+  fi
+
+  if [[ -x "${REPO_ROOT}/apps/edge/.venv/bin/python" ]]; then
+    printf '%s' "${REPO_ROOT}/apps/edge/.venv/bin/python"
+    return
+  fi
+
+  if command -v poetry >/dev/null 2>&1; then
+    local poetry_env
+    poetry_env="$(cd "${REPO_ROOT}/apps/edge" && poetry env info --path 2>/dev/null || true)"
+    if [[ -n "${poetry_env}" && -x "${poetry_env}/bin/python" ]]; then
+      printf '%s' "${poetry_env}/bin/python"
+      return
+    fi
+  fi
+
+  if [[ -x "${REPO_ROOT}/apps/edge/.venv/bin/poetry" ]]; then
+    local poetry_env
+    poetry_env="$("${REPO_ROOT}/apps/edge/.venv/bin/poetry" -C "${REPO_ROOT}/apps/edge" env info --path 2>/dev/null || true)"
+    if [[ -n "${poetry_env}" && -x "${poetry_env}/bin/python" ]]; then
+      printf '%s' "${poetry_env}/bin/python"
+      return
+    fi
+  fi
+
+  printf '%s' "python3"
+}
+
+PYTHON_BIN="$(resolve_edge_python)"
 
 dump_cloud_diagnostics() {
   mkdir -p "${DIAG_DIR}"
@@ -29,10 +62,6 @@ dump_cloud_diagnostics() {
 if [[ -z "${ADMIN_TOKEN}" ]]; then
   echo "ADMIN_TOKEN (or ADMIN_API_TOKEN) is required"
   exit 1
-fi
-
-if [[ ! -x "${PYTHON_BIN}" ]]; then
-  PYTHON_BIN="python3"
 fi
 
 echo "Running cloud smoke test against ${CLOUD_URL}"

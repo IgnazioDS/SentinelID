@@ -1,4 +1,4 @@
-# Telemetry Recovery (v2.5.0)
+# Telemetry Recovery (v2.6.0)
 
 For environment setup and service startup commands, use `RUNBOOK.md`.
 
@@ -66,7 +66,7 @@ SELECT status, COUNT(*) FROM outbox_events GROUP BY status;
 - In demo mode, validate this with:
 
 ```bash
-./scripts/smoke_test_cloud_recovery.sh
+make smoke-cloud-recovery
 ```
 
 ### DLQ growth after transient outage
@@ -122,7 +122,7 @@ rm -rf apps/edge/.sentinelid
 - Validate outage recovery end-to-end with:
 
 ```bash
-./scripts/smoke_test_cloud_recovery.sh
+make smoke-cloud-recovery
 ```
 
 ## Related Docs
@@ -136,7 +136,7 @@ rm -rf apps/edge/.sentinelid
 Collect a sanitized support artifact for incident triage:
 
 ```bash
-EDGE_TOKEN="<edge-token>" ADMIN_TOKEN="<admin-token>" ./scripts/support_bundle.sh
+EDGE_AUTH_TOKEN="<edge-token>" ADMIN_API_TOKEN="<admin-token>" make support-bundle
 ```
 
 Output:

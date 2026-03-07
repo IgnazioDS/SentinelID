@@ -2,6 +2,15 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.6.0 (2026-03-07)
+
+### DX and Docs Consolidation
+- Advanced the SentinelID release line to `v2.6.0` across release-critical docs, Make help text, desktop package/config metadata, pilot evidence targets, and cloud API metadata.
+- Added canonical Make wrappers for developer setup and doc validation (`make install-dev`, `make check-version-consistency`, `make check-docs-consistency`, `make check-fresh-clone`) so local and CI guidance can point to one command set.
+- Rewrote the runbook beginner path around `make install-dev`, `make demo-up`, `make demo-verify`, `make demo`, and `make demo-down`, and updated `.env.example` with dev-safe admin auth defaults so fresh clones no longer require manual env debugging.
+- Added `scripts/release/check_docs_consistency.sh` to fail `make release-check` when key docs drift back to raw script invocations, obsolete env var names, or legacy phase-doc clutter.
+- Created `docs/archive/` policy guidance and added coverage that root `docs/` stays free of `phase*.md` files.
+
 ## v2.5.0 (2026-03-07)
 
 ### Operational Robustness and Observability

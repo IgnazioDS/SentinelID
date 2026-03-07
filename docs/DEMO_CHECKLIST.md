@@ -1,17 +1,17 @@
-# SentinelID Demo Checklist (v2.5.0)
+# SentinelID Demo Checklist (v2.6.0)
 
 Target runtime: under 10 minutes for a full manual pass.
 
 Non-interactive verification alternative:
 
 - `make demo-verify` runs smoke/recovery/support-bundle/admin checks (including local support bundle artifact validation) without launching the desktop UI.
-- Optional runtime-invariant pass when local edge and cloud are running: `./scripts/check_invariants.py --edge-url http://127.0.0.1:8787 --edge-token <edge-token> --cloud-url http://127.0.0.1:8000 --admin-token <admin-token>`
+- Optional runtime-invariant pass when local edge and cloud are running: `EDGE_URL=http://127.0.0.1:8787 EDGE_TOKEN=<edge-token> CLOUD_URL=http://127.0.0.1:8000 ADMIN_API_TOKEN=<admin-token> make check-invariants`
 - Optional scripted desktop close semantics pass:
   - `DEMO_VERIFY_DESKTOP=1 DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS=20 make demo-verify`
 
 ## Preconditions
 
-- From repo root, `.env` exists, `ADMIN_API_TOKEN` is set, and any bcrypt hash in `ADMIN_UI_PASSWORD_HASH` is single-quoted (or provided via `ADMIN_UI_PASSWORD_HASH_B64`).
+- From repo root, `.env` exists. For the standard beginner path, `cp .env.example .env` is sufficient because it already contains the dev-safe `ADMIN_API_TOKEN` and admin login defaults.
 - Docker Desktop (or daemon) is running.
 - Camera device is available.
 

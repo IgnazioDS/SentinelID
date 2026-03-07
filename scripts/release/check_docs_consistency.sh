@@ -14,11 +14,45 @@ DOCS=(
 
 FAILED=0
 
+have_rg() {
+  command -v rg >/dev/null 2>&1
+}
+
+search_fixed() {
+  local pattern="$1"
+  shift
+  if have_rg; then
+    rg -n --fixed-strings "${pattern}" "$@" || true
+  else
+    grep -RFn -- "${pattern}" "$@" || true
+  fi
+}
+
+search_regex() {
+  local pattern="$1"
+  shift
+  if have_rg; then
+    rg -n "${pattern}" "$@" || true
+  else
+    grep -REn -- "${pattern}" "$@" || true
+  fi
+}
+
+contains_fixed() {
+  local pattern="$1"
+  shift
+  if have_rg; then
+    rg -q --fixed-strings "${pattern}" "$@"
+  else
+    grep -RFq -- "${pattern}" "$@"
+  fi
+}
+
 check_disallowed_fixed() {
   local pattern="$1"
   local guidance="$2"
   local matches
-  matches="$(rg -n --fixed-strings "${pattern}" "${DOCS[@]}" || true)"
+  matches="$(search_fixed "${pattern}" "${DOCS[@]}")"
   if [[ -n "${matches}" ]]; then
     echo "Disallowed docs reference found: ${pattern}"
     echo "${matches}"
@@ -31,7 +65,7 @@ check_disallowed_regex() {
   local pattern="$1"
   local guidance="$2"
   local matches
-  matches="$(rg -n "${pattern}" "${DOCS[@]}" || true)"
+  matches="$(search_regex "${pattern}" "${DOCS[@]}")"
   if [[ -n "${matches}" ]]; then
     echo "Disallowed docs reference found: ${pattern}"
     echo "${matches}"
@@ -43,7 +77,7 @@ check_disallowed_regex() {
 require_fixed() {
   local file="$1"
   local pattern="$2"
-  if ! rg -q --fixed-strings "${pattern}" "${file}"; then
+  if ! contains_fixed "${pattern}" "${file}"; then
     echo "Missing required docs guidance in ${file}: ${pattern}"
     FAILED=1
   fi

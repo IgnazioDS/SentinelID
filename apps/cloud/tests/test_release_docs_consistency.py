@@ -27,6 +27,21 @@ def test_docs_consistency_script_passes() -> None:
     assert "Docs consistency check passed" in result.stdout
 
 
+def test_docs_consistency_script_passes_without_rg() -> None:
+    env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
+    result = subprocess.run(
+        [str(DOCS_CONSISTENCY_SCRIPT)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "Docs consistency check passed" in result.stdout
+
+
 def test_fresh_clone_bootstrap_dry_run_uses_canonical_make_targets() -> None:
     result = subprocess.run(
         [str(FRESH_CLONE_SCRIPT), "--dry-run"],

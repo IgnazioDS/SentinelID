@@ -1,4 +1,4 @@
-# Release Guide (v2.3.6)
+# Release Guide (v2.3.7)
 
 ## Scope
 
@@ -15,7 +15,9 @@ make release-check
 `make release-check` is the source-of-truth gate and includes:
 
 - version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/DEMO_CHECKLIST.md`, Makefile help banner)
+- desktop package version consistency check (`apps/desktop/src-tauri/tauri.conf.json`)
 - optional strict tag-to-HEAD alignment (`RELEASE_EXPECT_TAG=vX.Y.Z`)
+- preflight quarantine for untracked duplicate desktop-edge artifacts
 - duplicate artifact pair guard (`scripts/release/check_no_duplicate_pairs.sh`)
 - edge/cloud test suites
 - desktop build checks

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -57,3 +58,64 @@ def test_fresh_clone_bootstrap_dry_run_uses_canonical_make_targets() -> None:
     assert "demo-up" in result.stdout
     assert "demo-verify" in result.stdout
     assert "demo-down" in result.stdout
+
+
+def test_docs_consistency_requires_full_command_tokens() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        (root / "docs").mkdir()
+        (root / "RUNBOOK.md").write_text(
+            "\n".join(
+                [
+                    "make install-dev",
+                    "make demo-up",
+                    "make demo-verify",
+                    "make demo-up",
+                    "make demo-down",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs" / "RELEASE.md").write_text(
+            "\n".join(
+                [
+                    "make release-check",
+                    "make check-version-consistency",
+                    "make check-docs-consistency",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs" / "PACKAGING.md").write_text(
+            "\n".join(
+                [
+                    "make bundle-edge",
+                    "make build-desktop-web",
+                    "make smoke-bundling",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs" / "RECOVERY.md").write_text(
+            "\n".join(["make smoke-cloud-recovery", "make support-bundle"]),
+            encoding="utf-8",
+        )
+        (root / "docs" / "DEMO_CHECKLIST.md").write_text("make demo-up\n", encoding="utf-8")
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "DOCS_CONSISTENCY_ROOT_DIR": str(root),
+            "DOCS_CONSISTENCY_DOCS": "RUNBOOK.md docs/RELEASE.md docs/PACKAGING.md docs/RECOVERY.md docs/DEMO_CHECKLIST.md",
+        }
+        result = subprocess.run(
+            [str(DOCS_CONSISTENCY_SCRIPT)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert "Missing required docs guidance in RUNBOOK.md: make demo" in result.stdout
+        assert "Missing required docs guidance in docs/PACKAGING.md: make build-desktop" in result.stdout

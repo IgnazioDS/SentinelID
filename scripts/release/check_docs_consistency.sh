@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT_DIR="${DOCS_CONSISTENCY_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "${ROOT_DIR}"
 
-DOCS=(
-  "RUNBOOK.md"
-  "docs/RELEASE.md"
-  "docs/PACKAGING.md"
-  "docs/RECOVERY.md"
-  "docs/DEMO_CHECKLIST.md"
-)
+if [[ -n "${DOCS_CONSISTENCY_DOCS:-}" ]]; then
+  read -r -a DOCS <<<"${DOCS_CONSISTENCY_DOCS}"
+else
+  DOCS=(
+    "RUNBOOK.md"
+    "docs/RELEASE.md"
+    "docs/PACKAGING.md"
+    "docs/RECOVERY.md"
+    "docs/DEMO_CHECKLIST.md"
+  )
+fi
 
 FAILED=0
 
@@ -48,6 +52,20 @@ contains_fixed() {
   fi
 }
 
+contains_regex() {
+  local pattern="$1"
+  shift
+  if have_rg; then
+    rg -q "${pattern}" "$@"
+  else
+    grep -REq -- "${pattern}" "$@"
+  fi
+}
+
+escape_regex() {
+  printf '%s' "$1" | sed -e 's/[][(){}.^$*+?|\\/]/\\&/g'
+}
+
 check_disallowed_fixed() {
   local pattern="$1"
   local guidance="$2"
@@ -77,7 +95,11 @@ check_disallowed_regex() {
 require_fixed() {
   local file="$1"
   local pattern="$2"
-  if ! contains_fixed "${pattern}" "${file}"; then
+  local escaped_pattern
+  local regex
+  escaped_pattern="$(escape_regex "${pattern}")"
+  regex="(^|[^[:alnum:]_-])${escaped_pattern}([^[:alnum:]_-]|$)"
+  if ! contains_regex "${regex}" "${file}"; then
     echo "Missing required docs guidance in ${file}: ${pattern}"
     FAILED=1
   fi

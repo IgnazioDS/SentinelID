@@ -1,4 +1,4 @@
-# Release Guide (v2.4.0)
+# Release Guide (v2.5.0)
 
 ## Scope
 
@@ -16,12 +16,14 @@ make release-check
 
 - version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/PACKAGING.md`, `docs/RECOVERY.md`, `docs/DEMO_CHECKLIST.md`, `docs/PILOT_FREEZE.md`, Makefile help banner, cloud API metadata)
 - `.env` secret interpolation guard for unescaped `$` in secret values
-- desktop package version consistency check (`apps/desktop/src-tauri/tauri.conf.json`)
+- desktop package/config version consistency checks (`apps/desktop/package.json`, `apps/desktop/package-lock.json`, `apps/desktop/tauri.conf.json`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/tauri.dev.conf.json`)
 - optional strict tag-to-HEAD alignment (`RELEASE_EXPECT_TAG=vX.Y.Z`)
 - preflight quarantine for untracked duplicate desktop-edge artifacts
 - duplicate artifact pair guard (`scripts/release/check_no_duplicate_pairs.sh`)
 - edge/cloud test suites
 - desktop build checks
+- runtime invariant smoke report (`output/ci/invariant_report.json`)
+- desktop warning-noise budget summary (`output/ci/desktop_warning_budget.json`)
 - desktop/admin token exposure checks for built client bundles
 - docker build checks
 - outage recovery smoke
@@ -32,6 +34,11 @@ make release-check
 - tracked git status unchanged guard (no tracked-file mutations during gate)
 - reliability SLO report export (`output/ci/reliability_slo.json`)
 - release evidence pack generation (`output/release/evidence_pack_<timestamp>.tar.gz`)
+
+Interpret the new machine-readable artifacts as follows:
+
+- `output/ci/invariant_report.json`: runtime contract probe for loopback binding, edge bearer enforcement, cloud admin token enforcement, and support-bundle endpoint behavior. Any failed check is a release blocker.
+- `output/ci/desktop_warning_budget.json`: desktop Rust warning summary generated from the captured cargo log. It fails when `warning_count > DESKTOP_WARNING_BUDGET` and lists the highest-noise sources first.
 
 ## CI Parity
 
@@ -72,7 +79,11 @@ When cutting a new release, review/update:
 - `docs/PILOT_FREEZE.md` target version
 - `Makefile` help banner version
 - `apps/cloud/main.py` (`FastAPI(..., version=...)`)
+- `apps/desktop/package.json` (`version`)
+- `apps/desktop/package-lock.json` (`version`)
+- `apps/desktop/tauri.conf.json` (`package.version`)
 - `apps/desktop/src-tauri/tauri.conf.json` (`package.version`)
+- `apps/desktop/src-tauri/tauri.dev.conf.json` (`package.version`)
 
 Use `./scripts/release/check_version_consistency.sh` before tagging to enforce alignment.
 
@@ -101,7 +112,7 @@ RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 ```bash
 git switch main
 git pull
-git switch -c branch/feat/release-vX.Y.Z
+git switch -c branch/release-vX.Y.Z
 ```
 
 ### 2) Run preflight and push branch
@@ -109,7 +120,7 @@ git switch -c branch/feat/release-vX.Y.Z
 ```bash
 make release-check
 RELEASE_EXPECT_TAG=vX.Y.Z make release-check
-git push -u origin branch/feat/release-vX.Y.Z
+git push -u origin branch/release-vX.Y.Z
 ```
 
 ### 3) Optional release-candidate tag
@@ -124,7 +135,7 @@ git push origin vX.Y.Z-rc.1
 ```bash
 git switch main
 git pull
-git merge --no-ff branch/feat/release-vX.Y.Z
+git merge --no-ff branch/release-vX.Y.Z
 git push origin main
 ```
 
@@ -141,6 +152,8 @@ git show --no-patch --decorate vX.Y.Z
 Before publishing a stable release, confirm these artifacts exist and are attached/stored:
 
 - `output/ci/reliability_slo.json`
+- `output/ci/invariant_report.json`
+- `output/ci/desktop_warning_budget.json`
 - `scripts/perf/out/*.json` (edge perf evidence)
 - `scripts/support/out/support_bundle_*.tar.gz`
 - `output/release/evidence_pack_<timestamp>.tar.gz`
@@ -166,7 +179,7 @@ Build known-good runbook lock artifact manually:
 make runbook-lock
 ```
 
-## Pilot Readiness Evidence (v2.4.0 target)
+## Pilot Readiness Evidence (v2.5.0 target)
 
 Build pilot evidence index (aggregates latest release evidence, docs snapshot, and checklist):
 

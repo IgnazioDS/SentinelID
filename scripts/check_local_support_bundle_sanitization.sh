@@ -29,6 +29,10 @@ if not path.exists() or path.stat().st_size == 0:
 
 forbidden_fragments = ("token", "signature", "embedding", "frame", "image")
 allowed_redacted = {"[REDACTED]", "", None}
+allowed_sensitive_keys = {
+    "frame_processing",
+    "enroll_target_frames",
+}
 violations: list[str] = []
 
 forbidden_literals = []
@@ -54,6 +58,9 @@ def inspect(value, ctx: str) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
             lower = str(key).lower()
+            if lower in allowed_sensitive_keys:
+                inspect(child, f"{ctx}.{key}")
+                continue
             if any(fragment in lower for fragment in forbidden_fragments):
                 if isinstance(child, (dict, list)) and child not in ({}, []):
                     violations.append(f"{ctx}.{key} non-empty structured sensitive field")

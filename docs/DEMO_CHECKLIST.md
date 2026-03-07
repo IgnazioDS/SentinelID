@@ -1,10 +1,11 @@
-# SentinelID Demo Checklist (v2.4.0)
+# SentinelID Demo Checklist (v2.5.0)
 
 Target runtime: under 10 minutes for a full manual pass.
 
 Non-interactive verification alternative:
 
 - `make demo-verify` runs smoke/recovery/support-bundle/admin checks (including local support bundle artifact validation) without launching the desktop UI.
+- Optional runtime-invariant pass when local edge and cloud are running: `./scripts/check_invariants.py --edge-url http://127.0.0.1:8787 --edge-token <edge-token> --cloud-url http://127.0.0.1:8000 --admin-token <admin-token>`
 - Optional scripted desktop close semantics pass:
   - `DEMO_VERIFY_DESKTOP=1 DEMO_VERIFY_DESKTOP_AUTO_CLOSE_SECONDS=20 make demo-verify`
 

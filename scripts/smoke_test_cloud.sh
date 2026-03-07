@@ -93,7 +93,6 @@ def request(
             request_id = resp.headers.get("X-Request-Id") or resp.headers.get("X-Request-ID")
             assert request_id, f"Missing X-Request-Id header for {method} {path}"
             body = resp.read().decode("utf-8")
-            print(f"request_id[{method} {path}]={request_id}")
             return (json.loads(body) if body else {}), request_id
     except urllib.error.HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="replace")
@@ -150,14 +149,14 @@ with tempfile.TemporaryDirectory(prefix="sentinelid_smoke_cloud_") as keychain_d
         ],
     }
 
-    ingest, _ = request("POST", "/v1/ingest/events", ingest_payload)
+    ingest, ingest_request_id = request("POST", "/v1/ingest/events", ingest_payload)
     assert ingest.get("status") == "accepted", f"Ingest failed: {ingest}"
     events_ingested = int(ingest.get("events_ingested", 0))
     assert events_ingested > 0, f"Ingest accepted but persisted zero events: {ingest}"
 
-stats, _ = request("GET", "/v1/admin/stats", headers={"X-Admin-Token": admin_token})
-events, _ = request("GET", "/v1/admin/events?limit=1", headers={"X-Admin-Token": admin_token})
-devices, _ = request("GET", "/v1/admin/devices?limit=1", headers={"X-Admin-Token": admin_token})
+stats, stats_request_id = request("GET", "/v1/admin/stats", headers={"X-Admin-Token": admin_token})
+events, events_request_id = request("GET", "/v1/admin/events?limit=1", headers={"X-Admin-Token": admin_token})
+devices, devices_request_id = request("GET", "/v1/admin/devices?limit=1", headers={"X-Admin-Token": admin_token})
 
 assert "total_events" in stats, f"Stats missing fields: {stats}"
 assert "latency_p50_ms" in stats, f"Latency metrics missing: {stats}"
@@ -165,5 +164,9 @@ assert "risk_distribution" in stats, f"Risk distribution missing: {stats}"
 assert "events" in events and "has_next" in events, f"Events pagination missing: {events}"
 assert "devices" in devices and "has_next" in devices, f"Devices pagination missing: {devices}"
 
+print(
+    "Cloud smoke request_ids: "
+    f"ingest={ingest_request_id} stats={stats_request_id} events={events_request_id} devices={devices_request_id}"
+)
 print("Cloud smoke test passed")
 PY

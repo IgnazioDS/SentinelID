@@ -2,6 +2,15 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.5.0 (2026-03-07)
+
+### Operational Robustness and Observability
+- Advanced the SentinelID release line to `v2.5.0` across release-critical docs, Make help text, desktop package/config metadata, pilot evidence targets, and cloud API metadata.
+- Added a dedicated runtime invariant smoke report (`scripts/check_invariants.py`) covering loopback binding, bearer enforcement, admin token enforcement, and support-bundle endpoint behavior, with release-check and evidence-pack integration.
+- Added a desktop warning-noise budget parser (`scripts/ci/check_desktop_warning_budget.py`) driven by `DESKTOP_WARNING_BUDGET`, with structured JSON output for release diagnostics and evidence capture.
+- Reduced release-check noise by capturing desktop cargo output into diagnostics, surfacing only concise warning-budget summaries and actionable failure tails during triage.
+- Updated operator documentation to explain the invariant report, desktop warning budget output, and how to interpret the new evidence artifacts during release failure analysis.
+
 ## v2.4.0 (2026-03-07)
 
 ### Release Integrity and Runtime Hardening

@@ -1,4 +1,4 @@
-# Telemetry Recovery (v2.4.0)
+# Telemetry Recovery (v2.5.0)
 
 For environment setup and service startup commands, use `RUNBOOK.md`.
 
@@ -25,6 +25,8 @@ curl -H "Authorization: Bearer <edge-token>" http://127.0.0.1:8787/api/v1/diagno
 ```
 
 Inspect `pending_count`, `dlq_count`, `sent_count`, and recent error metadata.
+
+When `make release-check` fails, review `output/ci/invariant_report.json` first. It highlights auth and support-bundle regressions separately from transport/outbox failures, which shortens triage before diving into compose or edge logs.
 
 Primary reliability fields in diagnostics:
 

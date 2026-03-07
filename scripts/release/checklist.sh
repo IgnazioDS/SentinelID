@@ -22,8 +22,17 @@ EDGE_LOG=""
 SERVICES_STARTED=0
 ORPHAN_BASELINE_PIDS="$(pgrep -f "run_edge.sh|sentinelid_edge.main:app" | tr '\n' ',' | sed 's/,$//' || true)"
 DIAG_DIR="${RELEASE_CHECK_DIAG_DIR:-output/ci/logs}"
+CI_OUTPUT_DIR="output/ci"
+RELEASE_OUTPUT_DIR="output/release"
+INVARIANT_REPORT_FILE="${CI_OUTPUT_DIR}/invariant_report.json"
+INVARIANT_REPORT_RELEASE_COPY="${RELEASE_OUTPUT_DIR}/invariant_report_latest.json"
+DESKTOP_WARNING_SUMMARY_FILE="${CI_OUTPUT_DIR}/desktop_warning_budget.json"
+DESKTOP_WARNING_RELEASE_COPY="${RELEASE_OUTPUT_DIR}/desktop_warning_budget_latest.json"
+DESKTOP_CARGO_LOG="${DIAG_DIR}/desktop_cargo_check.log"
 BASELINE_TRACKED_STATUS="$(git status --porcelain --untracked-files=no || true)"
 SUPPORT_BUNDLE_PATH_FILE="$(mktemp -t sentinelid_release_support_bundle_path.XXXXXX)"
+
+mkdir -p "${CI_OUTPUT_DIR}" "${RELEASE_OUTPUT_DIR}" "${DIAG_DIR}"
 
 summary() {
   echo ""
@@ -44,10 +53,7 @@ summary() {
 
 cleanup() {
   rm -f "${SUPPORT_BUNDLE_PATH_FILE}" >/dev/null 2>&1 || true
-  if [[ -n "${EDGE_PID}" ]] && kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
-    kill "${EDGE_PID}" >/dev/null 2>&1 || true
-    wait "${EDGE_PID}" >/dev/null 2>&1 || true
-  fi
+  stop_local_edge
   pkill -f "sentinelid_edge.main:app --host 127.0.0.1 --port 8787" >/dev/null 2>&1 || true
   if [[ "${SERVICES_STARTED}" == "1" && "${KEEP_SERVICES:-0}" != "1" ]]; then
     compose_cmd down >/dev/null 2>&1 || true
@@ -101,6 +107,90 @@ run_step() {
     FAILED_STEP="${name}"
     return 1
   fi
+}
+
+publish_release_copy() {
+  local source_path="$1"
+  local dest_path="$2"
+  if [[ -f "${source_path}" ]]; then
+    cp "${source_path}" "${dest_path}"
+  fi
+}
+
+start_local_edge() {
+  local label="$1"
+  EDGE_LOG="${ROOT_DIR}/${DIAG_DIR}/${label}_edge.log"
+  mkdir -p "$(dirname "${EDGE_LOG}")"
+  : > "${EDGE_LOG}"
+
+  (
+    cd apps/edge
+    if command -v poetry >/dev/null 2>&1; then
+      EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
+    elif [[ -x .venv/bin/poetry ]]; then
+      EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
+    else
+      echo "Poetry not found for edge runtime"
+      exit 1
+    fi
+  ) &
+  EDGE_PID=$!
+
+  for _ in $(seq 1 80); do
+    if curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ -n "${EDGE_PID}" ]] && ! kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.25
+  done
+
+  echo "Edge failed to start for ${label}; tailing logs"
+  tail -n 120 "${EDGE_LOG}" || true
+  return 1
+}
+
+stop_local_edge() {
+  if [[ -n "${EDGE_PID}" ]] && kill -0 "${EDGE_PID}" >/dev/null 2>&1; then
+    kill "${EDGE_PID}" >/dev/null 2>&1 || true
+    wait "${EDGE_PID}" >/dev/null 2>&1 || true
+  fi
+  pkill -f "sentinelid_edge.main:app --host 127.0.0.1 --port 8787" >/dev/null 2>&1 || true
+  sleep 1
+  EDGE_PID=""
+}
+
+run_desktop_cargo_check() {
+  if make check-desktop-rust >"${DESKTOP_CARGO_LOG}" 2>&1; then
+    if ./scripts/ci/check_desktop_warning_budget.py "${DESKTOP_CARGO_LOG}" --out "${DESKTOP_WARNING_SUMMARY_FILE}"; then
+      publish_release_copy "${DESKTOP_WARNING_SUMMARY_FILE}" "${DESKTOP_WARNING_RELEASE_COPY}"
+      return 0
+    fi
+    publish_release_copy "${DESKTOP_WARNING_SUMMARY_FILE}" "${DESKTOP_WARNING_RELEASE_COPY}"
+    return 1
+  fi
+
+  ./scripts/ci/check_desktop_warning_budget.py "${DESKTOP_CARGO_LOG}" --out "${DESKTOP_WARNING_SUMMARY_FILE}" >/dev/null 2>&1 || true
+  publish_release_copy "${DESKTOP_WARNING_SUMMARY_FILE}" "${DESKTOP_WARNING_RELEASE_COPY}"
+  echo "Desktop cargo check failed. See ${DESKTOP_CARGO_LOG}"
+  tail -n 80 "${DESKTOP_CARGO_LOG}" || true
+  return 1
+}
+
+run_invariant_check() {
+  if ./scripts/check_invariants.py \
+    --edge-url "${EDGE_URL}" \
+    --edge-token "${EDGE_TOKEN}" \
+    --cloud-url "${CLOUD_URL}" \
+    --admin-token "${ADMIN_TOKEN}" \
+    --out "${INVARIANT_REPORT_FILE}"; then
+    publish_release_copy "${INVARIANT_REPORT_FILE}" "${INVARIANT_REPORT_RELEASE_COPY}"
+    return 0
+  fi
+
+  publish_release_copy "${INVARIANT_REPORT_FILE}" "${INVARIANT_REPORT_RELEASE_COPY}"
+  return 1
 }
 
 assert_tracked_status_unchanged() {
@@ -160,11 +250,11 @@ run_step "preflight duplicate quarantine" ./scripts/release/quarantine_duplicate
 run_step "duplicate artifact guard" ./scripts/release/check_no_duplicate_pairs.sh
 run_step "edge tests" make test-edge
 run_step "cloud tests" make test-cloud
-run_step "warning budget" ./scripts/ci/check_warning_budget.sh
+run_step "source warning budget" ./scripts/ci/check_warning_budget.sh
 run_step "tauri config validation" make check-tauri-config
 run_step "desktop web build" make build-desktop-web
 run_step "security: no admin token in desktop bundle" ./scripts/release/check_no_public_admin_token_desktop_bundle.sh
-run_step "desktop cargo check" make check-desktop-rust
+run_step "desktop cargo check + warning budget" run_desktop_cargo_check
 run_step "security: no admin token in client bundle" ./scripts/release/check_no_public_admin_token_bundle.sh
 run_step "compose admin env wiring" bash -c '
   if [[ -n "${SENTINELID_COMPOSE_ENV_FILE:-}" ]]; then
@@ -205,32 +295,9 @@ run_step "security: no public admin token config" bash -c '
 '
 run_step "docker build (cloud/admin)" make docker-build
 
-EDGE_LOG="$(mktemp -t sentinelid_release_edge.XXXXXX.log)"
 echo "[run] start edge for smoke/perf"
-(
-  cd apps/edge
-  if command -v poetry >/dev/null 2>&1; then
-    EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
-  elif [[ -x .venv/bin/poetry ]]; then
-    EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
-  else
-    echo "Poetry not found for edge runtime"
-    exit 1
-  fi
-) &
-EDGE_PID=$!
-
-for _ in $(seq 1 80); do
-  if curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.25
-done
-
-if ! curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
+if ! start_local_edge "perf"; then
   FAILED_STEP="start edge for smoke/perf"
-  echo "Edge failed to start; tailing logs"
-  tail -n 120 "${EDGE_LOG}" || true
   exit 1
 fi
 PASSED_STEPS+=("start edge for smoke/perf")
@@ -239,12 +306,18 @@ run_step "edge smoke" env EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ./sc
 run_step "edge perf" env EDGE_URL="${EDGE_URL}" EDGE_TOKEN="${EDGE_TOKEN}" make perf-edge
 
 cleanup
-EDGE_PID=""
 
 echo "[section] demo readiness"
 run_step "demo readiness: demo-up" make demo-up
 SERVICES_STARTED=1
+echo "[run] start edge for demo readiness"
+if ! start_local_edge "demo"; then
+  FAILED_STEP="start edge for demo readiness"
+  exit 1
+fi
+PASSED_STEPS+=("start edge for demo readiness")
 
+run_step "demo readiness: invariant report" run_invariant_check
 run_step "cloud smoke" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud.sh
 run_step "demo readiness: reliability SLO report" env CLOUD_URL="${CLOUD_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" OUT="output/ci/reliability_slo.json" ./scripts/ci/export_reliability_slo.py
 run_step "demo readiness: cloud recovery smoke" env CLOUD_URL="${CLOUD_URL}" EDGE_TOKEN="${EDGE_TOKEN}" ADMIN_TOKEN="${ADMIN_TOKEN}" ./scripts/smoke_test_cloud_recovery.sh
@@ -254,6 +327,7 @@ run_step "demo readiness: local support bundle sanitized" run_local_support_bund
 run_step "admin smoke" env API_URL="${CLOUD_URL}" ADMIN_UI_URL="${ADMIN_UI_URL}" ADMIN_TOKEN="${ADMIN_TOKEN}" ADMIN_UI_USERNAME="${ADMIN_UI_USERNAME}" ADMIN_UI_PASSWORD="${ADMIN_UI_PASSWORD}" ./scripts/smoke_test_admin.sh
 run_step "desktop smoke" ./scripts/smoke_test_desktop.sh
 run_step "demo readiness: bundling smoke" ./scripts/smoke_test_bundling.sh
+run_step "demo readiness: stop local edge" stop_local_edge
 run_step "demo readiness: no orphan edge process" env ORPHAN_BASELINE_PIDS="${ORPHAN_BASELINE_PIDS}" ./scripts/check_no_orphan_edge.sh
 run_step "demo readiness: tracked git status unchanged" assert_tracked_status_unchanged
 run_step "release evidence pack" ./scripts/release/build_evidence_pack.sh

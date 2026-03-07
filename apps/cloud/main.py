@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SentinelID Cloud",
-    version="2.4.0",
+    version="2.5.0",
     lifespan=lifespan,
 )
 

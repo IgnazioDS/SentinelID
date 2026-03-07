@@ -8,6 +8,7 @@
 	demo-checklist \
 	check-no-orphans \
 	check-no-duplicates \
+	check-invariants \
 	check-release-tag \
 	gen-types \
 	bundle-edge \
@@ -16,6 +17,7 @@
 	edge-shell \
 	dev-edge \
 	check-tauri-config \
+	check-desktop-warning-budget \
 	dev-desktop \
 	check-desktop-ts \
 	build-desktop-web \
@@ -41,7 +43,7 @@
 	clean
 
 help:
-	@echo "SentinelID v2.4.0 Commands"
+	@echo "SentinelID v2.5.0 Commands"
 	@echo ""
 	@echo "Demo"
 	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"
@@ -53,6 +55,7 @@ help:
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
 	@echo "  make check-no-duplicates Verify duplicate source artifact pairs are absent"
+	@echo "  make check-invariants    Validate loopback/auth/support-bundle runtime invariants"
 	@echo "  make check-release-tag   Verify RELEASE_EXPECT_TAG points to HEAD"
 	@echo ""
 	@echo "Build"
@@ -62,6 +65,7 @@ help:
 	@echo "  make edge-shell          Open a shell inside edge Poetry environment"
 	@echo "  make dev-edge            Run edge API locally (foreground)"
 	@echo "  make check-tauri-config  Validate required Tauri config keys"
+	@echo "  make check-desktop-warning-budget Run desktop cargo check and enforce warning budget"
 	@echo "  make check-desktop-ts    Run desktop TypeScript checks"
 	@echo "  make build-desktop-web   Build desktop frontend"
 	@echo "  make check-desktop-rust  Cargo check for Tauri runtime"
@@ -148,6 +152,11 @@ dev-edge:
 check-tauri-config:
 	@./scripts/dev/check_tauri_config.py
 
+check-desktop-warning-budget:
+	@mkdir -p output/ci/logs
+	@make check-desktop-rust > output/ci/logs/desktop_cargo_check.log 2>&1
+	@./scripts/ci/check_desktop_warning_budget.py output/ci/logs/desktop_cargo_check.log
+
 dev-desktop:
 	@make check-tauri-config
 	@cd apps/desktop && npm run tauri:dev
@@ -194,6 +203,13 @@ smoke-desktop:
 
 smoke-bundling:
 	@./scripts/smoke_test_bundling.sh
+
+check-invariants:
+	@./scripts/check_invariants.py \
+		--edge-url "$${EDGE_URL:-http://127.0.0.1:8787}" \
+		--edge-token "$${EDGE_TOKEN:-$${EDGE_AUTH_TOKEN:-devtoken}}" \
+		--cloud-url "$${CLOUD_URL:-http://127.0.0.1:8000}" \
+		--admin-token "$${ADMIN_TOKEN:-$${ADMIN_API_TOKEN:-dev-admin-token}}"
 
 perf-edge:
 	@python3 scripts/perf/bench_edge.py --base-url http://127.0.0.1:8787 --token devtoken --attempts 8 --frames 12

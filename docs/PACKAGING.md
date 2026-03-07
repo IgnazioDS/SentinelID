@@ -1,4 +1,4 @@
-# Desktop Packaging (v2.4.0)
+# Desktop Packaging (v2.5.0)
 
 For environment setup and baseline run commands, use `RUNBOOK.md`.
 
@@ -39,6 +39,14 @@ Validation:
 ./scripts/smoke_test_bundling.sh
 ./scripts/smoke_test_desktop.sh
 ```
+
+Warning budget triage:
+
+```bash
+DESKTOP_WARNING_BUDGET=250 ./scripts/ci/check_desktop_warning_budget.py output/ci/logs/desktop_cargo_check.log
+```
+
+The parser writes `output/ci/desktop_warning_budget.json` during `make release-check` and surfaces the top warning sources when the budget is exceeded.
 
 Demo runtime helpers:
 

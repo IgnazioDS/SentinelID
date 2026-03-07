@@ -10,7 +10,7 @@ from pathlib import Path
 
 ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 SOURCE_RE = re.compile(r"^-->\s+(?P<source>.+?):\d+(?::\d+)?$")
-SUMMARY_RE = re.compile(r"generated \d+ warnings")
+SUMMARY_RE = re.compile(r"generated \d+ warning(?:s)?$")
 
 
 def strip_ansi(text: str) -> str:

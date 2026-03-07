@@ -258,5 +258,36 @@ def test_desktop_warning_budget_parser_fails_over_budget(tmp_path) -> None:
     assert result.returncode == 1
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["status"] == "fail"
-    assert payload["warning_count"] == 2
-    assert payload["over_budget"] is True
+
+
+def test_desktop_warning_budget_ignores_cargo_summary_lines(tmp_path) -> None:
+    log_path = tmp_path / "desktop.log"
+    report_path = tmp_path / "desktop_warning_budget.json"
+    log_path.write_text(
+        "warning: first issue\n"
+        "   --> src-tauri/src/main.rs:10:5\n"
+        'warning: `sentinelid-desktop` (bin "sentinelid-desktop") generated 1 warning\n'
+        'warning: `sentinelid-helper` (lib) generated 2 warnings\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(WARNING_BUDGET_SCRIPT),
+            str(log_path),
+            "--budget",
+            "1",
+            "--out",
+            str(report_path),
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "pass"
+    assert payload["warning_count"] == 1

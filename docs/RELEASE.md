@@ -1,4 +1,4 @@
-# Release Guide (v2.3.7)
+# Release Guide (v2.4.0)
 
 ## Scope
 
@@ -14,7 +14,8 @@ make release-check
 
 `make release-check` is the source-of-truth gate and includes:
 
-- version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/DEMO_CHECKLIST.md`, Makefile help banner)
+- version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/PACKAGING.md`, `docs/RECOVERY.md`, `docs/DEMO_CHECKLIST.md`, `docs/PILOT_FREEZE.md`, Makefile help banner, cloud API metadata)
+- `.env` secret interpolation guard for unescaped `$` in secret values
 - desktop package version consistency check (`apps/desktop/src-tauri/tauri.conf.json`)
 - optional strict tag-to-HEAD alignment (`RELEASE_EXPECT_TAG=vX.Y.Z`)
 - preflight quarantine for untracked duplicate desktop-edge artifacts
@@ -65,8 +66,12 @@ When cutting a new release, review/update:
 - `CHANGELOG.md` (new version section)
 - `RUNBOOK.md` header version
 - `docs/RELEASE.md` header version
+- `docs/PACKAGING.md` header version
+- `docs/RECOVERY.md` header version
 - `docs/DEMO_CHECKLIST.md` header version
+- `docs/PILOT_FREEZE.md` target version
 - `Makefile` help banner version
+- `apps/cloud/main.py` (`FastAPI(..., version=...)`)
 - `apps/desktop/src-tauri/tauri.conf.json` (`package.version`)
 
 Use `./scripts/release/check_version_consistency.sh` before tagging to enforce alignment.
@@ -161,7 +166,7 @@ Build known-good runbook lock artifact manually:
 make runbook-lock
 ```
 
-## Pilot Readiness Evidence (v2.3.1 target)
+## Pilot Readiness Evidence (v2.4.0 target)
 
 Build pilot evidence index (aggregates latest release evidence, docs snapshot, and checklist):
 

@@ -5,6 +5,8 @@ import json
 import stat
 import types
 
+import pytest
+
 from sentinelid_edge.services.security.keychain import Keychain
 
 
@@ -77,6 +79,31 @@ class TestKeychainStorage:
         priv_2, pub_2 = keychain_again.load_or_generate()
         assert priv_2 == priv_1
         assert pub_2 == pub_1
+
+    def test_prod_requires_keychain_unless_override_is_set(self, tmp_path, monkeypatch):
+        monkeypatch.setitem(__import__("sys").modules, "keyring", _failing_keyring_module())
+        monkeypatch.setenv("EDGE_ENV", "prod")
+
+        key_dir = tmp_path / "keys"
+        keychain = Keychain(str(key_dir))
+
+        with pytest.raises(RuntimeError, match="ALLOW_KEYCHAIN_FALLBACK=1"):
+            keychain.load_or_generate()
+
+        assert not (key_dir / "device_keys.json").exists()
+
+    def test_prod_can_use_file_fallback_with_explicit_override(self, tmp_path, monkeypatch):
+        monkeypatch.setitem(__import__("sys").modules, "keyring", _failing_keyring_module())
+        monkeypatch.setenv("EDGE_ENV", "prod")
+        monkeypatch.setenv("ALLOW_KEYCHAIN_FALLBACK", "1")
+
+        key_dir = tmp_path / "keys"
+        key_file = key_dir / "device_keys.json"
+        keychain = Keychain(str(key_dir))
+
+        priv, pub = keychain.load_or_generate()
+        assert priv and pub
+        assert key_file.exists()
 
     def test_clear_keypair_removes_file_fallback(self, tmp_path, monkeypatch):
         monkeypatch.setitem(__import__("sys").modules, "keyring", _failing_keyring_module())

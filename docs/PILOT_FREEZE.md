@@ -1,4 +1,4 @@
-# Pilot Readiness Freeze (v2.3.1 target)
+# Pilot Readiness Freeze (v2.4.0 target)
 
 This checklist is used to mark the pilot-ready tag and archive evidence.
 
@@ -43,4 +43,4 @@ make pilot-evidence
 
 ## Tagging
 
-Only cut `v2.3.1` after evidence artifacts and manual pilot dry-run are complete.
+Only cut `v2.4.0` after evidence artifacts and manual pilot dry-run are complete.

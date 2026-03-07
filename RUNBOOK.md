@@ -1,4 +1,4 @@
-# SentinelID Runbook (v2.3.7)
+# SentinelID Runbook (v2.4.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -34,8 +34,9 @@ Required values:
 - `EDGE_AUTH_TOKEN`
 - `ADMIN_API_TOKEN`
 - `ADMIN_UI_USERNAME`
-- `ADMIN_UI_PASSWORD_HASH` (bcrypt hash for non-Docker runs) or `ADMIN_UI_PASSWORD_HASH_B64` (recommended for Docker Compose)
+- `ADMIN_UI_PASSWORD_HASH` (bcrypt hash for non-Docker runs; keep bcrypt values single-quoted in `.env`) or `ADMIN_UI_PASSWORD_HASH_B64` (recommended for Docker Compose)
 - `ADMIN_UI_SESSION_SECRET`
+- In `EDGE_ENV=prod`, device and master-key initialization require OS keychain access by default. Use `ALLOW_KEYCHAIN_FALLBACK=1` only for controlled debugging when fallback storage is unavoidable.
 
 Optional values:
 
@@ -54,6 +55,10 @@ Optional values:
 - `TELEMETRY_RETENTION_SWEEP_INTERVAL_SECONDS` (default `3600`)
 - `SENTINELID_LOCKOUT_STATE_PATH` (default `.sentinelid/lockout_state.json`)
 - `ADMIN_UI_PASSWORD` (dev/smoke helper for scripted admin login only)
+
+Preflight note:
+
+- `make release-check` now fails when secret values in `.env` contain unescaped `$`. Use single quotes around bcrypt hashes or populate `ADMIN_UI_PASSWORD_HASH_B64` for Docker Compose.
 
 Optional verification fallback toggle (dev only):
 

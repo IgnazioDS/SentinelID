@@ -12,6 +12,27 @@ logger = logging.getLogger(__name__)
 
 _KEYCHAIN_SERVICE = "com.sentinelid.edge"
 _KEYPAIR_ACCOUNT = "device_keypair_v1"
+_FALLBACK_OVERRIDE_ENV = "ALLOW_KEYCHAIN_FALLBACK"
+
+
+def _keychain_fallback_allowed() -> bool:
+    return os.environ.get(_FALLBACK_OVERRIDE_ENV, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _prod_keychain_guard(context: str) -> None:
+    if os.environ.get("EDGE_ENV", "dev").strip().lower() != "prod":
+        return
+    if _keychain_fallback_allowed():
+        logger.warning(
+            "%s is using filesystem fallback in EDGE_ENV=prod because %s is enabled",
+            context,
+            _FALLBACK_OVERRIDE_ENV,
+        )
+        return
+    raise RuntimeError(
+        f"{context} requires OS keychain access when EDGE_ENV=prod. "
+        f"Restore keychain access or set {_FALLBACK_OVERRIDE_ENV}=1 for controlled debugging."
+    )
 
 
 class Keychain:
@@ -35,9 +56,13 @@ class Keychain:
         Returns:
             Tuple of (private_key_pem, public_key_pem)
         """
+        keychain_available = self._os_keychain_available()
         keys = self._load_from_os_keychain()
         if keys is not None:
             return keys
+
+        if not keychain_available:
+            _prod_keychain_guard("Device keypair initialization")
 
         keys = self._load_from_file()
         if keys is not None:
@@ -64,6 +89,7 @@ class Keychain:
         if stored_in_keychain:
             self._delete_file_copy()
         else:
+            _prod_keychain_guard("Device keypair rotation")
             self._store_to_file(keys)
         return keys
 
@@ -109,6 +135,16 @@ class Keychain:
         except Exception as exc:
             logger.debug("OS keychain unavailable for device keypair (%s)", exc)
             return None
+
+    def _os_keychain_available(self) -> bool:
+        try:
+            import keyring
+
+            keyring.get_password(_KEYCHAIN_SERVICE, _KEYPAIR_ACCOUNT)
+            return True
+        except Exception as exc:
+            logger.debug("OS keychain probe failed for device keypair (%s)", exc)
+            return False
 
     def _store_to_os_keychain(self, keys: Tuple[str, str]) -> bool:
         private_key, public_key = keys

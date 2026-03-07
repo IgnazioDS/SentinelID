@@ -123,7 +123,7 @@ if [[ -n "${RELEASE_CHECK_LOG:-}" && -f "${RELEASE_CHECK_LOG}" ]]; then
 fi
 
 cat > "${WORK_DIR}/pilot_checklist.txt" <<'CHECKLIST'
-SentinelID Pilot Readiness Checklist (v2.3.1 target)
+SentinelID Pilot Readiness Checklist (v2.4.0 target)
 
 - [ ] Fresh machine setup from RUNBOOK.md
 - [ ] Docker-first startup (demo-up + admin UI reachability)

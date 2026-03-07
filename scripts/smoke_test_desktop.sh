@@ -35,7 +35,9 @@ if [[ -z "${TOKEN}" ]]; then
 fi
 
 echo "Starting bundled edge launcher: ${LAUNCHER}"
-EDGE_PORT="${PORT}" EDGE_AUTH_TOKEN="${TOKEN}" EDGE_ENV="prod" \
+# CI/smoke runs are an explicit debugging context; permit file-backed key fallback
+# when Linux keyring access is unavailable.
+ALLOW_KEYCHAIN_FALLBACK="1" EDGE_PORT="${PORT}" EDGE_AUTH_TOKEN="${TOKEN}" EDGE_ENV="prod" \
   "${LAUNCHER}" >"${LOG_FILE}" 2>&1 &
 EDGE_PID=$!
 

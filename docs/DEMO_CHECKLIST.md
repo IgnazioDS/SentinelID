@@ -1,4 +1,4 @@
-# SentinelID Demo Checklist (v2.3.7)
+# SentinelID Demo Checklist (v2.4.0)
 
 Target runtime: under 10 minutes for a full manual pass.
 
@@ -10,7 +10,7 @@ Non-interactive verification alternative:
 
 ## Preconditions
 
-- From repo root, `.env` exists and `ADMIN_API_TOKEN` is set.
+- From repo root, `.env` exists, `ADMIN_API_TOKEN` is set, and any bcrypt hash in `ADMIN_UI_PASSWORD_HASH` is single-quoted (or provided via `ADMIN_UI_PASSWORD_HASH_B64`).
 - Docker Desktop (or daemon) is running.
 - Camera device is available.
 

@@ -1,8 +1,10 @@
-# Desktop Packaging
+# Desktop Packaging (v2.4.0)
 
 For environment setup and baseline run commands, use `RUNBOOK.md`.
 
 For presenter-facing scripted walkthrough, use `docs/DEMO_CHECKLIST.md`.
+
+For admin auth configuration, prefer `ADMIN_UI_PASSWORD_HASH_B64` in Docker Compose and keep direct bcrypt hashes single-quoted in `.env` when `ADMIN_UI_PASSWORD_HASH` is used.
 
 ## Purpose
 

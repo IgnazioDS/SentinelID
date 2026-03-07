@@ -70,7 +70,9 @@ for pkg in fastapi uvicorn pydantic sqlalchemy; do
 done
 
 echo "Bundling smoke: start bundled runner on dynamic port ${PORT}"
-EDGE_PORT="${PORT}" EDGE_AUTH_TOKEN="${TOKEN}" EDGE_ENV="prod" \
+# Bundling smoke is a controlled debugging path, so opt into keychain fallback
+# explicitly when the runner has no OS keyring service.
+ALLOW_KEYCHAIN_FALLBACK="1" EDGE_PORT="${PORT}" EDGE_AUTH_TOKEN="${TOKEN}" EDGE_ENV="prod" \
   "${RUNNER}" >"${EDGE_LOG}" 2>&1 &
 EDGE_PID=$!
 

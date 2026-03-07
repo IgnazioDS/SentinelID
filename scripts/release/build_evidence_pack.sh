@@ -10,6 +10,8 @@ WORK_DIR="${EVIDENCE_DIR}/evidence_pack_${STAMP}"
 TARBALL_PATH="${EVIDENCE_DIR}/evidence_pack_${STAMP}.tar.gz"
 
 RELIABILITY_FILE="${ROOT_DIR}/output/ci/reliability_slo.json"
+INVARIANT_FILE="${ROOT_DIR}/output/release/invariant_report_latest.json"
+DESKTOP_WARNING_FILE="${ROOT_DIR}/output/release/desktop_warning_budget_latest.json"
 PERF_DIR="${ROOT_DIR}/scripts/perf/out"
 SUPPORT_DIR="${ROOT_DIR}/scripts/support/out"
 
@@ -17,6 +19,14 @@ mkdir -p "${WORK_DIR}"
 
 if [[ ! -f "${RELIABILITY_FILE}" ]]; then
   echo "Missing reliability report: ${RELIABILITY_FILE}"
+  exit 1
+fi
+if [[ ! -f "${INVARIANT_FILE}" ]]; then
+  echo "Missing invariant report: ${INVARIANT_FILE}"
+  exit 1
+fi
+if [[ ! -f "${DESKTOP_WARNING_FILE}" ]]; then
+  echo "Missing desktop warning budget summary: ${DESKTOP_WARNING_FILE}"
   exit 1
 fi
 
@@ -38,10 +48,12 @@ if [[ -z "${LATEST_SUPPORT}" ]]; then
 fi
 
 cp "${RELIABILITY_FILE}" "${WORK_DIR}/reliability_slo.json"
+cp "${INVARIANT_FILE}" "${WORK_DIR}/invariant_report.json"
+cp "${DESKTOP_WARNING_FILE}" "${WORK_DIR}/desktop_warning_budget.json"
 cp "${LATEST_PERF}" "${WORK_DIR}/bench_edge_latest.json"
 cp "${LATEST_SUPPORT}" "${WORK_DIR}/support_bundle_latest.tar.gz"
 
-python3 - "${WORK_DIR}" "${LATEST_PERF}" "${LATEST_SUPPORT}" <<'PY'
+python3 - "${WORK_DIR}" "${INVARIANT_FILE}" "${DESKTOP_WARNING_FILE}" "${LATEST_PERF}" "${LATEST_SUPPORT}" <<'PY'
 from __future__ import annotations
 
 import json
@@ -51,8 +63,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 work_dir = Path(sys.argv[1])
-latest_perf = Path(sys.argv[2])
-latest_support = Path(sys.argv[3])
+invariant_report = Path(sys.argv[2])
+desktop_warning_budget = Path(sys.argv[3])
+latest_perf = Path(sys.argv[4])
+latest_support = Path(sys.argv[5])
 
 def cmd(*args: str) -> str:
     return subprocess.check_output(args, text=True).strip()
@@ -66,10 +80,14 @@ manifest = {
     },
     "artifacts": {
         "reliability_slo": "reliability_slo.json",
+        "invariant_report": "invariant_report.json",
+        "desktop_warning_budget": "desktop_warning_budget.json",
         "bench_edge_latest": "bench_edge_latest.json",
         "support_bundle_latest": "support_bundle_latest.tar.gz",
     },
     "source_paths": {
+        "invariant_report": str(invariant_report),
+        "desktop_warning_budget": str(desktop_warning_budget),
         "bench_edge_latest": str(latest_perf),
         "support_bundle_latest": str(latest_support),
     },
@@ -83,6 +101,16 @@ manifest = {
             "cloud recovery smoke passes",
             "support bundle sanitization check passes",
             "reliability SLO report generated",
+        ],
+        "runtime_invariants": [
+            "edge/cloud loopback binding enforced",
+            "edge bearer enforcement validated",
+            "cloud admin token enforcement validated",
+            "support bundle endpoint contract validated",
+        ],
+        "desktop_observability": [
+            "desktop cargo warnings captured in diagnostics",
+            "desktop warning-noise budget check passes",
         ],
         "release_integrity": [
             "version consistency check passes",
@@ -101,6 +129,8 @@ Generated: ${STAMP}
 Included files:
 - manifest.json
 - reliability_slo.json
+- invariant_report.json
+- desktop_warning_budget.json
 - bench_edge_latest.json
 - support_bundle_latest.tar.gz
 EOF

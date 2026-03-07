@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "SentinelID",
-    "version": "1.9.0"
+    "version": "2.5.0"
   },
   "tauri": {
     "allowlist": {

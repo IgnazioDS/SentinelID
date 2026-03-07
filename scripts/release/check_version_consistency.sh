@@ -14,19 +14,27 @@ extract_or_fail() {
   echo "${value}"
 }
 
-extract_json_version_or_fail() {
+extract_json_value_or_fail() {
   local label="$1"
   local path="$2"
+  local key_path="$3"
   local value
-  value="$(python3 - "${path}" <<'PY'
+  value="$(python3 - "${path}" "${key_path}" <<'PY'
 import json
 import sys
 
 path = sys.argv[1]
+key_path = sys.argv[2]
 with open(path, "r", encoding="utf-8") as f:
     payload = json.load(f)
-version = payload.get("package", {}).get("version", "")
-print(version if isinstance(version, str) else "")
+current = payload
+for segment in key_path.split("."):
+    if isinstance(current, dict):
+        current = current.get(segment, "")
+    else:
+        current = ""
+        break
+print(current if isinstance(current, str) else "")
 PY
 )"
   extract_or_fail "${label}" "${value}"
@@ -40,8 +48,13 @@ RECOVERY_GUIDE_VERSION="$(extract_or_fail "docs/RECOVERY.md" "$(sed -nE 's/^# Te
 DEMO_CHECKLIST_VERSION="$(extract_or_fail "docs/DEMO_CHECKLIST.md" "$(sed -nE 's/^# SentinelID Demo Checklist \(v([0-9]+\.[0-9]+\.[0-9]+)\).*/\1/p' docs/DEMO_CHECKLIST.md | head -n 1)")"
 PILOT_FREEZE_VERSION="$(extract_or_fail "docs/PILOT_FREEZE.md" "$(sed -nE 's/^# Pilot Readiness Freeze \(v([0-9]+\.[0-9]+\.[0-9]+) target\).*/\1/p' docs/PILOT_FREEZE.md | head -n 1)")"
 MAKE_HELP_VERSION="$(extract_or_fail "Makefile help banner" "$(sed -nE 's/.*SentinelID v([0-9]+\.[0-9]+\.[0-9]+) Commands.*/\1/p' Makefile | head -n 1)")"
-TAURI_PACKAGE_VERSION="$(extract_json_version_or_fail "apps/desktop/src-tauri/tauri.conf.json" "apps/desktop/src-tauri/tauri.conf.json")"
+DESKTOP_PACKAGE_VERSION="$(extract_json_value_or_fail "apps/desktop/package.json" "apps/desktop/package.json" "version")"
+DESKTOP_PACKAGE_LOCK_VERSION="$(extract_json_value_or_fail "apps/desktop/package-lock.json" "apps/desktop/package-lock.json" "version")"
+TAURI_ROOT_VERSION="$(extract_json_value_or_fail "apps/desktop/tauri.conf.json" "apps/desktop/tauri.conf.json" "package.version")"
+TAURI_PACKAGE_VERSION="$(extract_json_value_or_fail "apps/desktop/src-tauri/tauri.conf.json" "apps/desktop/src-tauri/tauri.conf.json" "package.version")"
+TAURI_DEV_VERSION="$(extract_json_value_or_fail "apps/desktop/src-tauri/tauri.dev.conf.json" "apps/desktop/src-tauri/tauri.dev.conf.json" "package.version")"
 CLOUD_APP_VERSION="$(extract_or_fail "apps/cloud/main.py" "$(sed -nE 's/^[[:space:]]*version=\"([0-9]+\.[0-9]+\.[0-9]+)\",/\1/p' apps/cloud/main.py | head -n 1)")"
+PILOT_EVIDENCE_INDEX_VERSION="$(extract_or_fail "scripts/release/build_pilot_evidence_index.sh" "$(sed -nE 's/^SentinelID Pilot Readiness Checklist \(v([0-9]+\.[0-9]+\.[0-9]+) target\).*/\1/p' scripts/release/build_pilot_evidence_index.sh | head -n 1)")"
 
 echo "Detected versions:"
 echo "  changelog=${CHANGELOG_VERSION}"
@@ -52,8 +65,13 @@ echo "  recovery_guide=${RECOVERY_GUIDE_VERSION}"
 echo "  demo_checklist=${DEMO_CHECKLIST_VERSION}"
 echo "  pilot_freeze=${PILOT_FREEZE_VERSION}"
 echo "  make_help=${MAKE_HELP_VERSION}"
+echo "  desktop_package=${DESKTOP_PACKAGE_VERSION}"
+echo "  desktop_package_lock=${DESKTOP_PACKAGE_LOCK_VERSION}"
+echo "  desktop_tauri_root=${TAURI_ROOT_VERSION}"
 echo "  tauri_package=${TAURI_PACKAGE_VERSION}"
+echo "  tauri_dev=${TAURI_DEV_VERSION}"
 echo "  cloud_app=${CLOUD_APP_VERSION}"
+echo "  pilot_evidence_index=${PILOT_EVIDENCE_INDEX_VERSION}"
 
 if [[ "${CHANGELOG_VERSION}" != "${RUNBOOK_VERSION}" ]] \
   || [[ "${CHANGELOG_VERSION}" != "${RELEASE_GUIDE_VERSION}" ]] \
@@ -62,8 +80,13 @@ if [[ "${CHANGELOG_VERSION}" != "${RUNBOOK_VERSION}" ]] \
   || [[ "${CHANGELOG_VERSION}" != "${DEMO_CHECKLIST_VERSION}" ]] \
   || [[ "${CHANGELOG_VERSION}" != "${PILOT_FREEZE_VERSION}" ]] \
   || [[ "${CHANGELOG_VERSION}" != "${MAKE_HELP_VERSION}" ]] \
+  || [[ "${CHANGELOG_VERSION}" != "${DESKTOP_PACKAGE_VERSION}" ]] \
+  || [[ "${CHANGELOG_VERSION}" != "${DESKTOP_PACKAGE_LOCK_VERSION}" ]] \
+  || [[ "${CHANGELOG_VERSION}" != "${TAURI_ROOT_VERSION}" ]] \
   || [[ "${CHANGELOG_VERSION}" != "${TAURI_PACKAGE_VERSION}" ]] \
-  || [[ "${CHANGELOG_VERSION}" != "${CLOUD_APP_VERSION}" ]]; then
+  || [[ "${CHANGELOG_VERSION}" != "${TAURI_DEV_VERSION}" ]] \
+  || [[ "${CHANGELOG_VERSION}" != "${CLOUD_APP_VERSION}" ]] \
+  || [[ "${CHANGELOG_VERSION}" != "${PILOT_EVIDENCE_INDEX_VERSION}" ]]; then
   echo "Version mismatch detected across release-critical docs"
   exit 1
 fi

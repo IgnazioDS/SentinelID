@@ -1,4 +1,4 @@
-# Pilot Readiness Freeze (v2.4.0 target)
+# Pilot Readiness Freeze (v2.5.0 target)
 
 This checklist is used to mark the pilot-ready tag and archive evidence.
 
@@ -15,6 +15,8 @@ make pilot-evidence
 ## Evidence Artifacts
 
 - `output/ci/reliability_slo.json`
+- `output/ci/invariant_report.json`
+- `output/ci/desktop_warning_budget.json`
 - `scripts/perf/out/bench_edge_*.json`
 - `scripts/support/out/support_bundle_*.tar.gz`
 - `output/release/evidence_pack_<timestamp>.tar.gz`
@@ -43,4 +45,4 @@ make pilot-evidence
 
 ## Tagging
 
-Only cut `v2.4.0` after evidence artifacts and manual pilot dry-run are complete.
+Only cut `v2.5.0` after evidence artifacts and manual pilot dry-run are complete.

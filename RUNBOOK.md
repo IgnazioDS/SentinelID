@@ -1,4 +1,4 @@
-# SentinelID Runbook (v2.4.0)
+# SentinelID Runbook (v2.5.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -59,6 +59,7 @@ Optional values:
 Preflight note:
 
 - `make release-check` now fails when secret values in `.env` contain unescaped `$`. Use single quotes around bcrypt hashes or populate `ADMIN_UI_PASSWORD_HASH_B64` for Docker Compose.
+- `make release-check` also writes `output/ci/invariant_report.json` and `output/ci/desktop_warning_budget.json` for release triage. The invariant report should stay fully green; the warning budget summary fails when desktop Rust warnings exceed `DESKTOP_WARNING_BUDGET`.
 
 Optional verification fallback toggle (dev only):
 
@@ -160,7 +161,7 @@ make demo-down
 make demo-down V=1
 ```
 
-## Desktop UX (v1.9.0)
+## Desktop UX (v2.5.0)
 
 Primary tabs in the desktop UI:
 
@@ -249,6 +250,7 @@ make smoke-cloud-recovery
 make smoke-admin
 make smoke-desktop
 make smoke-bundling
+make check-invariants
 make support-bundle
 make check-local-support-bundle
 make release-evidence
@@ -289,6 +291,12 @@ For detailed dependency installer logs during bundling, use:
 
 ```bash
 BUNDLE_VERBOSE=1 make bundle-edge
+```
+
+Desktop warning budget check:
+
+```bash
+make check-desktop-warning-budget
 ```
 
 Bundled local artifact ignored by git:

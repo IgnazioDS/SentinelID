@@ -6,6 +6,7 @@ import os
 import secrets
 import struct
 import tempfile
+import types
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +33,17 @@ from sentinelid_edge.services.security.encryption import (
 def _make_embedding(dim: int = 512) -> bytes:
     """Create a random float32 embedding as bytes."""
     return np.random.rand(dim).astype(np.float32).tobytes()
+
+
+def _failing_keyring_module():
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("keychain unavailable")
+
+    return types.SimpleNamespace(
+        get_password=fail,
+        set_password=fail,
+        delete_password=fail,
+    )
 
 
 @pytest.fixture
@@ -220,3 +232,29 @@ class TestMasterKeyProvider:
         k1 = provider.get_master_key()
         k2 = provider.get_master_key()
         assert k1 is k2  # same object (cached)
+
+    def test_prod_requires_keychain_unless_override_is_set(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("EDGE_ENV", "prod")
+        monkeypatch.setitem(__import__("sys").modules, "keyring", _failing_keyring_module())
+
+        provider = MasterKeyProvider(keychain_dir=str(tmp_path / "keys"))
+        with pytest.raises(RuntimeError, match="ALLOW_KEYCHAIN_FALLBACK=1"):
+            provider.get_master_key()
+
+        assert not (tmp_path / "keys" / "master_key.hex").exists()
+
+    def test_prod_can_use_file_fallback_with_explicit_override(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("EDGE_ENV", "prod")
+        monkeypatch.setenv("ALLOW_KEYCHAIN_FALLBACK", "1")
+        monkeypatch.setitem(__import__("sys").modules, "keyring", _failing_keyring_module())
+
+        key_dir = tmp_path / "keys"
+        provider = MasterKeyProvider(keychain_dir=str(key_dir))
+        key = provider.get_master_key()
+
+        assert len(key) == _KEY_BYTES
+        key_file = key_dir / "master_key.hex"
+        assert key_file.exists()
+
+        provider_again = MasterKeyProvider(keychain_dir=str(key_dir))
+        assert provider_again.get_master_key() == key

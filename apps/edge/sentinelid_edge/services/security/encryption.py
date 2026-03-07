@@ -32,6 +32,27 @@ _SALT_BYTES = 16
 _NONCE_BYTES = 12
 _KEYCHAIN_SERVICE = "com.sentinelid.edge"
 _KEYCHAIN_ACCOUNT = "master_encryption_key"
+_FALLBACK_OVERRIDE_ENV = "ALLOW_KEYCHAIN_FALLBACK"
+
+
+def _keychain_fallback_allowed() -> bool:
+    return os.environ.get(_FALLBACK_OVERRIDE_ENV, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _prod_keychain_guard(context: str) -> None:
+    if os.environ.get("EDGE_ENV", "dev").strip().lower() != "prod":
+        return
+    if _keychain_fallback_allowed():
+        logger.warning(
+            "%s is using non-keychain storage in EDGE_ENV=prod because %s is enabled",
+            context,
+            _FALLBACK_OVERRIDE_ENV,
+        )
+        return
+    raise RuntimeError(
+        f"{context} requires OS keychain access when EDGE_ENV=prod. "
+        f"Restore keychain access or set {_FALLBACK_OVERRIDE_ENV}=1 for controlled debugging."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -55,9 +76,14 @@ class MasterKeyProvider:
         if self._cached_key is not None:
             return self._cached_key
 
+        keychain_available = self._os_keychain_available()
         key = self._load_from_keychain()
         if key is None:
+            if not keychain_available:
+                _prod_keychain_guard("Master key initialization")
             key = self._load_from_env()
+        if key is None:
+            key = self._load_from_file()
         if key is None:
             key = self._generate_and_store()
 
@@ -90,6 +116,16 @@ class MasterKeyProvider:
         except Exception as exc:
             logger.debug("OS keychain unavailable (%s); trying env var", exc)
         return None
+
+    def _os_keychain_available(self) -> bool:
+        try:
+            import keyring
+
+            keyring.get_password(_KEYCHAIN_SERVICE, _KEYCHAIN_ACCOUNT)
+            return True
+        except Exception as exc:
+            logger.debug("OS keychain probe failed (%s)", exc)
+            return False
 
     def _load_from_env(self) -> Optional[bytes]:
         raw = os.environ.get("SENTINELID_MASTER_KEY", "")
@@ -125,6 +161,7 @@ class MasterKeyProvider:
 
         # Fallback: write to a restricted file in the key directory
         if not stored:
+            _prod_keychain_guard("Master key storage")
             import pathlib
             key_dir = pathlib.Path(self._keychain_dir)
             key_dir.mkdir(parents=True, exist_ok=True)

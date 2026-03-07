@@ -180,3 +180,25 @@ def test_cors_allows_tauri_origin_for_authenticated_routes() -> None:
     )
     assert resp.status_code == 200
     assert resp.headers.get("access-control-allow-origin") == "tauri://localhost"
+    assert resp.headers.get("access-control-allow-methods") == "DELETE, GET, POST, PUT"
+    allow_headers = resp.headers.get("access-control-allow-headers", "").lower()
+    for expected in ("authorization", "content-type"):
+        assert expected in allow_headers
+
+
+def test_cors_allows_admin_and_request_id_headers_without_wildcards() -> None:
+    client = TestClient(app)
+    resp = client.options(
+        "/api/v1/admin/outbox/replay-dlq",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type,x-admin-token,x-request-id",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    allow_headers = resp.headers.get("access-control-allow-headers", "").lower()
+    for expected in ("authorization", "content-type", "x-admin-token", "x-request-id"):
+        assert expected in allow_headers

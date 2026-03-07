@@ -2,6 +2,15 @@
 
 All notable changes to SentinelID are documented in this file.
 
+## v2.4.0 (2026-03-07)
+
+### Release Integrity and Runtime Hardening
+- Advanced the SentinelID release line to `v2.4.0` across release docs, recovery/packaging guides, Make help text, desktop package metadata, pilot evidence targets, and cloud API metadata.
+- Extended release version consistency enforcement to cover `docs/PACKAGING.md`, `docs/RECOVERY.md`, `docs/PILOT_FREEZE.md`, and `apps/cloud/main.py` so release assets, operator docs, and reported API metadata cannot drift.
+- Added a `.env` preflight guard to fail `make release-check` when secret values contain unescaped `$`, and updated admin auth guidance to prefer single-quoted bcrypt hashes or `ADMIN_UI_PASSWORD_HASH_B64` for Docker Compose.
+- Hardened edge secret storage so production keypair/master-key initialization now fails clearly when OS keychain access is unavailable, unless `ALLOW_KEYCHAIN_FALLBACK=1` is set for controlled debugging.
+- Restricted edge CORS methods/headers to the explicit desktop/admin client set instead of wildcard allowances, with regression coverage for required preflight headers.
+
 ## v2.3.7 (2026-03-07)
 
 ### Release Metadata and Gate Hardening

@@ -1,7 +1,18 @@
 const DEFAULT_SESSION_TTL_MINUTES = 480;
 
+function stripWrappingQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
 function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  const value = process.env[name] ? stripWrappingQuotes(process.env[name] as string) : '';
   if (!value) {
     throw new Error(`Missing required env var: ${name}`);
   }
@@ -18,12 +29,16 @@ export interface AdminServerConfig {
 }
 
 function resolveAdminUiPasswordHash(): string {
-  const directHash = process.env.ADMIN_UI_PASSWORD_HASH?.trim();
+  const directHash = process.env.ADMIN_UI_PASSWORD_HASH
+    ? stripWrappingQuotes(process.env.ADMIN_UI_PASSWORD_HASH)
+    : '';
   if (directHash) {
     return directHash;
   }
 
-  const encodedHash = process.env.ADMIN_UI_PASSWORD_HASH_B64?.trim();
+  const encodedHash = process.env.ADMIN_UI_PASSWORD_HASH_B64
+    ? stripWrappingQuotes(process.env.ADMIN_UI_PASSWORD_HASH_B64)
+    : '';
   if (!encodedHash) {
     throw new Error(
       'Missing required env var: ADMIN_UI_PASSWORD_HASH (or ADMIN_UI_PASSWORD_HASH_B64).',

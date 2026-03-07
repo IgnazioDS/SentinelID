@@ -1,8 +1,10 @@
-# Telemetry Recovery
+# Telemetry Recovery (v2.4.0)
 
 For environment setup and service startup commands, use `RUNBOOK.md`.
 
 For a full operator pass that includes outage/recovery, use `docs/DEMO_CHECKLIST.md`.
+
+In `EDGE_ENV=prod`, keychain-backed device/master-key storage is required unless `ALLOW_KEYCHAIN_FALLBACK=1` is set for controlled debugging.
 
 ## Scope
 
@@ -114,6 +116,7 @@ rm -rf apps/edge/.sentinelid
 - Do not delete DLQ rows before capturing `last_error` and payload context.
 - Prefer replay after fixing connectivity or schema mismatch root causes.
 - Keep cloud/admin token and URL configuration consistent across `.env` and runtime exports.
+- Keep bcrypt hashes in `.env` single-quoted or use `ADMIN_UI_PASSWORD_HASH_B64` to avoid compose interpolation on `$`.
 - Validate outage recovery end-to-end with:
 
 ```bash

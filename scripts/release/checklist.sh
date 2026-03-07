@@ -154,6 +154,7 @@ run_optional_telemetry_transport_preflight() {
 run_step "edge preflight imports" make check-edge-preflight
 run_step "telemetry transport preflight (optional)" run_optional_telemetry_transport_preflight
 run_step "version consistency" ./scripts/release/check_version_consistency.sh
+run_step "env secret interpolation guard" ./scripts/release/check_env_secret_dollar_escaping.py
 run_step "release tag alignment (optional)" ./scripts/release/check_release_tag_alignment.sh
 run_step "preflight duplicate quarantine" ./scripts/release/quarantine_duplicate_pairs.sh
 run_step "duplicate artifact guard" ./scripts/release/check_no_duplicate_pairs.sh

@@ -1,4 +1,4 @@
-# SentinelID Runbook (v2.5.0)
+# SentinelID Runbook (v2.6.0)
 
 This is the single source of truth for local setup, run, and validation.
 
@@ -9,10 +9,9 @@ This is the single source of truth for local setup, run, and validation.
 - Node.js 18+
 - Rust toolchain (Tauri)
 - Docker + `docker compose`
+- Poetry 1.8.x
 
-## Install Poetry (pipx, PEP 668-safe)
-
-On macOS with Homebrew Python, install Poetry via `pipx`:
+Install Poetry with `pipx` on macOS/Homebrew Python:
 
 ```bash
 brew install pipx
@@ -23,19 +22,44 @@ poetry --version
 
 If `poetry` is not on your PATH yet, restart your shell.
 
+## Getting Started
+
+The deterministic beginner path is:
+
+```bash
+git clone <repo-url>
+cd SentinelID
+make install-dev
+cp .env.example .env
+make demo-up
+make demo-verify
+DEMO_AUTO_CLOSE_SECONDS=30 make demo
+make demo-down
+```
+
+What this does:
+
+- `make install-dev` installs edge, desktop, and admin dependencies from lockfiles.
+- `cp .env.example .env` gives you a dev-safe local config with matching admin credentials (`admin` / `admin123!`) and no manual secret generation.
+- `make demo-up` starts postgres, cloud, and admin and waits for health.
+- `make demo-verify` checks the non-interactive beginner path and is the canonical CI/headless command.
+- `make demo` launches the desktop flow for the interactive walkthrough. Use `DEMO_AUTO_CLOSE_SECONDS` when you want a scripted close.
+- `make demo-down` tears down the stack.
+
+If you only want the non-interactive validation path, stop after `make demo-verify` and run `make demo-down`.
+
 ## Environment
 
 ```bash
 cp .env.example .env
 ```
 
-Required values:
+`.env.example` is intentionally runnable for local development. Copy it as-is unless you are testing a non-default configuration.
 
-- `EDGE_AUTH_TOKEN`
-- `ADMIN_API_TOKEN`
-- `ADMIN_UI_USERNAME`
-- `ADMIN_UI_PASSWORD_HASH` (bcrypt hash for non-Docker runs; keep bcrypt values single-quoted in `.env`) or `ADMIN_UI_PASSWORD_HASH_B64` (recommended for Docker Compose)
-- `ADMIN_UI_SESSION_SECRET`
+Canonical environment names:
+
+- `ADMIN_API_TOKEN` is the source-of-truth admin credential in `.env`, Docker Compose, and docs.
+- `EDGE_AUTH_TOKEN` protects loopback admin/bearer endpoints on edge.
 - In `EDGE_ENV=prod`, device and master-key initialization require OS keychain access by default. Use `ALLOW_KEYCHAIN_FALLBACK=1` only for controlled debugging when fallback storage is unavoidable.
 
 Optional values:
@@ -68,10 +92,10 @@ Optional verification fallback toggle (dev only):
 
 ## Dependency Installation
 
+Use the canonical setup command:
+
 ```bash
-cd apps/edge && poetry install && cd ../..
-cd apps/desktop && npm install && cd ../..
-cd apps/admin && npm install && cd ../..
+make install-dev
 ```
 
 Important:
@@ -112,12 +136,14 @@ alembic revision --autogenerate -m "describe schema change"
 
 If you use local cloud runtime without Docker, run `alembic upgrade head` before starting uvicorn.
 
-## Recommended Local Run (3 Terminals)
+## Advanced Split-Terminal Workflow
 
-Terminal 1: Cloud + Admin (Docker)
+Use this only when you intentionally want the services and desktop in separate shells after the beginner path is already working.
+
+Terminal 1: Cloud + Admin (Docker-first)
 
 ```bash
-docker compose up --build
+make demo-up
 ```
 
 Terminal 2: Edge API (loopback-only)
@@ -161,7 +187,7 @@ make demo-down
 make demo-down V=1
 ```
 
-## Desktop UX (v2.5.0)
+## Desktop UX (v2.6.0)
 
 Primary tabs in the desktop UI:
 
@@ -324,13 +350,13 @@ Mode behavior:
 Distribution smoke:
 
 ```bash
-./scripts/smoke_test_bundling.sh
+make smoke-bundling
 ```
 
-Optional local sanity check for "no Poetry at runtime" path:
+Optional local sanity check for the bundled runtime path:
 
 ```bash
-PATH="/usr/bin:/bin:/usr/sbin:/sbin" SKIP_DESKTOP_BUILD=1 ./scripts/smoke_test_bundling.sh
+SKIP_DESKTOP_BUILD=1 make smoke-bundling
 ```
 
 ## Support Bundle (Sanitized)
@@ -338,8 +364,8 @@ PATH="/usr/bin:/bin:/usr/sbin:/sbin" SKIP_DESKTOP_BUILD=1 ./scripts/smoke_test_b
 Generate a support/debug bundle without raw frames, embeddings, tokens, or signatures:
 
 ```bash
-EDGE_TOKEN="${EDGE_AUTH_TOKEN}" ADMIN_TOKEN="${ADMIN_API_TOKEN}" ./scripts/support_bundle.sh
-./scripts/check_local_support_bundle_sanitization.sh
+EDGE_AUTH_TOKEN="${EDGE_AUTH_TOKEN}" ADMIN_API_TOKEN="${ADMIN_API_TOKEN}" make support-bundle
+make check-local-support-bundle
 ```
 
 Artifact path:

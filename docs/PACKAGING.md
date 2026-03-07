@@ -1,4 +1,4 @@
-# Desktop Packaging (v2.5.0)
+# Desktop Packaging (v2.6.0)
 
 For environment setup and baseline run commands, use `RUNBOOK.md`.
 
@@ -27,23 +27,17 @@ make bundle-edge
 make build-desktop
 ```
 
-Equivalent one-shot script:
-
-```bash
-./scripts/build_and_smoke_desktop.sh
-```
-
 Validation:
 
 ```bash
-./scripts/smoke_test_bundling.sh
-./scripts/smoke_test_desktop.sh
+make smoke-bundling
+make smoke-desktop
 ```
 
 Warning budget triage:
 
 ```bash
-DESKTOP_WARNING_BUDGET=250 ./scripts/ci/check_desktop_warning_budget.py output/ci/logs/desktop_cargo_check.log
+DESKTOP_WARNING_BUDGET=250 make check-desktop-warning-budget
 ```
 
 The parser writes `output/ci/desktop_warning_budget.json` during `make release-check` and surfaces the top warning sources when the budget is exceeded.
@@ -62,7 +56,7 @@ make demo-down
 Distribution smoke verifies the bundled edge runtime directly (without Poetry):
 
 ```bash
-./scripts/smoke_test_bundling.sh
+make smoke-bundling
 ```
 
 What it validates:
@@ -105,7 +99,7 @@ make bundle-edge
 
 ```bash
 apps/desktop/resources/edge/pyvenv_active/bin/python -m uvicorn --version
-./scripts/bundle_edge_venv.sh
+make bundle-edge
 ```
 
 ### Build artifacts need reset

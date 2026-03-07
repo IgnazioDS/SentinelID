@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+import subprocess
+import tempfile
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DOCS_CONSISTENCY_SCRIPT = REPO_ROOT / "scripts" / "release" / "check_docs_consistency.sh"
+FRESH_CLONE_SCRIPT = REPO_ROOT / "scripts" / "check_fresh_clone_bootstrap.sh"
+
+
+def test_docs_root_has_no_phase_markdown_files() -> None:
+    docs_root = REPO_ROOT / "docs"
+    phase_files = sorted(path.name for path in docs_root.glob("phase*.md"))
+    assert phase_files == []
+
+
+def test_docs_consistency_script_passes() -> None:
+    result = subprocess.run(
+        [str(DOCS_CONSISTENCY_SCRIPT)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "Docs consistency check passed" in result.stdout
+
+
+def test_docs_consistency_script_passes_without_rg() -> None:
+    env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}
+    result = subprocess.run(
+        [str(DOCS_CONSISTENCY_SCRIPT)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "Docs consistency check passed" in result.stdout
+
+
+def test_fresh_clone_bootstrap_dry_run_uses_canonical_make_targets() -> None:
+    result = subprocess.run(
+        [str(FRESH_CLONE_SCRIPT), "--dry-run"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert "install lockfile-managed dev dependencies" in result.stdout
+    assert "install-dev" in result.stdout
+    assert "demo-up" in result.stdout
+    assert "demo-verify" in result.stdout
+    assert "demo-down" in result.stdout
+
+
+def test_docs_consistency_requires_full_command_tokens() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        (root / "docs").mkdir()
+        (root / "RUNBOOK.md").write_text(
+            "\n".join(
+                [
+                    "make install-dev",
+                    "make demo-up",
+                    "make demo-verify",
+                    "make demo-up",
+                    "make demo-down",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs" / "RELEASE.md").write_text(
+            "\n".join(
+                [
+                    "make release-check",
+                    "make check-version-consistency",
+                    "make check-docs-consistency",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs" / "PACKAGING.md").write_text(
+            "\n".join(
+                [
+                    "make bundle-edge",
+                    "make build-desktop-web",
+                    "make smoke-bundling",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / "docs" / "RECOVERY.md").write_text(
+            "\n".join(["make smoke-cloud-recovery", "make support-bundle"]),
+            encoding="utf-8",
+        )
+        (root / "docs" / "DEMO_CHECKLIST.md").write_text("make demo-up\n", encoding="utf-8")
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+            "DOCS_CONSISTENCY_ROOT_DIR": str(root),
+            "DOCS_CONSISTENCY_DOCS": "RUNBOOK.md docs/RELEASE.md docs/PACKAGING.md docs/RECOVERY.md docs/DEMO_CHECKLIST.md",
+        }
+        result = subprocess.run(
+            [str(DOCS_CONSISTENCY_SCRIPT)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+        assert result.returncode == 1
+        assert "Missing required docs guidance in RUNBOOK.md: make demo" in result.stdout
+        assert "Missing required docs guidance in docs/PACKAGING.md: make build-desktop" in result.stdout

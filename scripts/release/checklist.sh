@@ -125,12 +125,14 @@ start_local_edge() {
 
   (
     cd apps/edge
-    if command -v poetry >/dev/null 2>&1; then
+    if [[ -x .venv/bin/python ]]; then
+      EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/python -m uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
+    elif command -v poetry >/dev/null 2>&1; then
       EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
     elif [[ -x .venv/bin/poetry ]]; then
       EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host 127.0.0.1 --port 8787 >"${EDGE_LOG}" 2>&1
     else
-      echo "Poetry not found for edge runtime"
+      echo "Edge runtime not found (.venv/bin/python or poetry)"
       exit 1
     fi
   ) &
@@ -243,7 +245,8 @@ run_optional_telemetry_transport_preflight() {
 
 run_step "edge preflight imports" make check-edge-preflight
 run_step "telemetry transport preflight (optional)" run_optional_telemetry_transport_preflight
-run_step "version consistency" ./scripts/release/check_version_consistency.sh
+run_step "version consistency" make check-version-consistency
+run_step "docs consistency" make check-docs-consistency
 run_step "env secret interpolation guard" ./scripts/release/check_env_secret_dollar_escaping.py
 run_step "release tag alignment (optional)" ./scripts/release/check_release_tag_alignment.sh
 run_step "preflight duplicate quarantine" ./scripts/release/quarantine_duplicate_pairs.sh

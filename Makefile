@@ -1,4 +1,5 @@
 .PHONY: help \
+	install-dev \
 	demo-up \
 	demo-desktop \
 	demo-desktop-verify \
@@ -6,9 +7,12 @@
 	demo-verify \
 	demo-down \
 	demo-checklist \
+	check-fresh-clone \
 	check-no-orphans \
 	check-no-duplicates \
 	check-invariants \
+	check-version-consistency \
+	check-docs-consistency \
 	check-release-tag \
 	gen-types \
 	bundle-edge \
@@ -43,7 +47,10 @@
 	clean
 
 help:
-	@echo "SentinelID v2.5.0 Commands"
+	@echo "SentinelID v2.6.0 Commands"
+	@echo ""
+	@echo "Setup"
+	@echo "  make install-dev         Install edge/admin/desktop dev dependencies from lockfiles"
 	@echo ""
 	@echo "Demo"
 	@echo "  make demo-up             Start cloud/admin/postgres and wait for health"
@@ -53,9 +60,12 @@ help:
 	@echo "  make demo-desktop-verify Launch desktop and auto-close (CI-friendly, no Docker)"
 	@echo "  make demo-down           Stop demo stack (use V=1 to remove volumes)"
 	@echo "  make demo-checklist      Print demo checklist path (OPEN=1 to open locally)"
+	@echo "  make check-fresh-clone   Clone current branch to a temp dir and run the beginner path"
 	@echo "  make check-no-orphans    Verify no orphan edge process is running"
 	@echo "  make check-no-duplicates Verify duplicate source artifact pairs are absent"
 	@echo "  make check-invariants    Validate loopback/auth/support-bundle runtime invariants"
+	@echo "  make check-version-consistency Verify release-critical version markers stay aligned"
+	@echo "  make check-docs-consistency Validate canonical docs commands and env names"
 	@echo "  make check-release-tag   Verify RELEASE_EXPECT_TAG points to HEAD"
 	@echo ""
 	@echo "Build"
@@ -96,6 +106,9 @@ help:
 	@echo "Docs"
 	@echo "  RUNBOOK.md is the authoritative run/test path"
 
+install-dev:
+	@./scripts/install_dev.sh
+
 bundle-edge:
 	@./scripts/bundle_edge_venv.sh
 
@@ -125,11 +138,20 @@ demo-checklist:
 		fi; \
 	fi
 
+check-fresh-clone:
+	@./scripts/check_fresh_clone_bootstrap.sh
+
 check-no-orphans:
 	@./scripts/check_no_orphan_edge.sh
 
 check-no-duplicates:
 	@./scripts/release/check_no_duplicate_pairs.sh
+
+check-version-consistency:
+	@./scripts/release/check_version_consistency.sh
+
+check-docs-consistency:
+	@./scripts/release/check_docs_consistency.sh
 
 check-release-tag:
 	@./scripts/release/check_release_tag_alignment.sh

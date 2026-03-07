@@ -26,6 +26,7 @@ CLOUD_URL="${CLOUD_URL:-http://127.0.0.1:8000}"
 CLOUD_INGEST_URL="${CLOUD_INGEST_URL:-${CLOUD_URL}/v1/ingest/events}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-${ADMIN_API_TOKEN:-}}"
 RECOVERY_CLOUD_BIND_HOST="${RECOVERY_CLOUD_BIND_HOST:-0.0.0.0}"
+RECOVERY_EDGE_HEALTH_TIMEOUT_SECONDS="${RECOVERY_EDGE_HEALTH_TIMEOUT_SECONDS:-60}"
 DIAG_DIR="${SMOKE_RECOVERY_DIAG_DIR:-${REPO_ROOT}/output/ci/logs}"
 
 if [[ -z "${EDGE_TOKEN}" ]]; then
@@ -98,7 +99,13 @@ compose_cmd up -d postgres >/dev/null
 echo "[recovery] starting edge with telemetry enabled"
 (
   cd "${REPO_ROOT}/apps/edge"
-  if command -v poetry >/dev/null 2>&1; then
+  if [[ -x .venv/bin/python ]]; then
+    EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 TELEMETRY_ENABLED=true \
+      TELEMETRY_MAX_RETRIES=20 TELEMETRY_BATCH_SIZE=1 TELEMETRY_EXPORT_INTERVAL_SECONDS=0.5 \
+      CLOUD_INGEST_URL="${CLOUD_INGEST_URL}" EDGE_HOST="${EDGE_HOST}" EDGE_PORT="${EDGE_PORT}" \
+      SENTINELID_DB_PATH="${EDGE_DB_PATH}" SENTINELID_KEYCHAIN_DIR="${EDGE_KEYCHAIN_DIR}" \
+      EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/python -m uvicorn sentinelid_edge.main:app --host "${EDGE_HOST}" --port "${EDGE_PORT}" >"${EDGE_LOG}" 2>&1
+  elif command -v poetry >/dev/null 2>&1; then
     EDGE_ENV=dev ALLOW_FALLBACK_EMBEDDINGS=1 TELEMETRY_ENABLED=true \
       TELEMETRY_MAX_RETRIES=20 TELEMETRY_BATCH_SIZE=1 TELEMETRY_EXPORT_INTERVAL_SECONDS=0.5 \
       CLOUD_INGEST_URL="${CLOUD_INGEST_URL}" EDGE_HOST="${EDGE_HOST}" EDGE_PORT="${EDGE_PORT}" \
@@ -111,13 +118,13 @@ echo "[recovery] starting edge with telemetry enabled"
       SENTINELID_DB_PATH="${EDGE_DB_PATH}" SENTINELID_KEYCHAIN_DIR="${EDGE_KEYCHAIN_DIR}" \
       EDGE_AUTH_TOKEN="${EDGE_TOKEN}" .venv/bin/poetry run uvicorn sentinelid_edge.main:app --host "${EDGE_HOST}" --port "${EDGE_PORT}" >"${EDGE_LOG}" 2>&1
   else
-    echo "Poetry not found for edge runtime"
+    echo "Edge runtime not found (.venv/bin/python or poetry)"
     exit 1
   fi
 ) &
 EDGE_PID=$!
 
-for _ in $(seq 1 80); do
+for _ in $(seq 1 $((RECOVERY_EDGE_HEALTH_TIMEOUT_SECONDS * 4))); do
   if curl -fsS "${EDGE_URL}/api/v1/health" >/dev/null 2>&1; then
     break
   fi

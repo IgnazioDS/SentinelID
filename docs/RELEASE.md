@@ -1,4 +1,4 @@
-# Release Guide (v2.5.0)
+# Release Guide (v2.6.0)
 
 ## Scope
 
@@ -15,6 +15,7 @@ make release-check
 `make release-check` is the source-of-truth gate and includes:
 
 - version consistency checks (`CHANGELOG.md`, `RUNBOOK.md`, `docs/RELEASE.md`, `docs/PACKAGING.md`, `docs/RECOVERY.md`, `docs/DEMO_CHECKLIST.md`, `docs/PILOT_FREEZE.md`, Makefile help banner, cloud API metadata)
+- docs consistency checks for canonical commands and environment names
 - `.env` secret interpolation guard for unescaped `$` in secret values
 - desktop package/config version consistency checks (`apps/desktop/package.json`, `apps/desktop/package-lock.json`, `apps/desktop/tauri.conf.json`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/tauri.dev.conf.json`)
 - optional strict tag-to-HEAD alignment (`RELEASE_EXPECT_TAG=vX.Y.Z`)
@@ -85,12 +86,11 @@ When cutting a new release, review/update:
 - `apps/desktop/src-tauri/tauri.conf.json` (`package.version`)
 - `apps/desktop/src-tauri/tauri.dev.conf.json` (`package.version`)
 
-Use `./scripts/release/check_version_consistency.sh` before tagging to enforce alignment.
-
-Use `./scripts/release/check_release_tag_alignment.sh` to enforce that a specific tag points to HEAD:
+Use the canonical Make wrappers before tagging to enforce alignment:
 
 ```bash
-RELEASE_EXPECT_TAG=vX.Y.Z ./scripts/release/check_release_tag_alignment.sh
+make check-version-consistency
+make check-docs-consistency
 RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 ```
 
@@ -111,15 +111,17 @@ RELEASE_EXPECT_TAG=vX.Y.Z make check-release-tag
 
 ```bash
 git switch main
-git pull
+git pull --ff-only
 git switch -c branch/release-vX.Y.Z
 ```
 
 ### 2) Run preflight and push branch
 
 ```bash
+make check-version-consistency
+make check-docs-consistency
+make check-fresh-clone
 make release-check
-RELEASE_EXPECT_TAG=vX.Y.Z make release-check
 git push -u origin branch/release-vX.Y.Z
 ```
 
@@ -130,13 +132,14 @@ git tag -a vX.Y.Z-rc.1 -m "SentinelID vX.Y.Z release candidate 1"
 git push origin vX.Y.Z-rc.1
 ```
 
-### 4) Merge to main (no squash)
+### 4) Open PR and merge to main
 
 ```bash
+gh pr create --base main --head branch/release-vX.Y.Z
+gh pr checks --watch
+gh pr merge --merge --delete-branch
 git switch main
-git pull
-git merge --no-ff branch/release-vX.Y.Z
-git push origin main
+git pull --ff-only
 ```
 
 ### 5) Create stable release tag
@@ -145,6 +148,7 @@ git push origin main
 git tag -a vX.Y.Z -m "SentinelID vX.Y.Z"
 git push origin vX.Y.Z
 git show --no-patch --decorate vX.Y.Z
+RELEASE_EXPECT_TAG=vX.Y.Z make release-check
 ```
 
 ## Required Evidence Artifacts
@@ -179,7 +183,7 @@ Build known-good runbook lock artifact manually:
 make runbook-lock
 ```
 
-## Pilot Readiness Evidence (v2.5.0 target)
+## Pilot Readiness Evidence (v2.6.0 target)
 
 Build pilot evidence index (aggregates latest release evidence, docs snapshot, and checklist):
 

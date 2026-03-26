@@ -19,6 +19,30 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function resolveCloudBaseUrl(): string {
+  const rawValue =
+    process.env.CLOUD_BASE_URL || process.env.NEXT_PUBLIC_CLOUD_BASE_URL || '';
+  const cloudBaseUrl = stripWrappingQuotes(rawValue);
+  if (!cloudBaseUrl) {
+    throw new Error(
+      'Missing required env var: CLOUD_BASE_URL (or NEXT_PUBLIC_CLOUD_BASE_URL fallback).',
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(cloudBaseUrl);
+  } catch {
+    throw new Error('CLOUD_BASE_URL must be an absolute URL.');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('CLOUD_BASE_URL must use http or https.');
+  }
+
+  return parsed.toString().replace(/\/+$/, '');
+}
+
 export interface AdminServerConfig {
   cloudBaseUrl: string;
   adminApiToken: string;
@@ -59,21 +83,13 @@ function resolveAdminUiPasswordHash(): string {
 }
 
 export function getAdminServerConfig(): AdminServerConfig {
-  const cloudBaseUrl =
-    process.env.CLOUD_BASE_URL?.trim() || process.env.NEXT_PUBLIC_CLOUD_BASE_URL?.trim();
-  if (!cloudBaseUrl) {
-    throw new Error(
-      'Admin configuration missing CLOUD_BASE_URL (or NEXT_PUBLIC_CLOUD_BASE_URL fallback).',
-    );
-  }
-
   const ttlRaw = process.env.ADMIN_UI_SESSION_TTL_MINUTES?.trim();
   const parsedTtl = ttlRaw ? Number.parseInt(ttlRaw, 10) : DEFAULT_SESSION_TTL_MINUTES;
   const adminUiSessionTtlMinutes =
     Number.isFinite(parsedTtl) && parsedTtl > 0 ? parsedTtl : DEFAULT_SESSION_TTL_MINUTES;
 
   return {
-    cloudBaseUrl,
+    cloudBaseUrl: resolveCloudBaseUrl(),
     adminApiToken: requireEnv('ADMIN_API_TOKEN'),
     adminUiUsername: requireEnv('ADMIN_UI_USERNAME'),
     adminUiPasswordHash: resolveAdminUiPasswordHash(),

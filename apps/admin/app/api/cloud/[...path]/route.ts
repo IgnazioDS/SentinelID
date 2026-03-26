@@ -3,12 +3,15 @@ import { getAdminServerConfig } from '../../../../lib/server-env';
 import { readSessionFromRequest } from '../../../../lib/session';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
-function configErrorResponse() {
+function configErrorResponse(error: unknown) {
   return Response.json(
     {
       detail:
-        'Admin configuration missing CLOUD_BASE_URL (or NEXT_PUBLIC_CLOUD_BASE_URL fallback). Set it and restart admin.',
+        error instanceof Error
+          ? error.message
+          : 'Admin server configuration is invalid.',
     },
     { status: 500 }
   );
@@ -25,8 +28,8 @@ async function proxyRequest(request: NextRequest, context: { params: { path: str
   let config;
   try {
     config = getAdminServerConfig();
-  } catch {
-    return configErrorResponse();
+  } catch (error) {
+    return configErrorResponse(error);
   }
 
   const session = readSessionFromRequest(request, config.adminUiSessionSecret);

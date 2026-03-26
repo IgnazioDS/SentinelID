@@ -52,6 +52,7 @@ venv/
 *.dylib
 *.dll
 *.exe
+SentinelID_Audit_v*.pdf
 dist/
 build/
 output/
